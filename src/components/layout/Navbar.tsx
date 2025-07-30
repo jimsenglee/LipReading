@@ -1,0 +1,146 @@
+
+import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { User, Settings, LogOut, Video, Menu, X } from 'lucide-react';
+
+interface NavbarProps {
+  onToggleSidebar: () => void;
+  sidebarOpen?: boolean;
+}
+
+const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false }) => {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
+  return (
+    <nav className="bg-white/90 backdrop-blur-md shadow-sm border-b border-primary/10 fixed top-0 left-0 right-0 z-50">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
+        <div className="flex justify-between h-16">
+          <div className="flex items-center space-x-2">
+            {/* Animated Hamburger Menu Button */}
+            <motion.button
+              onClick={onToggleSidebar}
+              className={`p-2.5 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus-visible-primary ${
+                sidebarOpen 
+                  ? 'bg-red-50 hover:bg-red-100 text-red-600' 
+                  : 'hover:bg-primary/10 text-gray-700 hover:text-primary'
+              }`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+            >
+              <AnimatePresence mode="wait">
+                {sidebarOpen ? (
+                  <motion.div
+                    key="close"
+                    initial={{ rotate: -90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: 90, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <X className="h-5 w-5 transition-colors" />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="menu"
+                    initial={{ rotate: 90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: -90, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Menu className="h-5 w-5 transition-colors" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.button>
+            
+            {/* Brand Logo with enhanced animation */}
+            <Link to="/" className="flex items-center space-x-2 group ml-1">
+              <motion.div
+                whileHover={{ rotate: 360, scale: 1.1 }}
+                transition={{ duration: 0.6, type: "spring", stiffness: 200 }}
+              >
+                <Video className="h-8 w-8 text-primary" />
+              </motion.div>
+              <motion.span 
+                className="text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent"
+                whileHover={{ scale: 1.05 }}
+                transition={{ type: "spring", stiffness: 400 }}
+              >
+                LipRead AI
+              </motion.span>
+            </Link>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            {user ? (
+              <>
+                <motion.span 
+                  className="text-sm text-gray-700 hidden sm:block"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  Welcome, {user.name}
+                </motion.span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="relative h-8 w-8 rounded-full hover:scale-110 transition-transform">
+                      <Avatar className="h-8 w-8 border-2 border-primary/20">
+                        <AvatarFallback className="bg-primary/10 text-primary">
+                          {user.name.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56 bg-white/95 backdrop-blur-sm border-primary/20" align="end" forceMount>
+                    <DropdownMenuItem onClick={() => navigate('/profile')} className="hover:bg-primary/10">
+                      <User className="mr-2 h-4 w-4 text-primary" />
+                      <span>Profile</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/settings')} className="hover:bg-primary/10">
+                      <Settings className="mr-2 h-4 w-4 text-primary" />
+                      <span>Settings</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout} className="hover:bg-red-50 text-red-600">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Log out</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Button variant="ghost" onClick={() => navigate('/login')} className="hover:bg-primary/10 hover:text-primary">
+                  Sign In
+                </Button>
+                <Button onClick={() => navigate('/register')} className="bg-primary hover:bg-primary/90">
+                  Sign Up
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+};
+
+export default Navbar;
