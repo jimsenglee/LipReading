@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,9 +24,34 @@ import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import BackButton from '@/components/ui/back-button';
 import { useToast } from '@/hooks/use-toast';
 
+interface Tutorial {
+  id: number;
+  title: string;
+  description: string;
+  duration: string;
+  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+  category: string;
+  instructor: string;
+  rating: number;
+  students: number;
+  thumbnail: string;
+  isBookmarked: boolean;
+  tags: string[];
+  videoUrl?: string;
+  chapters?: Chapter[];
+}
+
+interface Chapter {
+  id: number;
+  title: string;
+  startTime: number;
+  duration: string;
+}
+
 const TutorialPlayer = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const videoRef = useRef<HTMLVideoElement>(null);
   
@@ -38,8 +63,12 @@ const TutorialPlayer = () => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Get tutorial data from navigation state, fallback to mock data
+  const passedTutorial = location.state?.tutorial as Tutorial;
+  const passedBreadcrumbs = location.state?.breadcrumbs;
+
   // Mock tutorial data - in real app, fetch by ID
-  const tutorial = {
+  const defaultTutorial = {
     id: parseInt(id || '1'),
     title: 'Mastering Basic Lip Reading Fundamentals',
     description: 'Learn the essential techniques for reading lips, starting with vowel sounds and basic consonants. This comprehensive tutorial covers the fundamental principles of lip reading.',
@@ -49,6 +78,8 @@ const TutorialPlayer = () => {
     instructor: 'Dr. Sarah Mitchell',
     rating: 4.8,
     students: 1240,
+    thumbnail: 'https://img.youtube.com/vi/Rj0vd6tanaU/maxresdefault.jpg',
+    isBookmarked: false,
     videoUrl: '/api/placeholder/video/tutorial.mp4',
     chapters: [
       { id: 1, title: 'Introduction to Lip Reading', startTime: 0, duration: '5 min' },
@@ -60,12 +91,23 @@ const TutorialPlayer = () => {
     tags: ['vowels', 'consonants', 'basics']
   };
 
-  const breadcrumbItems = [
+  // Use passed tutorial data or fallback to default
+  const tutorial = passedTutorial || defaultTutorial;
+
+  // Use passed breadcrumbs or create default ones
+  const defaultBreadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Education', href: '/education' },
-    { title: 'Tutorial Library', href: '/education/tutorials' },
+    { title: 'Tutorial Library', href: '/education' },
     { title: tutorial.title }
   ];
+  
+  const breadcrumbItems = passedBreadcrumbs || defaultBreadcrumbs;
+
+  // Set bookmark state from tutorial data
+  useEffect(() => {
+    setIsBookmarked(tutorial.isBookmarked || false);
+  }, [tutorial]);
 
   const playbackSpeeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -166,7 +208,7 @@ const TutorialPlayer = () => {
                   onLoadedMetadata={handleLoadedMetadata}
                   poster="/api/placeholder/800/450"
                 >
-                  <source src={tutorial.videoUrl} type="video/mp4" />
+                  <source src={tutorial.videoUrl || '/api/placeholder/video/tutorial.mp4'} type="video/mp4" />
                   Your browser does not support the video tag.
                 </video>
                 
@@ -321,13 +363,13 @@ const TutorialPlayer = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {tutorial.chapters.map((chapter, index) => (
+                {(tutorial.chapters || []).map((chapter, index) => (
                   <motion.div
                     key={chapter.id}
                     whileHover={{ x: 5 }}
                     className={`p-3 rounded-lg border cursor-pointer transition-all ${
                       currentTime >= chapter.startTime && 
-                      (index === tutorial.chapters.length - 1 || currentTime < tutorial.chapters[index + 1].startTime)
+                      (index === (tutorial.chapters || []).length - 1 || currentTime < (tutorial.chapters || [])[index + 1]?.startTime)
                         ? 'border-primary bg-primary/10'
                         : 'border-gray-200 hover:border-primary/50'
                     }`}

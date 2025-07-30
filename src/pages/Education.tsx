@@ -1,466 +1,597 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
-  BookOpen, 
+  Search, 
+  Filter, 
   Play, 
-  Search,
-  Award,
-  Video,
-  FileText,
-  Camera,
-  Filter,
+  Clock, 
+  Bookmark, 
+  BookmarkCheck,
   Star,
+  Users,
+  Grid3X3,
+  List,
+  BookOpen,
+  Award,
   Brain,
   Target,
+  Video,
   BarChart3,
-  Settings
+  X
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
-import VideoCard from '@/components/education/VideoCard';
+import { useToast } from '@/hooks/use-toast';
+
+interface Tutorial {
+  id: number;
+  title: string;
+  description: string;
+  duration: string;
+  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+  category: string;
+  instructor: string;
+  rating: number;
+  students: number;
+  thumbnail: string;
+  isBookmarked: boolean;
+  tags: string[];
+}
 
 const Education = () => {
-  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedLesson, setSelectedLesson] = useState(null);
-
-  // Course data structured like Udemy
-  const courses = [
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [tutorials, setTutorials] = useState<Tutorial[]>([
     {
       id: 1,
-      title: 'Master Basic Vowels',
-      description: 'Learn to recognize and pronounce fundamental vowel sounds (A, E, I, O, U) with clear visual demonstrations',
-      duration: '12 min',
-      difficulty: 'Beginner' as const,
-      completed: true,
-      progress: 100,
-      category: 'Vowels',
-      lessons: 5,
-      thumbnail: '/api/placeholder/300/200'
+      title: 'Mastering Basic Lip Reading Fundamentals',
+      description: 'Learn the essential techniques for reading lips, starting with vowel sounds and basic consonants.',
+      duration: '45 min',
+      difficulty: 'Beginner',
+      category: 'Fundamentals',
+      instructor: 'Dr. Sarah Mitchell',
+      rating: 4.8,
+      students: 1240,
+      thumbnail: 'https://img.youtube.com/vi/Rj0vd6tanaU/maxresdefault.jpg',
+      isBookmarked: true,
+      tags: ['vowels', 'consonants', 'basics']
     },
     {
       id: 2,
-      title: 'Common Consonant Patterns',
-      description: 'Master lip-readable consonant sounds including B, P, M, and their combinations in everyday words',
-      duration: '18 min',
-      difficulty: 'Beginner' as const,
-      completed: true,
-      progress: 100,
-      category: 'Consonants',
-      lessons: 7,
-      thumbnail: '/api/placeholder/300/200'
+      title: 'Advanced Phoneme Recognition',
+      description: 'Deep dive into complex phoneme patterns and improve your accuracy with challenging sound combinations.',
+      duration: '60 min',
+      difficulty: 'Advanced',
+      category: 'Phonemes',
+      instructor: 'Prof. Michael Chen',
+      rating: 4.9,
+      students: 892,
+      thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
+      isBookmarked: false,
+      tags: ['phonemes', 'advanced', 'accuracy']
     },
     {
       id: 3,
-      title: 'Everyday Greetings & Phrases',
-      description: 'Practice common social interactions: hello, goodbye, thank you, and polite conversation starters',
-      duration: '15 min',
-      difficulty: 'Beginner' as const,
-      completed: false,
-      progress: 65,
-      category: 'Phrases',
-      lessons: 6
+      title: 'Everyday Conversation Lip Reading',
+      description: 'Practice with real-world conversation scenarios and common phrases used in daily interactions.',
+      duration: '35 min',
+      difficulty: 'Intermediate',
+      category: 'Conversations',
+      instructor: 'Emma Rodriguez',
+      rating: 4.7,
+      students: 2156,
+      thumbnail: 'https://img.youtube.com/vi/kJQP7kiw5Fk/maxresdefault.jpg',
+      isBookmarked: true,
+      tags: ['conversations', 'daily', 'practical']
     },
     {
       id: 4,
-      title: 'Numbers & Time Recognition',
-      description: 'Learn to read numbers 1-100, time expressions, and common counting patterns through lip-reading',
-      duration: '22 min',
-      difficulty: 'Intermediate' as const,
-      completed: false,
-      progress: 30,
+      title: 'Numbers and Time Expression',
+      description: 'Master reading numbers, dates, times, and mathematical expressions through lip reading.',
+      duration: '25 min',
+      difficulty: 'Beginner',
       category: 'Numbers',
-      lessons: 8
+      instructor: 'David Kim',
+      rating: 4.6,
+      students: 1567,
+      thumbnail: 'https://img.youtube.com/vi/L_jWHffIx5E/maxresdefault.jpg',
+      isBookmarked: false,
+      tags: ['numbers', 'time', 'math']
     },
     {
       id: 5,
-      title: 'Question Words Mastery',
-      description: 'Master the 5 W\'s: What, Where, When, Why, Who - essential for understanding conversations',
-      duration: '20 min',
-      difficulty: 'Intermediate' as const,
-      completed: false,
-      progress: 0,
-      category: 'Questions',
-      lessons: 5,
-      locked: true
+      title: 'Medical Terminology Lip Reading',
+      description: 'Specialized training for understanding medical terms and healthcare communication.',
+      duration: '50 min',
+      difficulty: 'Advanced',
+      category: 'Medical',
+      instructor: 'Dr. Lisa Thompson',
+      rating: 4.8,
+      students: 623,
+      thumbnail: 'https://img.youtube.com/vi/ZbZSe6N_BXs/maxresdefault.jpg',
+      isBookmarked: false,
+      tags: ['medical', 'healthcare', 'terminology']
     },
     {
       id: 6,
-      title: 'Advanced Sentence Structures',
-      description: 'Complex sentence patterns, idioms, and fast-paced conversation lip-reading techniques',
-      duration: '35 min',
-      difficulty: 'Advanced' as const,
-      completed: false,
-      progress: 0,
-      category: 'Advanced',
-      lessons: 12,
-      locked: true
+      title: 'Business Communication Skills',
+      description: 'Professional lip reading skills for meetings, presentations, and workplace interactions.',
+      duration: '40 min',
+      difficulty: 'Intermediate',
+      category: 'Business',
+      instructor: 'Robert Johnson',
+      rating: 4.5,
+      students: 987,
+      thumbnail: 'https://img.youtube.com/vi/fC4HiTdOh9Q/maxresdefault.jpg',
+      isBookmarked: true,
+      tags: ['business', 'meetings', 'professional']
     }
-  ];
+  ]);
 
-  const categories = ['All', 'Vowels', 'Consonants', 'Phrases', 'Numbers', 'Questions', 'Advanced'];
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const filteredCourses = courses.filter(course => {
-    const matchesSearch = course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         course.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'All' || course.category === selectedCategory;
+  const categories = ['All', 'Fundamentals', 'Phonemes', 'Conversations', 'Numbers', 'Medical', 'Business'];
+
+  const filteredTutorials = tutorials.filter(tutorial => {
+    const matchesSearch = tutorial.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         tutorial.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         tutorial.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesCategory = selectedCategory === 'All' || tutorial.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  // Breadcrumb items for Education page
+  const bookmarkedTutorials = tutorials.filter(tutorial => tutorial.isBookmarked);
+
   const breadcrumbItems = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Education' }
   ];
 
-  const handleStartLesson = (courseId: number) => {
-    console.log(`Starting lesson for course ${courseId}`);
-    // Navigate to lesson detail page
+  const toggleBookmark = (tutorialId: number) => {
+    setTutorials(prev => prev.map(tutorial => 
+      tutorial.id === tutorialId 
+        ? { ...tutorial, isBookmarked: !tutorial.isBookmarked }
+        : tutorial
+    ));
+    
+    const tutorial = tutorials.find(t => t.id === tutorialId);
+    if (tutorial) {
+      toast({
+        title: tutorial.isBookmarked ? "Bookmark Removed" : "Tutorial Bookmarked",
+        description: tutorial.isBookmarked 
+          ? `Removed "${tutorial.title}" from bookmarks` 
+          : `Added "${tutorial.title}" to bookmarks`
+      });
+    }
   };
+
+  const watchTutorial = (tutorialId: number) => {
+    const tutorial = tutorials.find(t => t.id === tutorialId);
+    if (tutorial) {
+      // Navigate to tutorial player with tutorial data
+      navigate(`/education/tutorial/${tutorialId}`, { 
+        state: { 
+          tutorial: tutorial,
+          breadcrumbs: [
+            { title: 'Dashboard', href: '/dashboard' },
+            { title: 'Education', href: '/education' },
+            { title: 'Tutorial Library', href: '/education' },
+            { title: tutorial.title }
+          ]
+        } 
+      });
+    }
+  };
+
+  // Calculate stats
+  const totalTutorials = tutorials.length;
+  const completedTutorials = 2; // Mock data
+  const inProgressTutorials = 2; // Mock data
+  const overallProgress = Math.round((completedTutorials / totalTutorials) * 100);
+
+  const TutorialCard = ({ tutorial, isGridView }: { tutorial: Tutorial; isGridView: boolean }) => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -5, scale: 1.02 }}
+      transition={{ duration: 0.3 }}
+    >
+      <Card className={`h-full border-primary/20 hover:border-primary/40 hover:shadow-lg transition-all duration-300 ${
+        isGridView ? 'flex flex-col' : 'flex flex-row'
+      }`}>
+        <div className={`relative ${isGridView ? 'w-full' : 'w-48 flex-shrink-0'}`}>
+          <img 
+            src={tutorial.thumbnail} 
+            alt={tutorial.title}
+            className={`w-full object-cover ${
+              isGridView ? 'h-48 rounded-t-lg' : 'h-full rounded-l-lg'
+            }`}
+          />
+          <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-sm flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {tutorial.duration}
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="absolute top-2 right-2 bg-white/90 hover:bg-white"
+            onClick={() => toggleBookmark(tutorial.id)}
+          >
+            {tutorial.isBookmarked ? (
+              <BookmarkCheck className="h-4 w-4 text-primary" />
+            ) : (
+              <Bookmark className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+        
+        <div className={`p-4 ${isGridView ? 'flex-1' : 'flex-1'}`}>
+          <div className="flex items-start justify-between mb-2">
+            <Badge variant={tutorial.difficulty === 'Beginner' ? 'secondary' : 
+                           tutorial.difficulty === 'Intermediate' ? 'default' : 'destructive'}>
+              {tutorial.difficulty}
+            </Badge>
+            <div className="flex items-center gap-1 text-sm text-yellow-500">
+              <Star className="h-3 w-3 fill-current" />
+              {tutorial.rating}
+            </div>
+          </div>
+          
+          <CardHeader className="p-0 mb-3">
+            <CardTitle className="text-lg leading-tight">{tutorial.title}</CardTitle>
+            <CardDescription className="text-sm">{tutorial.description}</CardDescription>
+          </CardHeader>
+          
+          <div className="space-y-3">
+            <div className="flex items-center gap-4 text-sm text-gray-600">
+              <span>By {tutorial.instructor}</span>
+              <div className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                {tutorial.students.toLocaleString()}
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap gap-1">
+              {tutorial.tags.map(tag => (
+                <Badge key={tag} variant="outline" className="text-xs">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+            
+            <Button 
+              className="w-full bg-primary hover:bg-primary/90"
+              onClick={() => watchTutorial(tutorial.id)}
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Watch Tutorial
+            </Button>
+          </div>
+        </div>
+      </Card>
+    </motion.div>
+  );
 
   return (
     <div className="space-y-6 p-6">
-      {/* Animated Breadcrumbs */}
       <AnimatedBreadcrumb items={breadcrumbItems} />
-
+      
       {/* Header Section */}
       <motion.div 
         className="text-center space-y-4"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
       >
-        <h1 className="text-4xl font-bold text-primary">Lip-Reading Academy</h1>
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+          Lip-Reading Academy
+        </h1>
         <p className="text-xl text-gray-600 max-w-2xl mx-auto">
           Master the art of lip-reading with our comprehensive video courses and interactive practice sessions
         </p>
       </motion.div>
 
-      <Tabs defaultValue="courses" className="w-full">
-        <TabsList className="grid w-full grid-cols-6 bg-primary/10">
-          <TabsTrigger value="quizzes" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <Brain className="h-4 w-4" />
+      {/* Stats Section */}
+      <motion.div 
+        className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+      >
+        <Card className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+          <BookOpen className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+          <p className="text-2xl font-bold text-blue-700">{totalTutorials}</p>
+          <p className="text-sm text-blue-600">Total Courses</p>
+        </Card>
+        <Card className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+          <Award className="h-8 w-8 text-green-600 mx-auto mb-2" />
+          <p className="text-2xl font-bold text-green-700">{completedTutorials}</p>
+          <p className="text-sm text-green-600">Completed</p>
+        </Card>
+        <Card className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+          <Target className="h-8 w-8 text-orange-600 mx-auto mb-2" />
+          <p className="text-2xl font-bold text-orange-700">{inProgressTutorials}</p>
+          <p className="text-sm text-orange-600">In Progress</p>
+        </Card>
+        <Card className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+          <BarChart3 className="h-8 w-8 text-purple-600 mx-auto mb-2" />
+          <p className="text-2xl font-bold text-purple-700">{overallProgress}%</p>
+          <p className="text-sm text-purple-600">Overall Progress</p>
+        </Card>
+      </motion.div>
+
+      {/* Navigation Tabs */}
+      <Tabs defaultValue="tutorial" className="w-full">
+        <TabsList className="h-10 items-center justify-center rounded-md p-1 text-muted-foreground grid w-full grid-cols-4 bg-primary/10">
+          <TabsTrigger value="tutorial" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+            <Video className="h-4 w-4 mr-2" />
+            Tutorial
+          </TabsTrigger>
+          <TabsTrigger value="quizzes" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+            <Brain className="h-4 w-4 mr-2" />
             Quizzes
           </TabsTrigger>
-          <TabsTrigger value="practice" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <Camera className="h-4 w-4" />
+          <TabsTrigger value="practice" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+            <Target className="h-4 w-4 mr-2" />
             Practice
           </TabsTrigger>
-          <TabsTrigger value="progress" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <BarChart3 className="h-4 w-4" />
-            Progress
-          </TabsTrigger>
-          <TabsTrigger value="library" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <Video className="h-4 w-4" />
-            Library
-          </TabsTrigger>
-          <TabsTrigger value="settings" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <Settings className="h-4 w-4" />
-            Settings
+          <TabsTrigger value="bookmarked" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+            <Bookmark className="h-4 w-4 mr-2" />
+            Bookmarked
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="courses" className="space-y-6">
-          {/* Search and Filter Bar */}
-          <motion.div 
-            className="flex flex-col md:flex-row gap-4 items-center justify-between"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search courses..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 border-primary/20 focus:border-primary"
-              />
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-gray-500" />
-              <div className="flex gap-2 flex-wrap">
-                {categories.map((category) => (
-                  <Button
-                    key={category}
-                    variant={selectedCategory === category ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedCategory(category)}
-                    className={`${selectedCategory === category ? 'bg-primary hover:bg-primary/90' : 'border-primary/20 hover:bg-primary/10'}`}
-                  >
-                    {category}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </motion.div>
+        <TabsContent value="tutorial" className="space-y-6">
+          {/* Left Sidebar + Main Content Layout */}
+          <div className="flex gap-6">
+            {/* Left Sidebar - Filter Panel */}
+            <motion.div 
+              className="w-80 space-y-6 flex-shrink-0"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Card className="p-6 sticky top-4">
+                <div className="space-y-6">
+                  {/* Search Bar */}
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-3">Search</h3>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        placeholder="Search tutorials..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 border-primary/20 focus:border-primary"
+                      />
+                    </div>
+                  </div>
 
-          {/* Course Grid */}
+                  {/* Category Filter */}
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-3">Category</h3>
+                    <div className="space-y-2">
+                      {categories.map((category) => (
+                        <Button
+                          key={category}
+                          variant={selectedCategory === category ? "default" : "ghost"}
+                          size="sm"
+                          onClick={() => setSelectedCategory(category)}
+                          className={`w-full justify-start ${
+                            selectedCategory === category 
+                              ? 'bg-primary text-white hover:bg-primary/90' 
+                              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                          }`}
+                        >
+                          {category}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Duration Filter */}
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-3">Duration</h3>
+                    <div className="space-y-2">
+                      {['All Durations', 'Short (< 30 min)', 'Medium (30-60 min)', 'Long (> 60 min)'].map((duration) => (
+                        <Button
+                          key={duration}
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                        >
+                          {duration}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Difficulty Filter */}
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-3">Difficulty</h3>
+                    <div className="space-y-2">
+                      {['All Levels', 'Beginner', 'Intermediate', 'Advanced'].map((level) => (
+                        <Button
+                          key={level}
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                        >
+                          {level}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Progress Filter */}
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-3">Progress</h3>
+                    <div className="space-y-2">
+                      {['All Progress', 'Not Started', 'In Progress', 'Completed'].map((status) => (
+                        <Button
+                          key={status}
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                        >
+                          {status}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Clear Filters Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setSelectedCategory('All');
+                    }}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Clear All Filters
+                  </Button>
+                </div>
+              </Card>
+            </motion.div>
+
+            {/* Main Content Area */}
+            <div className="flex-1 space-y-4">
+              {/* Top Controls */}
+              <motion.div 
+                className="flex items-center justify-between"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">
+                    {filteredTutorials.length} tutorial{filteredTutorials.length !== 1 ? 's' : ''} found
+                  </span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={viewMode === 'grid' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('grid')}
+                  >
+                    <Grid3X3 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={viewMode === 'list' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('list')}
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                </div>
+              </motion.div>
+
+              {/* Tutorial Grid/List */}
+              <motion.div 
+                className={viewMode === 'grid' 
+                  ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6'
+                  : 'space-y-4'
+                }
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+              >
+                {filteredTutorials.map((tutorial) => (
+                  <TutorialCard 
+                    key={tutorial.id} 
+                    tutorial={tutorial} 
+                    isGridView={viewMode === 'grid'} 
+                  />
+                ))}
+              </motion.div>
+
+              {filteredTutorials.length === 0 && (
+                <motion.div 
+                  className="text-center py-12"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  <Search className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-500 mb-2">No tutorials found</h3>
+                  <p className="text-gray-400">
+                    {searchTerm ? `No results for "${searchTerm}"` : 'Try adjusting your filter criteria'}
+                  </p>
+                </motion.div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="quizzes" className="space-y-6">
           <motion.div 
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            className="text-center py-12"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.3, staggerChildren: 0.1 }}
           >
-            {filteredCourses.map((course, index) => (
-              <motion.div
-                key={course.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <VideoCard
-                  {...course}
-                  onStartLesson={() => handleStartLesson(course.id)}
-                />
-              </motion.div>
+            <Brain className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-500 mb-2">Interactive Quizzes</h3>
+            <p className="text-gray-400">Test your lip-reading skills with interactive quizzes</p>
+            <Button className="mt-4" onClick={() => navigate('/education/quizzes')}>
+              Start Quiz
+            </Button>
+          </motion.div>
+        </TabsContent>
+
+        <TabsContent value="practice" className="space-y-6">
+          <motion.div 
+            className="text-center py-12"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <Target className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-500 mb-2">Practice Sessions</h3>
+            <p className="text-gray-400">Improve your skills with guided practice sessions</p>
+            <Button className="mt-4" onClick={() => navigate('/education/practice')}>
+              Start Practice
+            </Button>
+          </motion.div>
+        </TabsContent>
+
+        <TabsContent value="bookmarked" className="space-y-6">
+          <motion.div 
+            className={viewMode === 'grid' 
+              ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+              : 'space-y-4'
+            }
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            {bookmarkedTutorials.map((tutorial) => (
+              <TutorialCard 
+                key={tutorial.id} 
+                tutorial={tutorial} 
+                isGridView={viewMode === 'grid'} 
+              />
             ))}
           </motion.div>
 
-          {filteredCourses.length === 0 && (
+          {bookmarkedTutorials.length === 0 && (
             <motion.div 
               className="text-center py-12"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             >
-              <BookOpen className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-500 mb-2">No courses found</h3>
-              <p className="text-gray-400">Try adjusting your search or filter criteria</p>
+              <Bookmark className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-500 mb-2">No bookmarked tutorials</h3>
+              <p className="text-gray-400">Start bookmarking tutorials to build your personal collection</p>
             </motion.div>
           )}
-        </TabsContent>
-
-        <TabsContent value="quizzes" className="space-y-6">
-          {/* Interactive Quizzes Overview */}
-          <div className="text-center space-y-4">
-            <h2 className="text-2xl font-bold text-primary">Interactive Quizzes</h2>
-            <p className="text-gray-600">Test your lip-reading skills with video-based quizzes</p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="border-primary/20 hover:border-primary/40 transition-all cursor-pointer"
-                  onClick={() => navigate('/education/quizzes')}>
-              <CardContent className="p-6 text-center">
-                <Brain className="h-12 w-12 text-primary mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Take Quiz</h3>
-                <p className="text-gray-600 mb-4">Challenge yourself with interactive video quizzes</p>
-                <Button className="w-full bg-primary hover:bg-primary/90">
-                  Start Quiz
-                </Button>
-              </CardContent>
-            </Card>
-            
-            <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <Target className="h-12 w-12 text-green-600 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Quiz Results</h3>
-                <p className="text-gray-600 mb-4">View your quiz history and performance</p>
-                <div className="text-2xl font-bold text-green-600 mb-2">87%</div>
-                <p className="text-sm text-gray-500">Average Score</p>
-              </CardContent>
-            </Card>
-            
-            <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <Award className="h-12 w-12 text-yellow-600 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Achievements</h3>
-                <p className="text-gray-600 mb-4">Unlock badges and milestones</p>
-                <div className="text-2xl font-bold text-yellow-600 mb-2">5</div>
-                <p className="text-sm text-gray-500">Badges Earned</p>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="practice" className="space-y-6">
-          {/* Real-time Practice Mode Overview */}
-          <div className="text-center space-y-4">
-            <h2 className="text-2xl font-bold text-primary">Real-Time Practice Mode</h2>
-            <p className="text-gray-600">Practice lip formation with live webcam feedback</p>
-          </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border-primary/20 hover:border-primary/40 transition-all cursor-pointer"
-                  onClick={() => navigate('/education/practice')}>
-              <CardContent className="p-6">
-                <div className="text-center space-y-4">
-                  <Camera className="h-16 w-16 mx-auto text-primary" />
-                  <h3 className="text-xl font-semibold">Start Practice</h3>
-                  <p className="text-gray-600">Begin real-time lip reading practice with webcam</p>
-                  <Button className="w-full bg-primary hover:bg-primary/90">
-                    Launch Practice Mode
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="border-primary/20">
-              <CardContent className="p-6">
-                <h3 className="text-xl font-semibold mb-4">Practice Categories</h3>
-                <div className="space-y-3">
-                  {['Basic Words', 'Greetings', 'Numbers', 'Colors', 'Actions'].map((category) => (
-                    <div key={category} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                      <span>{category}</span>
-                      <Badge variant="outline">Available</Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="progress" className="space-y-6">
-          {/* Progress Overview */}
-          <div className="text-center space-y-4">
-            <h2 className="text-2xl font-bold text-primary">Progress & Performance</h2>
-            <p className="text-gray-600">Track your learning journey and achievements</p>
-          </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border-primary/20 hover:border-primary/40 transition-all cursor-pointer"
-                  onClick={() => navigate('/education/progress')}>
-              <CardContent className="p-6">
-                <div className="text-center space-y-4">
-                  <BarChart3 className="h-16 w-16 mx-auto text-primary" />
-                  <h3 className="text-xl font-semibold">View Detailed Progress</h3>
-                  <p className="text-gray-600">Comprehensive analytics and performance tracking</p>
-                  <Button className="w-full bg-primary hover:bg-primary/90">
-                    View Analytics
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="border-primary/20">
-              <CardContent className="p-6">
-                <h3 className="text-xl font-semibold mb-4">Quick Stats</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-3 bg-green-50 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">87%</div>
-                    <div className="text-sm text-gray-600">Avg Score</div>
-                  </div>
-                  <div className="text-center p-3 bg-blue-50 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">12</div>
-                    <div className="text-sm text-gray-600">Completed</div>
-                  </div>
-                  <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                    <div className="text-2xl font-bold text-yellow-600">5</div>
-                    <div className="text-sm text-gray-600">Badges</div>
-                  </div>
-                  <div className="text-center p-3 bg-purple-50 rounded-lg">
-                    <div className="text-2xl font-bold text-purple-600">7</div>
-                    <div className="text-sm text-gray-600">Day Streak</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="library" className="space-y-6">
-          {/* Tutorial Library Overview */}
-          <div className="text-center space-y-4">
-            <h2 className="text-2xl font-bold text-primary">Tutorial Library</h2>
-            <p className="text-gray-600">Browse and watch comprehensive lip-reading tutorials</p>
-          </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border-primary/20 hover:border-primary/40 transition-all cursor-pointer"
-                  onClick={() => navigate('/education/tutorials')}>
-              <CardContent className="p-6">
-                <div className="text-center space-y-4">
-                  <Video className="h-16 w-16 mx-auto text-primary" />
-                  <h3 className="text-xl font-semibold">Browse Tutorials</h3>
-                  <p className="text-gray-600">Access our comprehensive video tutorial library</p>
-                  <Button className="w-full bg-primary hover:bg-primary/90">
-                    Explore Library
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="border-primary/20">
-              <CardContent className="p-6">
-                <h3 className="text-xl font-semibold mb-4">Featured Categories</h3>
-                <div className="space-y-3">
-                  {[
-                    { name: 'Fundamentals', count: 12, difficulty: 'Beginner' },
-                    { name: 'Conversations', count: 8, difficulty: 'Intermediate' },
-                    { name: 'Advanced Techniques', count: 6, difficulty: 'Advanced' }
-                  ].map((category) => (
-                    <div key={category.name} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                      <div>
-                        <span className="font-medium">{category.name}</span>
-                        <div className="text-sm text-gray-500">{category.count} tutorials</div>
-                      </div>
-                      <Badge variant={category.difficulty === 'Beginner' ? 'secondary' : 
-                                    category.difficulty === 'Intermediate' ? 'default' : 'destructive'}>
-                        {category.difficulty}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="settings" className="space-y-6">
-          {/* Settings Overview */}
-          <div className="text-center space-y-4">
-            <h2 className="text-2xl font-bold text-primary">Education Settings</h2>
-            <p className="text-gray-600">Customize your learning experience and notifications</p>
-          </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border-primary/20 hover:border-primary/40 transition-all cursor-pointer"
-                  onClick={() => navigate('/education/notifications')}>
-              <CardContent className="p-6">
-                <div className="text-center space-y-4">
-                  <Settings className="h-16 w-16 mx-auto text-primary" />
-                  <h3 className="text-xl font-semibold">Notification Settings</h3>
-                  <p className="text-gray-600">Manage practice reminders and notifications</p>
-                  <Button className="w-full bg-primary hover:bg-primary/90">
-                    Configure Settings
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="border-primary/20">
-              <CardContent className="p-6">
-                <h3 className="text-xl font-semibold mb-4">Quick Settings</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span>Daily Reminders</span>
-                    <Badge variant="default">Enabled</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Progress Emails</span>
-                    <Badge variant="secondary">Weekly</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Achievement Alerts</span>
-                    <Badge variant="default">Enabled</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Practice Time</span>
-                    <Badge variant="outline">6:00 PM</Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </TabsContent>
       </Tabs>
     </div>

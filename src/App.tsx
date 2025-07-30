@@ -16,7 +16,6 @@ import ForgotPassword from "./pages/auth/ForgotPassword";
 import Dashboard from "./pages/Dashboard";
 import Transcription from "./pages/Transcription";
 import Education from "./pages/Education";
-import TutorialLibrary from "./pages/education/TutorialLibrary";
 import TutorialPlayer from "./pages/education/TutorialPlayer";
 import InteractiveQuizzes from "./pages/education/InteractiveQuizzes";
 import RealTimePractice from "./pages/education/RealTimePractice";
@@ -71,13 +70,6 @@ const App = () => (
               <ProtectedRoute>
                 <DashboardLayout>
                   <Education />
-                </DashboardLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/education/tutorials" element={
-              <ProtectedRoute>
-                <DashboardLayout>
-                  <TutorialLibrary />
                 </DashboardLayout>
               </ProtectedRoute>
             } />
