@@ -60,6 +60,18 @@ const TranscriptionOutput: React.FC<TranscriptionOutputProps> = ({
   const transcriptionRef = useRef<HTMLDivElement>(null);
   const feedbackToast = useFeedbackToast();
 
+  // Get current active segment based on video time
+  const getCurrentSegmentIndex = () => {
+    for (let i = transcriptionSegments.length - 1; i >= 0; i--) {
+      if (currentTime >= transcriptionSegments[i].timestamp) {
+        return i;
+      }
+    }
+    return -1;
+  };
+
+  const currentSegmentIndex = getCurrentSegmentIndex();
+  
   // Convert segments to full text
   const fullTranscriptionText = transcriptionSegments
     .map(segment => segment.text)
@@ -180,7 +192,7 @@ const TranscriptionOutput: React.FC<TranscriptionOutputProps> = ({
   // Download transcription
   const downloadTranscription = (format: 'txt' | 'srt' | 'vtt') => {
     let content = '';
-    let filename = `transcription.${format}`;
+    const filename = `transcription.${format}`;
     let mimeType = 'text/plain';
 
     switch (format) {
@@ -303,11 +315,11 @@ const TranscriptionOutput: React.FC<TranscriptionOutputProps> = ({
               {/* Video Controls */}
               <div className="space-y-3">
                 {/* Progress Bar */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 w-12">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-500 w-12 text-right">
                     {formatTimestamp(currentTime)}
                   </span>
-                  <div className="flex-1">
+                  <div className="flex-1 relative">
                     <input
                       type="range"
                       min="0"
@@ -319,7 +331,14 @@ const TranscriptionOutput: React.FC<TranscriptionOutputProps> = ({
                           videoRef.current.currentTime = time;
                         }
                       }}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer 
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 
+                                [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer
+                                [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-primary 
+                                [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
+                      style={{
+                        background: `linear-gradient(to right, #7E57C2 0%, #7E57C2 ${(currentTime / duration) * 100}%, #e5e7eb ${(currentTime / duration) * 100}%, #e5e7eb 100%)`
+                      }}
                     />
                   </div>
                   <span className="text-xs text-gray-500 w-12">
@@ -363,7 +382,7 @@ const TranscriptionOutput: React.FC<TranscriptionOutputProps> = ({
                         size="sm"
                         variant="ghost"
                         onClick={toggleMute}
-                        className="text-primary"
+                        className="text-primary hover:bg-primary/10"
                       >
                         {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                       </Button>
@@ -374,7 +393,14 @@ const TranscriptionOutput: React.FC<TranscriptionOutputProps> = ({
                         step="0.1"
                         value={isMuted ? 0 : volume}
                         onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-                        className="w-20 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        className="w-20 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer
+                                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 
+                                  [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer
+                                  [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:bg-primary 
+                                  [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
+                        style={{
+                          background: `linear-gradient(to right, #7E57C2 0%, #7E57C2 ${(isMuted ? 0 : volume) * 100}%, #e5e7eb ${(isMuted ? 0 : volume) * 100}%, #e5e7eb 100%)`
+                        }}
                       />
                     </div>
                   </div>
@@ -507,28 +533,32 @@ const TranscriptionOutput: React.FC<TranscriptionOutputProps> = ({
                   transcriptionSegments.map((segment, index) => (
                     <div
                       key={index}
-                      className="group p-4 border border-primary/10 rounded-lg hover:bg-primary/5 transition-colors"
+                      className={`group p-4 border rounded-lg transition-all duration-200 ${
+                        index === currentSegmentIndex
+                          ? 'border-primary bg-primary/10 shadow-md'
+                          : 'border-primary/10 hover:bg-primary/5'
+                      }`}
                     >
                       <div className="flex items-start gap-3">
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => seekToTimestamp(segment.timestamp)}
-                          className="text-primary hover:bg-primary/10 shrink-0"
+                          className={`shrink-0 transition-colors ${
+                            index === currentSegmentIndex
+                              ? 'text-primary bg-primary/20 hover:bg-primary/30'
+                              : 'text-primary hover:bg-primary/10'
+                          }`}
                         >
                           <Clock className="h-3 w-3 mr-1" />
                           {formatTimestamp(segment.timestamp)}
                         </Button>
                         <div className="flex-1">
-                          <p className="text-gray-800 leading-relaxed">{segment.text}</p>
-                          {segment.confidence && (
-                            <div className="flex items-center gap-2 mt-2">
-                              <Target className="h-3 w-3 text-gray-400" />
-                              <span className="text-xs text-gray-500">
-                                Confidence: {segment.confidence}%
-                              </span>
-                            </div>
-                          )}
+                          <p className={`leading-relaxed transition-colors ${
+                            index === currentSegmentIndex ? 'text-gray-900 font-medium' : 'text-gray-800'
+                          }`}>
+                            {segment.text}
+                          </p>
                         </div>
                       </div>
                     </div>

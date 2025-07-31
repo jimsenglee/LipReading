@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -32,6 +33,7 @@ const VideoUploadZone: React.FC<VideoUploadZoneProps> = ({ onTranscriptionComple
   const [videoFiles, setVideoFiles] = useState<VideoFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const feedbackToast = useFeedbackToast();
+  const navigate = useNavigate();
 
   // File validation constants (moved outside to prevent re-creation)
   const MAX_FILE_SIZE = useMemo(() => 100 * 1024 * 1024, []); // 100MB
@@ -150,6 +152,13 @@ const VideoUploadZone: React.FC<VideoUploadZoneProps> = ({ onTranscriptionComple
     });
   }, [processVideoFile, validateFile]);
 
+  // View completed transcription
+  const viewTranscription = (fileId: string) => {
+    // In a real app, this would use the actual transcription ID
+    // For now, we'll use the mock ID from TranscriptionResult page
+    navigate('/transcription-result/1');
+  };
+
   // Remove file from queue
   const removeFile = (fileId: string) => {
     setVideoFiles(prev => prev.filter(f => f.id !== fileId));
@@ -206,7 +215,7 @@ const VideoUploadZone: React.FC<VideoUploadZoneProps> = ({ onTranscriptionComple
       case 'analyzing':
         return `Analyzing ${file.progress}%`;
       case 'complete':
-        return `Complete (${file.confidence}% confidence)`;
+        return `Complete`;
       case 'error':
         return file.error || 'Error';
       default:
@@ -326,10 +335,11 @@ const VideoUploadZone: React.FC<VideoUploadZoneProps> = ({ onTranscriptionComple
                       <Button
                         size="sm"
                         variant="outline"
+                        onClick={() => viewTranscription(videoFile.id)}
                         className="border-primary/20 text-primary hover:bg-primary/10"
                       >
                         <Eye className="h-3 w-3 mr-1" />
-                        View
+                        View Result
                       </Button>
                     )}
                     

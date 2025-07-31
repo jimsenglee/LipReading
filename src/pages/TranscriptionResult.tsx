@@ -34,20 +34,13 @@ interface TranscriptionRecord {
   type: 'realtime' | 'upload';
 }
 
-const TranscriptionResult = () => {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const [transcription, setTranscription] = useState<TranscriptionRecord | null>(null);
-  const [loading, setLoading] = useState(true);
-  const feedbackToast = useFeedbackToast();
-
-  // Mock data - in real app, this would fetch from API
-  const mockTranscriptions: TranscriptionRecord[] = [
-    {
-      id: '1',
-      fileName: 'presentation_video.mp4',
-      videoSrc: '/placeholder.mp4', // Mock video source
-      transcriptionSegments: [
+// Mock data moved outside component to prevent re-creation
+const mockTranscriptions: TranscriptionRecord[] = [
+  {
+    id: '1',
+    fileName: 'presentation_video.mp4',
+    videoSrc: '/placeholder.mp4', // Mock video source
+    transcriptionSegments: [
         {
           timestamp: 0,
           text: "Welcome everyone to today's presentation on artificial intelligence and machine learning.",
@@ -106,6 +99,13 @@ const TranscriptionResult = () => {
     }
   ];
 
+const TranscriptionResult = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [transcription, setTranscription] = useState<TranscriptionRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const feedbackToast = useFeedbackToast();
+
   const breadcrumbItems = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Transcription', href: '/transcription' },
@@ -114,31 +114,16 @@ const TranscriptionResult = () => {
   ];
 
   useEffect(() => {
-    // Simulate API call
-    const fetchTranscription = async () => {
-      setLoading(true);
-      
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const found = mockTranscriptions.find(t => t.id === id);
-      if (found) {
-        setTranscription(found);
-      } else {
-        feedbackToast.error(
-          "Transcription Not Found",
-          "The requested transcription could not be found."
-        );
-        navigate('/transcription-history');
-      }
-      
-      setLoading(false);
-    };
-
-    if (id) {
-      fetchTranscription();
+    // Frontend-only: Direct data loading without API simulation
+    const found = mockTranscriptions.find(t => t.id === id);
+    if (found) {
+      setTranscription(found);
+    } else {
+      // For frontend demo, always show the first transcription if ID not found
+      setTranscription(mockTranscriptions[0]);
     }
-  }, [id, navigate, feedbackToast]);
+    setLoading(false);
+  }, [id]);
 
   const handleTranscriptionUpdate = (segments: TranscriptionSegment[]) => {
     if (transcription) {
@@ -264,14 +249,6 @@ const TranscriptionResult = () => {
               <div>
                 <p className="text-sm text-gray-600">Duration</p>
                 <p className="font-medium">{formatDuration(transcription.duration)}</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-gray-400" />
-              <div>
-                <p className="text-sm text-gray-600">Confidence</p>
-                <p className="font-medium">{transcription.overallConfidence}%</p>
               </div>
             </div>
             

@@ -10,7 +10,6 @@ import {
   Play, 
   Pause, 
   Square,
-  Settings,
   Eye,
   Target,
   Activity,
@@ -33,7 +32,6 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
   const [status, setStatus] = useState<TranscriptionStatus>('inactive');
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
   const [transcriptionText, setTranscriptionText] = useState('');
-  const [confidenceScore, setConfidenceScore] = useState(0);
   const [sessionTime, setSessionTime] = useState(0);
   const [streamError, setStreamError] = useState<string | null>(null);
   
@@ -50,7 +48,7 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
     "This is a demonstration of real-time transcription.",
     "Please speak clearly and face the camera directly.",
     "The system is analyzing your lip movements.",
-    "Your confidence score is improving with practice.",
+    "The transcription is working smoothly.",
     "Try speaking at a moderate pace for best results."
   ];
 
@@ -94,7 +92,6 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
         if (wordIndex < words.length) {
           currentText += (currentText ? ' ' : '') + words[wordIndex];
           setTranscriptionText(currentText);
-          setConfidenceScore(Math.floor(Math.random() * 20) + 80); // 80-100%
           onTranscriptionUpdate?.(currentText);
           wordIndex++;
         } else {
@@ -149,16 +146,17 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
         "Lip reading session is now active"
       );
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       setStatus('error');
-      setStreamError(error.message);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setStreamError(errorMessage);
       
-      if (error.name === 'NotAllowedError') {
+      if (error instanceof Error && error.name === 'NotAllowedError') {
         feedbackToast.error(
           "Camera Access Denied",
           "Webcam access is required for real-time transcription. Please allow access in your browser settings."
         );
-      } else if (error.name === 'NotFoundError') {
+      } else if (error instanceof Error && error.name === 'NotFoundError') {
         feedbackToast.error(
           "No Webcam Found",
           "No webcam detected. Please connect a camera and try again."
@@ -322,14 +320,6 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
                   </div>
                 </div>
               )}
-              
-              {/* Confidence Score */}
-              {status === 'active' && confidenceScore > 0 && (
-                <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1 rounded-lg">
-                  <div className="text-xs">Confidence</div>
-                  <div className="text-lg font-bold">{confidenceScore}%</div>
-                </div>
-              )}
             </div>
             
             {/* Controls */}
@@ -385,14 +375,6 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
                   </Button>
                 </>
               ) : null}
-              
-              <Button 
-                variant="outline" 
-                className="border-primary/20 text-primary hover:bg-primary/10"
-                size="lg"
-              >
-                <Settings className="h-5 w-5" />
-              </Button>
             </div>
           </CardContent>
         </Card>
@@ -422,16 +404,6 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
                   </p>
                 )}
               </div>
-              
-              {confidenceScore > 0 && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Overall Confidence</span>
-                    <span>{confidenceScore}%</span>
-                  </div>
-                  <Progress value={confidenceScore} className="h-2" />
-                </div>
-              )}
               
               {transcriptionText && (
                 <div className="flex gap-2">
@@ -473,11 +445,6 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
               <div className="flex justify-between text-sm">
                 <span>Words Detected</span>
                 <span className="font-medium">{transcriptionText.split(' ').length}</span>
-              </div>
-              
-              <div className="flex justify-between text-sm">
-                <span>Avg. Confidence</span>
-                <span className="font-medium">{confidenceScore}%</span>
               </div>
               
               <div className="flex justify-between text-sm">
