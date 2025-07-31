@@ -21,6 +21,8 @@ import TutorialPlayer from "./pages/education/TutorialPlayer";
 import SeriesDetailPage from "./pages/education/SeriesDetailPage";
 import VideoPlayerPage from "./pages/education/VideoPlayerPage";
 import InteractiveQuizzes from "./pages/education/InteractiveQuizzes";
+import QuizSeriesDetailPage from "./pages/education/QuizSeriesDetailPage";
+import QuizTakingPage from "./pages/education/QuizTakingPage";
 import RealTimePractice from "./pages/education/RealTimePractice";
 import Reports from "./pages/Reports";
 import QuizResult from "./pages/QuizResult";
@@ -101,6 +103,20 @@ const App = () => (
               <ProtectedRoute>
                 <DashboardLayout>
                   <InteractiveQuizzes />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/education/quiz/:seriesId" element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <QuizSeriesDetailPage />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/education/quiz/:seriesId/take" element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <QuizTakingPage />
                 </DashboardLayout>
               </ProtectedRoute>
             } />

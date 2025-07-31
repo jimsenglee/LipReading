@@ -22,7 +22,8 @@ import {
   Video,
   BarChart3,
   X,
-  CheckCircle
+  CheckCircle,
+  ArrowRight
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -37,9 +38,12 @@ import NoResultsState from '@/components/education/NoResultsState';
 import SortDropdown, { SortOption } from '@/components/education/SortDropdown';
 import TutorialCard from '@/components/education/TutorialCard';
 import TutorialSeriesCard from '@/components/education/TutorialSeriesCard';
+import QuizSeriesCard from '@/components/education/QuizSeriesCard';
 
 // Import tutorial series data
 import { mockTutorialSeries, mockUserProgress } from '@/data/tutorialSeries';
+// Import quiz series data
+import { mockQuizSeries, mockUserQuizProgress } from '@/data/quizSeries';
 
 interface Tutorial {
   id: number;
@@ -386,7 +390,96 @@ const Education = () => {
     return filtered;
   }, [filters, sortBy]);
 
-  // Pagination logic for series
+  // Enhanced filtering and sorting for quiz series  
+  const filteredAndSortedQuizSeries = useMemo(() => {
+    let filtered = [...mockQuizSeries];
+
+    // Search filter
+    if (filters.searchTerm) {
+      const searchLower = filters.searchTerm.toLowerCase();
+      filtered = filtered.filter(series => 
+        series.title.toLowerCase().includes(searchLower) ||
+        series.description.toLowerCase().includes(searchLower) ||
+        series.category.toLowerCase().includes(searchLower) ||
+        series.difficulty.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Category filter
+    if (filters.selectedCategories.length > 0) {
+      filtered = filtered.filter(series =>
+        filters.selectedCategories.some(category => 
+          series.category.toLowerCase().includes(category.toLowerCase()) ||
+          series.difficulty.toLowerCase() === category.toLowerCase()
+        )
+      );
+    }
+
+    // Difficulty filter
+    if (filters.selectedDifficulties.length > 0) {
+      filtered = filtered.filter(series =>
+        filters.selectedDifficulties.some(difficulty =>
+          series.difficulty.toLowerCase() === difficulty.toLowerCase()
+        )
+      );
+    }
+
+    // Duration filter - using totalQuestions as proxy for duration
+    if (filters.selectedDurations.length > 0) {
+      filtered = filtered.filter(series => {
+        return filters.selectedDurations.some(duration => {
+          if (duration === 'Short (< 30 min)') return series.totalQuestions <= 10;
+          if (duration === 'Medium (30-60 min)') return series.totalQuestions > 10 && series.totalQuestions <= 20;
+          if (duration === 'Long (> 60 min)') return series.totalQuestions > 20;
+          return true;
+        });
+      });
+    }
+
+    // Progress filter
+    if (filters.selectedProgress.length > 0) {
+      filtered = filtered.filter(series => {
+        const userProgress = mockUserQuizProgress[series.id];
+        const status = userProgress ? 
+          (userProgress.completedQuestions.length === 0 ? 'Not Started' : 
+           userProgress.completedQuestions.length < series.totalQuestions ? 'In Progress' : 'Completed') : 
+          'Not Started';
+        
+        return filters.selectedProgress.includes(status);
+      });
+    }
+
+    // Sorting logic
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'newest':
+          return b.id.localeCompare(a.id);
+        case 'most-viewed':
+          return b.rating.totalReviews - a.rating.totalReviews;
+        case 'title-az':
+          return a.title.localeCompare(b.title);
+        case 'title-za':
+          return b.title.localeCompare(a.title);
+        case 'rating':
+          return b.rating.average - a.rating.average;
+        case 'duration':
+          return a.totalQuestions - b.totalQuestions;
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [filters, sortBy]);
+
+  // Pagination logic for quiz series
+  const paginatedQuizSeries = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredAndSortedQuizSeries.slice(startIndex, endIndex);
+  }, [filteredAndSortedQuizSeries, currentPage, itemsPerPage]);
+
+  // Pagination logic for tutorial series
   const paginatedSeries = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
@@ -673,20 +766,233 @@ const Education = () => {
         </TabsContent>
 
         <TabsContent value="quizzes" className="space-y-6">
-          <motion.div 
-            className="text-center py-12"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-          >
-            <Brain className="h-16 w-16 text-primary mx-auto mb-6" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Interactive Quizzes</h2>
-            <p className="text-gray-600 mb-6">Test your lip reading skills with interactive quizzes</p>
-            <Button className="mt-4" onClick={() => navigate('/education/quizzes')}>
-              <Play className="h-4 w-4 mr-2" />
-              Start Quiz
-            </Button>
-          </motion.div>
+          <div className="flex gap-6">
+            {/* Sidebar - Filter Panel */}
+            <div className="hidden lg:block w-80 flex-shrink-0">
+              <div className="sticky top-4">
+                <FilterPanel
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                />
+              </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-1 min-w-0">
+              {/* Quiz Series Header */}
+              <motion.div 
+                className="text-center space-y-4 mb-8"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className="space-y-2">
+                  <h2 className="text-3xl font-bold text-gray-900">Interactive Quiz Series</h2>
+                  <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                    Test and improve your lip reading skills with comprehensive quiz series designed for progressive learning
+                  </p>
+                </div>
+                
+                {/* Stats Overview */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto mt-8">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">{mockQuizSeries.length}</div>
+                    <div className="text-sm text-gray-600">Quiz Series</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">
+                      {mockQuizSeries.reduce((sum, series) => sum + series.totalQuestions, 0)}
+                    </div>
+                    <div className="text-sm text-gray-600">Total Questions</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">3</div>
+                    <div className="text-sm text-gray-600">Difficulty Levels</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">
+                      {(mockQuizSeries.reduce((sum, series) => sum + series.rating.average, 0) / mockQuizSeries.length).toFixed(1)}
+                    </div>
+                    <div className="text-sm text-gray-600">Avg Rating</div>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Mobile Filter Toggle & Controls */}
+              <div className="lg:hidden mb-6">
+                <div className="flex flex-col space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">Quiz Series</h3>
+                    <SortDropdown 
+                      value={sortBy} 
+                      onValueChange={setSortBy} 
+                    />
+                  </div>
+                  
+                  {/* Mobile Search */}
+                  <Input
+                    type="text"
+                    placeholder="Search quiz series..."
+                    value={filters.searchTerm}
+                    onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
+                    className="w-full"
+                  />
+                  
+                  {/* Quick Category Buttons for Mobile */}
+                  <div className="flex flex-wrap gap-2">
+                    {['Fundamentals', 'Phonemes', 'Conversations'].map((category) => (
+                      <Button
+                        key={category}
+                        variant={filters.selectedCategories.includes(category) ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => {
+                          const newCategories = filters.selectedCategories.includes(category)
+                            ? filters.selectedCategories.filter(c => c !== category)
+                            : [...filters.selectedCategories, category];
+                          setFilters(prev => ({ ...prev, selectedCategories: newCategories }));
+                        }}
+                      >
+                        {category}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Desktop Controls Bar */}
+              <div className="hidden lg:flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-4">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {filteredAndSortedQuizSeries.length} quiz series found
+                  </span>
+                  
+                  {/* Active Filters */}
+                  {(filters.searchTerm || filters.selectedCategories.length > 0 || filters.selectedDifficulties.length > 0 || filters.selectedDurations.length > 0) && (
+                    <div className="flex flex-wrap gap-2">
+                      {filters.searchTerm && (
+                        <Badge variant="secondary" className="flex items-center gap-1">
+                          <Search className="h-3 w-3" />
+                          "{filters.searchTerm}"
+                          <button
+                            onClick={() => setFilters(prev => ({ ...prev, searchTerm: '' }))}
+                            className="ml-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full p-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      )}
+                      {filters.selectedCategories.map(category => (
+                        <Badge key={category} variant="secondary" className="flex items-center gap-1">
+                          Category: {category}
+                          <button
+                            onClick={() => setFilters(prev => ({ 
+                              ...prev, 
+                              selectedCategories: prev.selectedCategories.filter(c => c !== category) 
+                            }))}
+                            className="ml-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full p-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                      {filters.selectedDifficulties.map(difficulty => (
+                        <Badge key={difficulty} variant="secondary" className="flex items-center gap-1">
+                          Level: {difficulty}
+                          <button
+                            onClick={() => setFilters(prev => ({ 
+                              ...prev, 
+                              selectedDifficulties: prev.selectedDifficulties.filter(d => d !== difficulty) 
+                            }))}
+                            className="ml-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full p-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                      <button
+                        onClick={() => setFilters({
+                          searchTerm: '',
+                          selectedCategories: [],
+                          selectedDifficulties: [],
+                          selectedDurations: [],
+                          selectedProgress: []
+                        })}
+                        className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
+                      >
+                        Clear all
+                      </button>
+                    </div>
+                  )}
+                </div>
+                
+                <SortDropdown 
+                  value={sortBy} 
+                  onValueChange={setSortBy} 
+                />
+              </div>
+
+              {/* Quiz Series Content */}
+              {filteredAndSortedQuizSeries.length === 0 ? (
+                <div className="text-center py-16">
+                  <div className="mx-auto max-w-md">
+                    <Brain className="mx-auto h-16 w-16 text-gray-400 mb-6" />
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                      No quiz series found
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-6">
+                      We couldn't find any quiz series matching your current filters. Try adjusting your search criteria.
+                    </p>
+                    <button
+                      onClick={() => setFilters({
+                        searchTerm: '',
+                        selectedCategories: [],
+                        selectedDifficulties: [],
+                        selectedDurations: [],
+                        selectedProgress: []
+                      })}
+                      className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    >
+                      Clear all filters
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Quiz Series Grid */}
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {paginatedQuizSeries.map((series, index) => (
+                        <QuizSeriesCard
+                          key={series.id}
+                          series={series}
+                          progress={mockUserQuizProgress[series.id]}
+                          onClick={(series) => navigate(`/education/quiz/${series.id}`)}
+                          index={index}
+                        />
+                      ))}
+                    </div>
+                  </motion.div>
+
+                  {/* Pagination */}
+                  {Math.ceil(filteredAndSortedQuizSeries.length / itemsPerPage) > 1 && (
+                    <div className="mt-12 flex justify-center">
+                      <EducationPagination
+                        currentPage={currentPage}
+                        totalPages={Math.ceil(filteredAndSortedQuizSeries.length / itemsPerPage)}
+                        totalItems={filteredAndSortedQuizSeries.length}
+                        itemsPerPage={itemsPerPage}
+                        onPageChange={setCurrentPage}
+                        itemName="quiz series"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="practice" className="space-y-6">

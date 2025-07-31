@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,21 +13,33 @@ import {
   Target, 
   Award,
   BarChart3,
-  BookOpen
+  BookOpen,
+  Trophy,
+  TrendingUp
 } from 'lucide-react';
 
 const QuizResult = () => {
   const { quizId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Get quiz results from navigation state or fallback to mock data
+  const quizResultState = location.state;
 
   const breadcrumbItems = [
     { title: 'Dashboard', href: '/dashboard' },
-    { title: 'My Progress', href: '/reports' },
+    { title: 'Education', href: '/education' },
     { title: 'Quiz Result' }
   ];
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   // Mock quiz data - in real app, fetch based on quizId
-  const quizData = {
+  const mockQuizData = {
     'quiz-001': {
       id: 'quiz-001',
       quizName: 'Advanced Vowel Patterns',
@@ -49,56 +61,45 @@ const QuizResult = () => {
         { question: 'Sound in "could"', userAnswer: 'Short U', correctAnswer: 'UH sound', isCorrect: false, explanation: 'In "could", the "ou" makes an UH sound, not a short U.' },
         { question: 'Vowel in "height"', userAnswer: 'Long A', correctAnswer: 'Long I', isCorrect: false, explanation: 'The "eigh" pattern in "height" makes a long I sound, not long A.' }
       ]
-    },
-    'quiz-002': {
-      id: 'quiz-002',
-      quizName: 'Complex Consonants',
-      category: 'Consonant Blends',
-      score: 88,
-      completedDate: new Date('2025-01-22'),
-      duration: '12:30',
-      totalQuestions: 10,
-      correctAnswers: 9,
-      questions: [
-        { question: 'Sound of "ch" in "school"', userAnswer: 'K sound', correctAnswer: 'K sound', isCorrect: true, explanation: 'In "school", "ch" makes a K sound.' },
-        { question: 'Pronunciation of "ph"', userAnswer: 'F sound', correctAnswer: 'F sound', isCorrect: true, explanation: 'The "ph" combination always makes an F sound.' },
-        { question: 'Sound of "th" in "think"', userAnswer: 'Voiceless TH', correctAnswer: 'Voiceless TH', isCorrect: true, explanation: 'In "think", "th" is voiceless (like a hiss).' },
-        { question: 'Sound of "gh" in "laugh"', userAnswer: 'F sound', correctAnswer: 'F sound', isCorrect: true, explanation: 'The "gh" in "laugh" makes an F sound.' },
-        { question: 'Sound of "qu"', userAnswer: 'KW sound', correctAnswer: 'KW sound', isCorrect: true, explanation: 'The "qu" combination makes a KW sound.' },
-        { question: 'Sound of "x" in "exact"', userAnswer: 'GZ sound', correctAnswer: 'GZ sound', isCorrect: true, explanation: 'In "exact", "x" makes a GZ sound.' },
-        { question: 'Sound of "c" in "city"', userAnswer: 'S sound', correctAnswer: 'S sound', isCorrect: true, explanation: 'Before "i", the "c" makes an S sound.' },
-        { question: 'Sound of "g" in "gem"', userAnswer: 'J sound', correctAnswer: 'J sound', isCorrect: true, explanation: 'Before "e", the "g" makes a J sound.' },
-        { question: 'Sound of "s" in "treasure"', userAnswer: 'S sound', correctAnswer: 'ZH sound', isCorrect: false, explanation: 'In "treasure", "s" makes a ZH sound (like in "measure").' },
-        { question: 'Silent letter in "knife"', userAnswer: 'K', correctAnswer: 'K', isCorrect: true, explanation: 'The "k" in "knife" is silent.' }
-      ]
-    },
-    'quiz-003': {
-      id: 'quiz-003',
-      quizName: 'Sentence Comprehension',
-      category: 'Sentence Reading',
-      score: 87,
-      completedDate: new Date('2025-01-08'),
-      duration: '15:20',
-      totalQuestions: 10,
-      correctAnswers: 9,
-      questions: [
-        { question: 'Read: "The cat sat on the mat"', userAnswer: 'Correct', correctAnswer: 'Correct', isCorrect: true, explanation: 'Simple sentence with clear consonants and vowels.' },
-        { question: 'Read: "She sells seashells"', userAnswer: 'Correct', correctAnswer: 'Correct', isCorrect: true, explanation: 'Tongue twister with repeated "s" and "sh" sounds.' },
-        { question: 'Read: "How are you today?"', userAnswer: 'Correct', correctAnswer: 'Correct', isCorrect: true, explanation: 'Question format with clear mouth movements.' },
-        { question: 'Read: "The quick brown fox"', userAnswer: 'Correct', correctAnswer: 'Correct', isCorrect: true, explanation: 'Classic phrase with varied consonant clusters.' },
-        { question: 'Read: "Beautiful butterfly"', userAnswer: 'Beautiful butterfly', correctAnswer: 'Beautiful butterfly', isCorrect: true, explanation: 'Complex words with "eau" and "fl" sounds.' },
-        { question: 'Read: "Would you like some?"', userAnswer: 'Would you like some?', correctAnswer: 'Would you like some?', isCorrect: true, explanation: 'Question with contractions and lip rounding.' },
-        { question: 'Read: "Through thick and thin"', userAnswer: 'Through thick and thin', correctAnswer: 'Through thick and thin', isCorrect: true, explanation: 'Idiom with "th" sounds and vowel patterns.' },
-        { question: 'Read: "Knowledge is power"', userAnswer: 'Knowledge is power', correctAnswer: 'Knowledge is power', isCorrect: true, explanation: 'Silent letters and complex consonant clusters.' },
-        { question: 'Read: "Extraordinary experience"', userAnswer: 'Extraordinary experience', correctAnswer: 'Extraordinary experience', isCorrect: true, explanation: 'Advanced vocabulary with varied sounds.' },
-        { question: 'Read: "Pneumonia symptoms"', userAnswer: 'Pneumonia symptoms', correctAnswer: 'Pneumonia symptoms', isCorrect: false, explanation: 'Medical terms with silent letters and complex patterns.' }
-      ]
     }
   };
 
-  const quiz = quizData[quizId] || quizData['quiz-001'];
-  const correctCount = quiz.questions.filter(q => q.isCorrect).length;
-  const incorrectCount = quiz.questions.length - correctCount;
+  // Use state data if available, otherwise fallback to mock data
+  let quiz, correctCount, incorrectCount;
+  
+  if (quizResultState) {
+    // Use results from quiz taking interface
+    const { series, questions, answers, score, totalTime, correctAnswers } = quizResultState;
+    
+    quiz = {
+      id: quizId,
+      quizName: series.title,
+      category: series.category,
+      score: score,
+      completedDate: new Date(),
+      duration: formatTime(totalTime),
+      totalQuestions: questions.length,
+      correctAnswers: correctAnswers,
+      questions: questions.map((q, index) => {
+        const answer = answers.find(a => a.questionId === q.id);
+        return {
+          question: q.question,
+          userAnswer: answer?.answer || 'No answer',
+          correctAnswer: q.correctAnswer,
+          isCorrect: answer?.isCorrect || false,
+          explanation: q.explanation
+        };
+      })
+    };
+    
+    correctCount = correctAnswers;
+    incorrectCount = questions.length - correctAnswers;
+  } else {
+    // Use mock data
+    quiz = mockQuizData[quizId || 'quiz-001'] || mockQuizData['quiz-001'];
+    correctCount = quiz.questions.filter(q => q.isCorrect).length;
+    incorrectCount = quiz.questions.length - correctCount;
+  }
 
   const getScoreColor = (score) => {
     if (score >= 90) return 'text-green-600';

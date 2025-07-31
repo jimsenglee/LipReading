@@ -22,12 +22,11 @@ const InteractiveQuizzes = () => {
   const { toast } = useToast();
   
   // Enhanced state management matching tutorial design
-  const [filters, setFilters] = useState<FilterState>({
+  const [filterState, setFilterState] = useState({
     searchTerm: '',
-    selectedCategories: [],
-    selectedDifficulties: [],
-    selectedDurations: [],
-    selectedProgress: []
+    category: 'all',
+    difficulty: 'all',
+    duration: 'all'
   });
   const [sortOption, setSortOption] = useState<SortOption>('newest');
   const [currentPage, setCurrentPage] = useState(1);
@@ -44,8 +43,8 @@ const InteractiveQuizzes = () => {
     let filtered = [...mockQuizSeries];
 
     // Search term filtering
-    if (filters.searchTerm) {
-      const searchLower = filters.searchTerm.toLowerCase();
+    if (filterState.searchTerm) {
+      const searchLower = filterState.searchTerm.toLowerCase();
       filtered = filtered.filter(series =>
         series.title.toLowerCase().includes(searchLower) ||
         series.description.toLowerCase().includes(searchLower) ||
@@ -55,46 +54,32 @@ const InteractiveQuizzes = () => {
     }
 
     // Category filtering
-    if (filters.selectedCategories.length > 0) {
-      filtered = filtered.filter(series =>
-        filters.selectedCategories.some(category => 
-          series.category.toLowerCase().includes(category.toLowerCase()) ||
-          series.difficulty.toLowerCase() === category.toLowerCase()
-        )
-      );
+    if (filterState.category !== 'all') {
+      if (['beginner', 'intermediate', 'advanced'].includes(filterState.category)) {
+        filtered = filtered.filter(series => 
+          series.difficulty.toLowerCase() === filterState.category
+        );
+      } else {
+        filtered = filtered.filter(series => 
+          series.category.toLowerCase() === filterState.category
+        );
+      }
     }
 
     // Difficulty filtering
-    if (filters.selectedDifficulties.length > 0) {
-      filtered = filtered.filter(series =>
-        filters.selectedDifficulties.some(difficulty =>
-          series.difficulty.toLowerCase() === difficulty.toLowerCase()
-        )
+    if (filterState.difficulty !== 'all') {
+      filtered = filtered.filter(series => 
+        series.difficulty.toLowerCase() === filterState.difficulty
       );
     }
 
-    // Duration filtering - using totalQuestions as proxy for duration
-    if (filters.selectedDurations.length > 0) {
+    // Duration filtering
+    if (filterState.duration !== 'all') {
       filtered = filtered.filter(series => {
-        return filters.selectedDurations.some(duration => {
-          if (duration === 'short') return series.totalQuestions <= 10;
-          if (duration === 'medium') return series.totalQuestions > 10 && series.totalQuestions <= 20;
-          if (duration === 'long') return series.totalQuestions > 20;
-          return true;
-        });
-      });
-    }
-
-    // Progress filtering
-    if (filters.selectedProgress.length > 0) {
-      filtered = filtered.filter(series => {
-        const userProgress = mockUserQuizProgress[series.id];
-        const status = userProgress ? 
-          (userProgress.completedQuestions.length === 0 ? 'Not Started' : 
-           userProgress.completedQuestions.length < series.totalQuestions ? 'In Progress' : 'Completed') : 
-          'Not Started';
-        
-        return filters.selectedProgress.includes(status);
+        if (filterState.duration === 'short') return series.estimatedTime <= 15;
+        if (filterState.duration === 'medium') return series.estimatedTime > 15 && series.estimatedTime <= 30;
+        if (filterState.duration === 'long') return series.estimatedTime > 30;
+        return true;
       });
     }
 
@@ -112,14 +97,14 @@ const InteractiveQuizzes = () => {
         case 'rating':
           return b.rating.average - a.rating.average;
         case 'duration':
-          return a.totalQuestions - b.totalQuestions;
+          return a.estimatedTime - b.estimatedTime;
         default:
           return 0;
       }
     });
 
     return filtered;
-  }, [filters, sortOption]);
+  }, [filterState, sortOption]);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredAndSortedQuizSeries.length / itemsPerPage);
@@ -129,21 +114,20 @@ const InteractiveQuizzes = () => {
 
   // Helper functions
   const clearAllFilters = () => {
-    setFilters({
+    setFilterState({
       searchTerm: '',
-      selectedCategories: [],
-      selectedDifficulties: [],
-      selectedDurations: [],
-      selectedProgress: []
+      category: 'all',
+      difficulty: 'all',
+      duration: 'all'
     });
     setCurrentPage(1);
   };
 
-  const handleQuizSeriesClick = (series: QuizSeries) => {
+  const handleQuizSeriesClick = (seriesId: string) => {
     // Navigate to existing quiz result component instead of detail page
     navigate('/quiz-result', { 
       state: { 
-        series,
+        seriesId,
         fromQuizSeries: true 
       } 
     });
@@ -169,8 +153,42 @@ const InteractiveQuizzes = () => {
           <div className="hidden lg:block w-80 flex-shrink-0">
             <div className="sticky top-4">
               <FilterPanel
-                filters={filters}
-                onFiltersChange={setFilters}
+                searchTerm={filterState.searchTerm}
+                onSearchChange={(value) => setFilterState(prev => ({ ...prev, searchTerm: value }))}
+                selectedCategories={filterState.category === 'all' ? [] : [filterState.category]}
+                onCategoryChange={(categories) => {
+                  const category = categories.length > 0 ? categories[0] : 'all';
+                  setFilterState(prev => ({ ...prev, category }));
+                }}
+                selectedDifficulties={filterState.difficulty === 'all' ? [] : [filterState.difficulty]}
+                onDifficultyChange={(difficulties) => {
+                  const difficulty = difficulties.length > 0 ? difficulties[0] : 'all';
+                  setFilterState(prev => ({ ...prev, difficulty }));
+                }}
+                selectedDurations={filterState.duration === 'all' ? [] : [filterState.duration]}
+                onDurationChange={(durations) => {
+                  const duration = durations.length > 0 ? durations[0] : 'all';
+                  setFilterState(prev => ({ ...prev, duration }));
+                }}
+                onClearFilters={clearAllFilters}
+                categories={[
+                  { id: 'beginner', name: 'Beginner', count: mockQuizSeries.filter(s => s.difficulty === 'Beginner').length },
+                  { id: 'intermediate', name: 'Intermediate', count: mockQuizSeries.filter(s => s.difficulty === 'Intermediate').length },
+                  { id: 'advanced', name: 'Advanced', count: mockQuizSeries.filter(s => s.difficulty === 'Advanced').length },
+                  { id: 'pronunciation', name: 'Pronunciation', count: mockQuizSeries.filter(s => s.category === 'pronunciation').length },
+                  { id: 'conversation', name: 'Conversation', count: mockQuizSeries.filter(s => s.category === 'conversation').length },
+                  { id: 'vocabulary', name: 'Vocabulary', count: mockQuizSeries.filter(s => s.category === 'vocabulary').length }
+                ]}
+                difficulties={[
+                  { id: 'beginner', name: 'Beginner', count: mockQuizSeries.filter(s => s.difficulty === 'Beginner').length },
+                  { id: 'intermediate', name: 'Intermediate', count: mockQuizSeries.filter(s => s.difficulty === 'Intermediate').length },
+                  { id: 'advanced', name: 'Advanced', count: mockQuizSeries.filter(s => s.difficulty === 'Advanced').length }
+                ]}
+                durations={[
+                  { id: 'short', name: '10-15 min', count: mockQuizSeries.filter(s => s.estimatedTime <= 15).length },
+                  { id: 'medium', name: '20-30 min', count: mockQuizSeries.filter(s => s.estimatedTime > 15 && s.estimatedTime <= 30).length },
+                  { id: 'long', name: '45+ min', count: mockQuizSeries.filter(s => s.estimatedTime > 30).length }
+                ]}
               />
             </div>
           </div>
@@ -183,8 +201,8 @@ const InteractiveQuizzes = () => {
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold">Quiz Series</h2>
                   <SortDropdown 
-                    value={sortOption} 
-                    onValueChange={setSortOption} 
+                    currentSort={sortOption} 
+                    onSortChange={setSortOption} 
                   />
                 </div>
                 
@@ -192,28 +210,45 @@ const InteractiveQuizzes = () => {
                 <Input
                   type="text"
                   placeholder="Search quiz series..."
-                  value={filters.searchTerm}
-                  onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
+                  value={filterState.searchTerm}
+                  onChange={(e) => setFilterState(prev => ({ ...prev, searchTerm: e.target.value }))}
                   className="w-full"
                 />
                 
-                {/* Quick Category Buttons for Mobile */}
-                <div className="flex flex-wrap gap-2">
-                  {['Fundamentals', 'Phonemes', 'Conversations'].map((category) => (
-                    <Button
-                      key={category}
-                      variant={filters.selectedCategories.includes(category) ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => {
-                        const newCategories = filters.selectedCategories.includes(category)
-                          ? filters.selectedCategories.filter(c => c !== category)
-                          : [...filters.selectedCategories, category];
-                        setFilters(prev => ({ ...prev, selectedCategories: newCategories }));
-                      }}
-                    >
-                      {category}
-                    </Button>
-                  ))}
+                {/* Mobile Filter Selects */}
+                <div className="grid grid-cols-2 gap-4">
+                  <Select
+                    value={filterState.category}
+                    onValueChange={(value) => setFilterState(prev => ({ ...prev, category: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      <SelectItem value="beginner">Beginner</SelectItem>
+                      <SelectItem value="intermediate">Intermediate</SelectItem>
+                      <SelectItem value="advanced">Advanced</SelectItem>
+                      <SelectItem value="pronunciation">Pronunciation</SelectItem>
+                      <SelectItem value="conversation">Conversation</SelectItem>
+                      <SelectItem value="vocabulary">Vocabulary</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select
+                    value={filterState.difficulty}
+                    onValueChange={(value) => setFilterState(prev => ({ ...prev, difficulty: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Difficulty" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Levels</SelectItem>
+                      <SelectItem value="beginner">Beginner</SelectItem>
+                      <SelectItem value="intermediate">Intermediate</SelectItem>
+                      <SelectItem value="advanced">Advanced</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
@@ -226,48 +261,53 @@ const InteractiveQuizzes = () => {
                 </span>
                 
                 {/* Active Filters */}
-                {(filters.searchTerm || filters.selectedCategories.length > 0 || filters.selectedDifficulties.length > 0 || filters.selectedDurations.length > 0) && (
+                {(filterState.searchTerm || filterState.category !== 'all' || filterState.difficulty !== 'all' || filterState.duration !== 'all') && (
                   <div className="flex flex-wrap gap-2">
-                    {filters.searchTerm && (
+                    {filterState.searchTerm && (
                       <Badge variant="secondary" className="flex items-center gap-1">
                         <Search className="h-3 w-3" />
-                        "{filters.searchTerm}"
+                        "{filterState.searchTerm}"
                         <button
-                          onClick={() => setFilters(prev => ({ ...prev, searchTerm: '' }))}
+                          onClick={() => setFilterState(prev => ({ ...prev, searchTerm: '' }))}
                           className="ml-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full p-0.5"
                         >
                           <X className="h-3 w-3" />
                         </button>
                       </Badge>
                     )}
-                    {filters.selectedCategories.map(category => (
-                      <Badge key={category} variant="secondary" className="flex items-center gap-1">
-                        Category: {category}
+                    {filterState.category !== 'all' && (
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        Category: {filterState.category}
                         <button
-                          onClick={() => setFilters(prev => ({ 
-                            ...prev, 
-                            selectedCategories: prev.selectedCategories.filter(c => c !== category) 
-                          }))}
+                          onClick={() => setFilterState(prev => ({ ...prev, category: 'all' }))}
                           className="ml-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full p-0.5"
                         >
                           <X className="h-3 w-3" />
                         </button>
                       </Badge>
-                    ))}
-                    {filters.selectedDifficulties.map(difficulty => (
-                      <Badge key={difficulty} variant="secondary" className="flex items-center gap-1">
-                        Level: {difficulty}
+                    )}
+                    {filterState.difficulty !== 'all' && (
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        Level: {filterState.difficulty}
                         <button
-                          onClick={() => setFilters(prev => ({ 
-                            ...prev, 
-                            selectedDifficulties: prev.selectedDifficulties.filter(d => d !== difficulty) 
-                          }))}
+                          onClick={() => setFilterState(prev => ({ ...prev, difficulty: 'all' }))}
                           className="ml-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full p-0.5"
                         >
                           <X className="h-3 w-3" />
                         </button>
                       </Badge>
-                    ))}
+                    )}
+                    {filterState.duration !== 'all' && (
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        Duration: {filterState.duration}
+                        <button
+                          onClick={() => setFilterState(prev => ({ ...prev, duration: 'all' }))}
+                          className="ml-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
                     <button
                       onClick={clearAllFilters}
                       className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
@@ -279,8 +319,8 @@ const InteractiveQuizzes = () => {
               </div>
               
               <SortDropdown 
-                value={sortOption} 
-                onValueChange={setSortOption} 
+                currentSort={sortOption} 
+                onSortChange={setSortOption} 
               />
             </div>
 
@@ -307,13 +347,11 @@ const InteractiveQuizzes = () => {
               <>
                 {/* Quiz Series Grid */}
                 <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                  {paginatedQuizSeries.map((series, index) => (
+                  {paginatedQuizSeries.map((series) => (
                     <QuizSeriesCard
                       key={series.id}
                       series={series}
-                      progress={mockUserQuizProgress[series.id]}
-                      onClick={handleQuizSeriesClick}
-                      index={index}
+                      onClick={() => handleQuizSeriesClick(series.id)}
                     />
                   ))}
                 </div>
@@ -324,10 +362,7 @@ const InteractiveQuizzes = () => {
                     <EducationPagination
                       currentPage={currentPage}
                       totalPages={totalPages}
-                      totalItems={filteredAndSortedQuizSeries.length}
-                      itemsPerPage={itemsPerPage}
                       onPageChange={setCurrentPage}
-                      itemName="quiz series"
                     />
                   </div>
                 )}
