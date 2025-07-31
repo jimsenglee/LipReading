@@ -64,6 +64,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
       icon: Settings,
       description: 'Account & accessibility settings'
     },
+    { 
+      name: 'Help & Feedback', 
+      href: '/feedback', 
+      icon: MessageSquare,
+      description: 'Submit feedback & get support'
+    },
   ];
 
   const adminNavigation = [
