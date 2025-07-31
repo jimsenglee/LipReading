@@ -3,6 +3,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { 
@@ -30,48 +31,51 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false })
 
   return (
     <nav className="bg-white/90 backdrop-blur-md shadow-sm border-b border-primary/10 fixed top-0 left-0 right-0 z-50">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center space-x-2">
-            {/* Animated Hamburger Menu Button */}
-            <motion.button
-              onClick={onToggleSidebar}
-              className={`p-2.5 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus-visible-primary ${
-                sidebarOpen 
-                  ? 'bg-red-50 hover:bg-red-100 text-red-600' 
-                  : 'hover:bg-primary/10 text-gray-700 hover:text-primary'
-              }`}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
-            >
+      {/* Full width container - stick to walls */}
+      <div className="flex justify-between items-center h-16 px-4">
+        {/* Left side - Burger + Logo moved to far left */}
+        <div className="flex items-center space-x-3">
+          {/* Enhanced Hamburger Menu Button */}
+          <motion.button
+            onClick={onToggleSidebar}
+            className={cn(
+              "p-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/30",
+              "border border-transparent",
+              sidebarOpen 
+                ? 'bg-gradient-to-br from-red-50 to-red-100 hover:from-red-100 hover:to-red-200 text-red-600 border-red-200/50 shadow-lg shadow-red-100/50' 
+                : 'bg-gradient-to-br from-primary/5 to-primary/10 hover:from-primary/10 hover:to-primary/20 text-gray-700 hover:text-primary border-primary/10 shadow-lg shadow-primary/5'
+            )}
+            whileHover={{ scale: 1.05, y: -1 }}
+            whileTap={{ scale: 0.95 }}
+            aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+          >
               <AnimatePresence mode="wait">
                 {sidebarOpen ? (
                   <motion.div
                     key="close"
-                    initial={{ rotate: -90, opacity: 0 }}
+                    initial={{ rotate: -180, opacity: 0 }}
                     animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: 90, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
+                    exit={{ rotate: 180, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
                   >
-                    <X className="h-5 w-5 transition-colors" />
+                    <X className="h-5 w-5" />
                   </motion.div>
                 ) : (
                   <motion.div
                     key="menu"
-                    initial={{ rotate: 90, opacity: 0 }}
+                    initial={{ rotate: 180, opacity: 0 }}
                     animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: -90, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
+                    exit={{ rotate: -180, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
                   >
-                    <Menu className="h-5 w-5 transition-colors" />
+                    <Menu className="h-5 w-5" />
                   </motion.div>
                 )}
               </AnimatePresence>
             </motion.button>
             
-            {/* Brand Logo with enhanced animation */}
-            <Link to="/" className="flex items-center space-x-2 group ml-1">
+            {/* Brand Logo - closer to burger button */}
+            <Link to="/" className="flex items-center space-x-2 group">
               <motion.div
                 whileHover={{ rotate: 360, scale: 1.1 }}
                 transition={{ duration: 0.6, type: "spring", stiffness: 200 }}
@@ -86,9 +90,10 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false })
                 LipRead AI
               </motion.span>
             </Link>
-          </div>
+        </div>
 
-          <div className="flex items-center space-x-4">
+        {/* Right side - User menu moved to far right */}
+        <div className="flex items-center space-x-4">
             {user ? (
               <>
                 <motion.span 
@@ -136,7 +141,6 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false })
                 </Button>
               </div>
             )}
-          </div>
         </div>
       </div>
     </nav>

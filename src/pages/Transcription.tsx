@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import RealTimeTranscription from '@/components/transcription/RealTimeTranscription';
 import VideoUploadZone from '@/components/transcription/VideoUploadZone';
@@ -12,6 +13,8 @@ import {
 } from 'lucide-react';
 
 const Transcription = () => {
+  const [activeTab, setActiveTab] = React.useState('realtime');
+  
   const breadcrumbItems = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Transcription' }
@@ -41,8 +44,8 @@ const Transcription = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="realtime" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 bg-primary/5 border border-primary/20">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 bg-primary/5 border border-primary/20">
           <TabsTrigger value="realtime" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
             <Video className="h-4 w-4" />
             Real-time
@@ -50,10 +53,6 @@ const Transcription = () => {
           <TabsTrigger value="upload" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
             <Upload className="h-4 w-4" />
             File Upload
-          </TabsTrigger>
-          <TabsTrigger value="history" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <History className="h-4 w-4" />
-            History
           </TabsTrigger>
         </TabsList>
 
@@ -63,16 +62,6 @@ const Transcription = () => {
 
         <TabsContent value="upload" className="space-y-6">
           <VideoUploadZone onTranscriptionComplete={handleTranscriptionComplete} />
-        </TabsContent>
-
-        <TabsContent value="history" className="space-y-6">
-          <div className="text-center py-12">
-            <BookOpen className="h-16 w-16 text-primary mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-primary mb-2">Transcription History</h3>
-            <p className="text-gray-600">
-              Your saved transcriptions will appear here. Start a session to build your history.
-            </p>
-          </div>
         </TabsContent>
       </Tabs>
     </div>

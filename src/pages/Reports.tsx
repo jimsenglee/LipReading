@@ -19,8 +19,12 @@ import {
   Download,
   FileText,
   PieChart,
-  LineChart
+  LineChart,
+  Eye,
+  BookOpen,
+  Brain
 } from 'lucide-react';
+import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart as RechartsBarChart, Bar, Cell } from 'recharts';
 
 const Reports = () => {
   const feedbackToast = useFeedbackToast();
@@ -28,8 +32,107 @@ const Reports = () => {
   
   const breadcrumbItems = [
     { title: 'Dashboard', href: '/dashboard' },
-    { title: 'Performance Reports' }
+    { title: 'My Progress' }
   ];
+
+  // Quiz Performance Mock Data
+  const quizCategories = [
+    { category: 'Vowel Sounds', averageScore: 87, totalQuizzes: 15, color: '#7E57C2' },
+    { category: 'Consonant Blends', averageScore: 82, totalQuizzes: 12, color: '#AB47BC' },
+    { category: 'Silent Letters', averageScore: 75, totalQuizzes: 9, color: '#BA68C8' },
+    { category: 'Common Words', averageScore: 91, totalQuizzes: 18, color: '#512DA8' },
+    { category: 'Sentence Reading', averageScore: 78, totalQuizzes: 8, color: '#CE93D8' }
+  ];
+
+  // Enhanced data for charts with proper structure
+  const categoryChartData = quizCategories.map(cat => ({
+    category: cat.category,
+    score: cat.averageScore,
+    quizzes: cat.totalQuizzes
+  }));
+
+  const quizTrendData = [
+    { date: '2024-12-01', score: 72, quizName: 'Vowel Recognition Basics' },
+    { date: '2024-12-05', score: 78, quizName: 'Silent E Practice' },
+    { date: '2024-12-10', score: 82, quizName: 'Consonant Clusters' },
+    { date: '2024-12-15', score: 75, quizName: 'Word Ending Sounds' },
+    { date: '2024-12-20', score: 89, quizName: 'Vowel Teams' },
+    { date: '2024-12-25', score: 85, quizName: 'R-Controlled Vowels' },
+    { date: '2025-01-02', score: 91, quizName: 'Common Sight Words' },
+    { date: '2025-01-08', score: 87, quizName: 'Sentence Comprehension' },
+    { date: '2025-01-15', score: 93, quizName: 'Advanced Vowel Patterns' },
+    { date: '2025-01-22', score: 88, quizName: 'Complex Consonants' }
+  ];
+
+  const recentQuizzes = [
+    {
+      id: 'quiz-001',
+      quizName: 'Advanced Vowel Patterns',
+      category: 'Vowel Sounds',
+      score: 93,
+      completedDate: new Date('2025-01-22'),
+      duration: '8:45',
+      questions: [
+        { question: 'Identify the vowel sound in "boat"', userAnswer: 'Long O', correctAnswer: 'Long O', isCorrect: true },
+        { question: 'What vowel sound is in "rain"?', userAnswer: 'Long A', correctAnswer: 'Long A', isCorrect: true },
+        { question: 'Choose the correct vowel in "light"', userAnswer: 'Long I', correctAnswer: 'Long I', isCorrect: true },
+        { question: 'Identify vowel sound in "coin"', userAnswer: 'OI diphthong', correctAnswer: 'OI diphthong', isCorrect: true },
+        { question: 'What sound does "ough" make in "through"?', userAnswer: 'OO sound', correctAnswer: 'OO sound', isCorrect: true },
+        { question: 'Vowel sound in "beauty"', userAnswer: 'Long U', correctAnswer: 'Long U', isCorrect: true },
+        { question: 'Sound in "great"', userAnswer: 'Long A', correctAnswer: 'Long A', isCorrect: true },
+        { question: 'Vowel in "piece"', userAnswer: 'Long E', correctAnswer: 'Long E', isCorrect: true },
+        { question: 'Sound in "could"', userAnswer: 'Short U', correctAnswer: 'UH sound', isCorrect: false },
+        { question: 'Vowel in "height"', userAnswer: 'Long A', correctAnswer: 'Long I', isCorrect: false }
+      ]
+    },
+    {
+      id: 'quiz-002',
+      quizName: 'Complex Consonants',
+      category: 'Consonant Blends',
+      score: 88,
+      completedDate: new Date('2025-01-22'),
+      duration: '12:30',
+      questions: [
+        { question: 'Sound of "ch" in "school"', userAnswer: 'K sound', correctAnswer: 'K sound', isCorrect: true },
+        { question: 'Pronunciation of "ph"', userAnswer: 'F sound', correctAnswer: 'F sound', isCorrect: true },
+        { question: 'Sound of "th" in "think"', userAnswer: 'Voiceless TH', correctAnswer: 'Voiceless TH', isCorrect: true },
+        { question: 'Sound of "gh" in "laugh"', userAnswer: 'F sound', correctAnswer: 'F sound', isCorrect: true },
+        { question: 'Sound of "qu"', userAnswer: 'KW sound', correctAnswer: 'KW sound', isCorrect: true },
+        { question: 'Sound of "x" in "exact"', userAnswer: 'GZ sound', correctAnswer: 'GZ sound', isCorrect: true },
+        { question: 'Sound of "c" in "city"', userAnswer: 'S sound', correctAnswer: 'S sound', isCorrect: true },
+        { question: 'Sound of "g" in "gem"', userAnswer: 'J sound', correctAnswer: 'J sound', isCorrect: true },
+        { question: 'Sound of "s" in "treasure"', userAnswer: 'S sound', correctAnswer: 'ZH sound', isCorrect: false },
+        { question: 'Silent letter in "knife"', userAnswer: 'K', correctAnswer: 'K', isCorrect: true }
+      ]
+    },
+    {
+      id: 'quiz-003',
+      quizName: 'Sentence Comprehension',
+      category: 'Sentence Reading',
+      score: 87,
+      completedDate: new Date('2025-01-08'),
+      duration: '15:20',
+      questions: [
+        { question: 'Read: "The cat sat on the mat"', userAnswer: 'Correct', correctAnswer: 'Correct', isCorrect: true },
+        { question: 'Read: "She sells seashells"', userAnswer: 'Correct', correctAnswer: 'Correct', isCorrect: true },
+        { question: 'Read: "How are you today?"', userAnswer: 'Correct', correctAnswer: 'Correct', isCorrect: true },
+        { question: 'Read: "The quick brown fox"', userAnswer: 'Correct', correctAnswer: 'Correct', isCorrect: true },
+        { question: 'Read: "Beautiful butterfly"', userAnswer: 'Beautiful butterfly', correctAnswer: 'Beautiful butterfly', isCorrect: true },
+        { question: 'Read: "Would you like some?"', userAnswer: 'Would you like some?', correctAnswer: 'Would you like some?', isCorrect: true },
+        { question: 'Read: "Through thick and thin"', userAnswer: 'Through thick and thin', correctAnswer: 'Through thick and thin', isCorrect: true },
+        { question: 'Read: "Knowledge is power"', userAnswer: 'Knowledge is power', correctAnswer: 'Knowledge is power', isCorrect: true },
+        { question: 'Read: "Extraordinary experience"', userAnswer: 'Extraordinary experience', correctAnswer: 'Extraordinary experience', isCorrect: true },
+        { question: 'Read: "Pneumonia symptoms"', userAnswer: 'Pneumonia symptoms', correctAnswer: 'Pneumonia symptoms', isCorrect: false }
+      ]
+    }
+  ];
+
+  // Summary Metrics
+  const summaryMetrics = {
+    totalQuizzes: quizCategories.reduce((sum, cat) => sum + cat.totalQuizzes, 0),
+    averageScore: Math.round(quizCategories.reduce((sum, cat) => sum + (cat.averageScore * cat.totalQuizzes), 0) / quizCategories.reduce((sum, cat) => sum + cat.totalQuizzes, 0)),
+    bestCategory: quizCategories.reduce((best, cat) => cat.averageScore > best.averageScore ? cat : best, quizCategories[0]).category
+  };
 
   const performanceMetrics = [
     {
@@ -192,319 +295,328 @@ const Reports = () => {
     <div className="space-y-6 animate-fade-in">
       <AnimatedBreadcrumb items={breadcrumbItems} />
       
-      <div>
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Performance Reports</h1>
-        <p className="text-gray-600 mt-1">
-          Track your progress and identify areas for improvement
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">My Progress</h1>
+          <p className="text-gray-600 mt-1">
+            Track your learning journey and quiz performance
+          </p>
+        </div>
+        <Button 
+          onClick={handleDownloadReport}
+          className="bg-primary hover:bg-primary/90 text-white"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Export Report
+        </Button>
       </div>
 
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 bg-primary/5 border border-primary/20">
-          <TabsTrigger value="overview" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <BarChart3 className="h-4 w-4" />
-            Overview
-          </TabsTrigger>
+      <Tabs defaultValue="learning" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 bg-primary/5 border border-primary/20">
           <TabsTrigger value="learning" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <PieChart className="h-4 w-4" />
+            <Brain className="h-4 w-4" />
             Learning Progress
           </TabsTrigger>
-          <TabsTrigger value="history" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <Calendar className="h-4 w-4" />
-            Session History
-          </TabsTrigger>
-          <TabsTrigger value="suggestions" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <Target className="h-4 w-4" />
-            Suggestions
+          <TabsTrigger value="transcription" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
+            <FileText className="h-4 w-4" />
+            Transcription History
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
-          {/* Performance Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {performanceMetrics.map((metric, index) => (
-              <Card key={index} className="border-primary/20 hover:shadow-lg transition-all duration-300">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg text-primary">{metric.name}</CardTitle>
-                  <CardDescription className="text-sm">{metric.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="text-3xl font-bold text-gray-900">{metric.value}</div>
-                    <div className="flex items-center gap-1 text-green-600">
-                      <TrendingUp className="h-4 w-4" />
-                      <span className="text-sm font-medium">{metric.trend}</span>
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <Badge variant="outline" className="text-green-700 bg-green-50 border-green-200">
-                      Improving
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* Progress Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border-primary/20">
-              <CardHeader>
-                <CardTitle className="text-primary">Weekly Progress</CardTitle>
-                <CardDescription>Accuracy trends over the past week</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Monday</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={85} className="w-20 h-2" />
-                      <span className="text-sm font-medium">85%</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Tuesday</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={78} className="w-20 h-2" />
-                      <span className="text-sm font-medium">78%</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Wednesday</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={92} className="w-20 h-2" />
-                      <span className="text-sm font-medium">92%</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Thursday</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={89} className="w-20 h-2" />
-                      <span className="text-sm font-medium">89%</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Friday</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={94} className="w-20 h-2" />
-                      <span className="text-sm font-medium">94%</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-primary/20">
-              <CardHeader>
-                <CardTitle className="text-primary">Learning Milestones</CardTitle>
-                <CardDescription>Your achievements and progress markers</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <div>
-                      <div className="font-medium">First Perfect Session</div>
-                      <div className="text-sm text-gray-600">Achieved 100% accuracy</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <div>
-                      <div className="font-medium">Consistency Streak</div>
-                      <div className="text-sm text-gray-600">7 days above 85% accuracy</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Award className="h-5 w-5 text-yellow-500" />
-                    <div>
-                      <div className="font-medium">Speed Demon</div>
-                      <div className="text-sm text-gray-600">Processed 300+ words in one session</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Clock className="h-5 w-5 text-primary" />
-                    <div>
-                      <div className="font-medium">Practice Warrior</div>
-                      <div className="text-sm text-gray-600">10+ hours of total practice time</div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
         <TabsContent value="learning" className="space-y-6">
-          {/* Download Report Section */}
+          {/* Summary Metrics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card className="border-primary/20 hover:shadow-lg transition-all duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-primary/10 rounded-lg">
+                    <BookOpen className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-primary">{summaryMetrics.totalQuizzes}</div>
+                    <div className="text-sm text-gray-600">Total Quizzes</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-primary/20 hover:shadow-lg transition-all duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-green-100 rounded-lg">
+                    <Target className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-green-600">{summaryMetrics.averageScore}%</div>
+                    <div className="text-sm text-gray-600">Average Score</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-primary/20 hover:shadow-lg transition-all duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-yellow-100 rounded-lg">
+                    <Award className="h-6 w-6 text-yellow-600" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-yellow-600">{summaryMetrics.bestCategory}</div>
+                    <div className="text-sm text-gray-600">Best Category</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-primary/20 hover:shadow-lg transition-all duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-blue-100 rounded-lg">
+                    <TrendingUp className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-blue-600">+12%</div>
+                    <div className="text-sm text-gray-600">This Month</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Charts Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Line Chart - Quiz Scores Over Time */}
+            <Card className="border-primary/20">
+              <CardHeader>
+                <CardTitle className="text-primary flex items-center gap-2">
+                  <LineChart className="h-5 w-5" />
+                  Quiz Scores Over Time
+                </CardTitle>
+                <CardDescription>Track your performance improvement</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <RechartsLineChart data={quizTrendData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="#6b7280"
+                      fontSize={12}
+                      tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    />
+                    <YAxis 
+                      stroke="#6b7280"
+                      fontSize={12}
+                      domain={[60, 100]}
+                    />
+                    <Tooltip 
+                      formatter={(value, name) => [`${value}%`, 'Score']}
+                      labelFormatter={(value) => new Date(value).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                      contentStyle={{
+                        backgroundColor: 'white',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="score" 
+                      stroke="#7E57C2" 
+                      strokeWidth={3}
+                      dot={{ fill: '#7E57C2', strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, stroke: '#7E57C2', strokeWidth: 2 }}
+                    />
+                  </RechartsLineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Bar Chart - Average Scores by Category */}
+            <Card className="border-primary/20">
+              <CardHeader>
+                <CardTitle className="text-primary flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  Performance by Category
+                </CardTitle>
+                <CardDescription>Average scores across quiz categories</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <RechartsBarChart data={categoryChartData} layout="horizontal">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis 
+                      type="number" 
+                      stroke="#6b7280"
+                      fontSize={12}
+                      domain={[0, 100]}
+                    />
+                    <YAxis 
+                      type="category" 
+                      dataKey="category" 
+                      stroke="#6b7280"
+                      fontSize={12}
+                      width={120}
+                    />
+                    <Tooltip 
+                      formatter={(value) => [`${value}%`, 'Average Score']}
+                      contentStyle={{
+                        backgroundColor: 'white',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Bar dataKey="score" radius={[0, 4, 4, 0]}>
+                      {categoryChartData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={entry.score >= 85 ? '#10B981' : entry.score >= 70 ? '#F59E0B' : '#EF4444'} 
+                        />
+                      ))}
+                    </Bar>
+                  </RechartsBarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Recent Quizzes Table */}
           <Card className="border-primary/20">
             <CardHeader>
               <CardTitle className="text-primary flex items-center gap-2">
-                <Download className="h-5 w-5" />
-                Download Progress Report
+                <Clock className="h-5 w-5" />
+                Recent Quizzes
               </CardTitle>
-              <CardDescription>
-                Generate and download a comprehensive report of your learning progress
-              </CardDescription>
+              <CardDescription>Your latest quiz attempts with detailed results</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col sm:flex-row gap-4 items-end">
+              <div className="space-y-3">
+                {recentQuizzes.map((quiz) => (
+                  <div 
+                    key={quiz.id} 
+                    className="border border-primary/10 rounded-lg p-4 hover:bg-primary/5 transition-colors cursor-pointer"
+                    onClick={() => window.location.href = `/quiz-result/${quiz.id}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="flex flex-col">
+                          <div className="font-medium text-gray-900">{quiz.quizName}</div>
+                          <div className="text-sm text-gray-600">{quiz.category}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-6">
+                        <div className="text-sm text-gray-600">
+                          {quiz.completedDate.toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric' 
+                          })}
+                        </div>
+                        <div className="text-sm text-gray-600">{quiz.duration}</div>
+                        <div className={`text-lg font-bold ${
+                          quiz.score >= 90 ? 'text-green-600' : 
+                          quiz.score >= 70 ? 'text-yellow-600' : 
+                          'text-red-600'
+                        }`}>
+                          {quiz.score}%
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="border-primary/20 text-primary hover:bg-primary/10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.location.href = `/quiz-result/${quiz.id}`;
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          View Details
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="transcription" className="space-y-6">
+          <Card className="border-primary/20">
+            <CardHeader>
+              <CardTitle className="text-primary flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Transcription History Management
+              </CardTitle>
+              <CardDescription>View, search, filter, rename, and delete your past transcription sessions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Search and Filter Controls */}
+              <div className="flex flex-col md:flex-row gap-4 mb-6">
                 <div className="flex-1">
                   <label className="text-sm font-medium text-gray-700 mb-2 block">
-                    Report Format
+                    Search Transcriptions
                   </label>
-                  <Select value={selectedFormat} onValueChange={setSelectedFormat}>
-                    <SelectTrigger className="border-primary/20">
-                      <SelectValue placeholder="Select format" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pdf">PDF Report</SelectItem>
-                      <SelectItem value="excel">Excel Spreadsheet</SelectItem>
-                      <SelectItem value="csv">CSV Data</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <input
+                    type="text"
+                    placeholder="Search by title or content..."
+                    className="w-full px-3 py-2 border border-primary/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
                 </div>
-                <Button 
-                  onClick={handleDownloadReport}
-                  className="bg-primary hover:bg-primary/90 text-white"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Report
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Overall Learning Statistics */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="border-primary/20">
-              <CardContent className="p-4">
-                <div className="text-2xl font-bold text-primary">{overallStats.averageScore}%</div>
-                <div className="text-sm text-gray-600">Average Score</div>
-              </CardContent>
-            </Card>
-            <Card className="border-primary/20">
-              <CardContent className="p-4">
-                <div className="text-2xl font-bold text-primary">{overallStats.quizzesCompleted}</div>
-                <div className="text-sm text-gray-600">Quizzes Completed</div>
-              </CardContent>
-            </Card>
-            <Card className="border-primary/20">
-              <CardContent className="p-4">
-                <div className="text-2xl font-bold text-primary">{overallStats.totalQuestions}</div>
-                <div className="text-sm text-gray-600">Total Questions</div>
-              </CardContent>
-            </Card>
-            <Card className="border-primary/20">
-              <CardContent className="p-4">
-                <div className="text-2xl font-bold text-green-600">{overallStats.bestCategory}</div>
-                <div className="text-sm text-gray-600">Best Category</div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Quiz Scores Over Time Chart */}
-          <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-primary flex items-center gap-2">
-                <LineChart className="h-5 w-5" />
-                Quiz Scores Over Time
-              </CardTitle>
-              <CardDescription>Track your performance improvement</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {quizHistory.slice().reverse().map((quiz, index) => (
-                  <div key={quiz.id} className="flex items-center justify-between p-3 border border-primary/10 rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-sm font-medium text-primary">
-                        {quizHistory.length - index}
-                      </div>
-                      <div>
-                        <div className="font-medium">{quiz.category}</div>
-                        <div className="text-sm text-gray-600">{quiz.date}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm text-gray-600">{quiz.questions} questions</div>
-                      <div className={`text-lg font-bold ${quiz.score >= 90 ? 'text-green-600' : quiz.score >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
-                        {quiz.score}%
-                      </div>
-                    </div>
+                <div className="flex gap-2">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                      Date Range
+                    </label>
+                    <input
+                      type="date"
+                      className="px-3 py-2 border border-primary/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Category Performance Breakdown */}
-          <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-primary flex items-center gap-2">
-                <PieChart className="h-5 w-5" />
-                Performance by Category
-              </CardTitle>
-              <CardDescription>Average scores broken down by quiz categories</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {categoryScores.map((category, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">{category.category}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600">{category.attempts} attempt{category.attempts > 1 ? 's' : ''}</span>
-                        <span className="font-bold">{category.average}%</span>
-                      </div>
-                    </div>
-                    <Progress value={category.average} className="h-2" />
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                      To
+                    </label>
+                    <input
+                      type="date"
+                      className="px-3 py-2 border border-primary/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Learning Recommendations */}
-          {overallStats.averageScore < 85 && (
-            <Card className="border-yellow-200 bg-yellow-50">
-              <CardHeader>
-                <CardTitle className="text-yellow-800 flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5" />
-                  Learning Recommendations
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-yellow-800">
-                  <p>Based on your current performance, we recommend:</p>
-                  <ul className="list-disc pl-5 space-y-1">
-                    <li>Focus more practice on "{overallStats.improvementNeeded}" category</li>
-                    <li>Try to maintain consistent daily practice sessions</li>
-                    <li>Review tutorial videos for challenging topics</li>
-                  </ul>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
+              </div>
 
-        <TabsContent value="history" className="space-y-6">
-          <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-primary">Session History</CardTitle>
-              <CardDescription>Detailed records of your transcription sessions</CardDescription>
-            </CardHeader>
-            <CardContent>
+              {/* Transcription Sessions List */}
               <div className="space-y-4">
                 {sessionHistory.map((session, index) => (
                   <div key={index} className="border border-primary/10 rounded-lg p-4 hover:bg-primary/5 transition-colors">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-4">
-                        <div className="font-medium">{session.date}</div>
+                        <div className="font-medium cursor-pointer text-primary hover:underline">
+                          Session {index + 1} - {session.date}
+                        </div>
                         <Badge variant="outline" className="border-primary/20">{session.type}</Badge>
                         <div className="text-sm text-gray-600">{session.duration}</div>
                       </div>
-                      <div className={`text-lg font-bold ${getAccuracyColor(session.accuracy)}`}>
-                        {session.accuracy}%
+                      <div className="flex items-center gap-2">
+                        <div className={`text-lg font-bold ${getAccuracyColor(session.accuracy)}`}>
+                          {session.accuracy}%
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-primary border-primary/20 hover:bg-primary/10"
+                        >
+                          Rename
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                        >
+                          Delete
+                        </Button>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -529,69 +641,15 @@ const Reports = () => {
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="suggestions" className="space-y-6">
-          <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-primary">Personalized Suggestions</CardTitle>
-              <CardDescription>
-                Based on your performance data, here are recommendations to improve
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {suggestions.map((suggestion, index) => (
-                  <div key={index} className="border border-primary/10 rounded-lg p-4 hover:bg-primary/5 transition-colors">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <AlertCircle className="h-5 w-5 text-primary mt-0.5" />
-                        <div>
-                          <div className="font-medium text-primary">{suggestion.title}</div>
-                          <div className="text-sm text-gray-600">{suggestion.category}</div>
-                        </div>
-                      </div>
-                      <Badge className={getPriorityColor(suggestion.priority)}>
-                        {suggestion.priority}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-gray-700 ml-8">{suggestion.description}</p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-primary">Performance Goals</CardTitle>
-              <CardDescription>Track your progress towards accuracy targets</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>Reach 95% Average Accuracy</span>
-                    <span>87% / 95%</span>
-                  </div>
-                  <Progress value={91.5} className="h-3" />
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>Complete 50 Practice Sessions</span>
-                    <span>32 / 50</span>
-                  </div>
-                  <Progress value={64} className="h-3" />
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>Master All Vowel Sounds</span>
-                    <span>4 / 5</span>
-                  </div>
-                  <Progress value={80} className="h-3" />
-                </div>
+              
+              <div className="mt-6 text-center">
+                <Button 
+                  onClick={() => window.location.href = '/transcription'}
+                  className="bg-primary hover:bg-primary/90 text-white"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Start New Transcription
+                </Button>
               </div>
             </CardContent>
           </Card>

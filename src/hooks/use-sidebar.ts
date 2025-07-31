@@ -11,10 +11,10 @@ interface UseSidebarReturn {
 export const useSidebar = (): UseSidebarReturn => {
   const location = useLocation();
   
-  // Persistent sidebar state with localStorage
+  // Persistent sidebar state with localStorage - default open for desktop experience
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     const saved = localStorage.getItem('sidebarOpen');
-    return saved !== null ? JSON.parse(saved) : false;
+    return saved !== null ? JSON.parse(saved) : true; // Default open for better desktop UX
   });
   
   const [isMobile, setIsMobile] = useState(false);
@@ -24,10 +24,10 @@ export const useSidebar = (): UseSidebarReturn => {
     localStorage.setItem('sidebarOpen', JSON.stringify(sidebarOpen));
   }, [sidebarOpen]);
 
-  // Mobile detection with debounce
+  // Mobile detection - keep this minimal since we're focusing on desktop
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      setIsMobile(window.innerWidth < 768); // Standard mobile breakpoint
     };
     
     checkMobile();
@@ -35,7 +35,7 @@ export const useSidebar = (): UseSidebarReturn => {
     let timeoutId: NodeJS.Timeout;
     const debouncedResize = () => {
       clearTimeout(timeoutId);
-      timeoutId = setTimeout(checkMobile, 150);
+      timeoutId = setTimeout(checkMobile, 100);
     };
     
     window.addEventListener('resize', debouncedResize);
@@ -44,13 +44,6 @@ export const useSidebar = (): UseSidebarReturn => {
       clearTimeout(timeoutId);
     };
   }, []);
-
-  // Auto-close sidebar on route change (mobile only)
-  useEffect(() => {
-    if (isMobile && sidebarOpen) {
-      setSidebarOpen(false);
-    }
-  }, [location.pathname, isMobile, sidebarOpen]);
 
   const toggleSidebar = useCallback(() => {
     setSidebarOpen(prevState => !prevState);

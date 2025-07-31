@@ -21,6 +21,7 @@ import InteractiveQuizzes from "./pages/education/InteractiveQuizzes";
 import RealTimePractice from "./pages/education/RealTimePractice";
 import ProgressTracking from "./pages/education/ProgressTracking";
 import Reports from "./pages/Reports";
+import QuizResult from "./pages/QuizResult";
 import Profile from "./pages/Profile";
 import TranscriptionHistory from "./pages/TranscriptionHistory";
 import TranscriptionResult from "./pages/TranscriptionResult";
@@ -111,6 +112,13 @@ const App = () => (
               <ProtectedRoute>
                 <DashboardLayout>
                   <Reports />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/quiz-result/:quizId" element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <QuizResult />
                 </DashboardLayout>
               </ProtectedRoute>
             } />

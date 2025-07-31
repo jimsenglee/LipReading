@@ -3,6 +3,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSidebar } from '@/hooks/use-sidebar';
+import { cn } from '@/lib/utils';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 
@@ -20,41 +21,36 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-primary/5">
-                <Navbar 
-            onToggleSidebar={toggleSidebar} 
-            sidebarOpen={sidebarOpen}
-          />
+      <Navbar 
+        onToggleSidebar={toggleSidebar} 
+        sidebarOpen={sidebarOpen}
+      />
       
-      <div className="flex h-screen pt-16 relative overflow-hidden">
+      <div className="flex pt-16 min-h-screen">
+        {/* Sidebar */}
         <Sidebar 
           isOpen={sidebarOpen} 
           onClose={closeSidebar} 
           isMobile={isMobile}
         />
         
-        {/* Main Content with smooth animation */}
-        <motion.main 
-          className="flex-1 overflow-y-auto relative"
-          animate={{
-            marginLeft: (!isMobile && sidebarOpen) ? '288px' : '0px'
-          }}
-          transition={{
-            duration: 0.3,
-            ease: [0.4, 0, 0.2, 1] // Use proper easing array
-          }}
-        >
+        {/* Main Content - Flexible layout without forced positioning */}
+        <main className={cn(
+          "flex-1 transition-all duration-300 ease-in-out overflow-y-auto",
+          // Clean margin transition without complex calculations
+          sidebarOpen && !isMobile ? "ml-72" : "ml-0"
+        )}>
           <div className="p-6 min-h-full">
-            <div className="max-w-7xl mx-auto">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.1 }}
-              >
-                {children}
-              </motion.div>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="w-full max-w-none"
+            >
+              {children}
+            </motion.div>
           </div>
-        </motion.main>
+        </main>
         
         {/* Mobile backdrop overlay */}
         <AnimatePresence>
@@ -64,7 +60,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
               onClick={closeSidebar}
             />
           )}
