@@ -19,7 +19,6 @@ import Education from "./pages/Education";
 import TutorialPlayer from "./pages/education/TutorialPlayer";
 import InteractiveQuizzes from "./pages/education/InteractiveQuizzes";
 import RealTimePractice from "./pages/education/RealTimePractice";
-import ProgressTracking from "./pages/education/ProgressTracking";
 import Reports from "./pages/Reports";
 import QuizResult from "./pages/QuizResult";
 import Profile from "./pages/Profile";
@@ -91,13 +90,6 @@ const App = () => (
               <ProtectedRoute>
                 <DashboardLayout>
                   <RealTimePractice />
-                </DashboardLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/education/progress" element={
-              <ProtectedRoute>
-                <DashboardLayout>
-                  <ProgressTracking />
                 </DashboardLayout>
               </ProtectedRoute>
             } />

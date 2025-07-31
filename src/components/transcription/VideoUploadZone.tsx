@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -33,12 +33,12 @@ const VideoUploadZone: React.FC<VideoUploadZoneProps> = ({ onTranscriptionComple
   const [dragOver, setDragOver] = useState(false);
   const feedbackToast = useFeedbackToast();
 
-  // File validation constants
-  const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
-  const ALLOWED_TYPES = ['video/mp4', 'video/webm', 'video/avi', 'video/mov'];
+  // File validation constants (moved outside to prevent re-creation)
+  const MAX_FILE_SIZE = useMemo(() => 100 * 1024 * 1024, []); // 100MB
+  const ALLOWED_TYPES = useMemo(() => ['video/mp4', 'video/webm', 'video/avi', 'video/mov'], []);
 
   // File validation
-  const validateFile = (file: File): string | null => {
+  const validateFile = useCallback((file: File): string | null => {
     // File type check
     if (!ALLOWED_TYPES.includes(file.type)) {
       return "Unsupported file type. Please upload MP4, WebM, AVI, or MOV files.";
@@ -50,40 +50,10 @@ const VideoUploadZone: React.FC<VideoUploadZoneProps> = ({ onTranscriptionComple
     }
 
     return null;
-  };
-
-  // Handle file selection
-  const handleFileSelect = useCallback((files: FileList | null) => {
-    if (!files) return;
-
-    const newFiles: VideoFile[] = [];
-    
-    Array.from(files).forEach((file) => {
-      const error = validateFile(file);
-      
-      const videoFile: VideoFile = {
-        id: Math.random().toString(36).substr(2, 9),
-        file,
-        status: error ? 'error' : 'pending',
-        progress: 0,
-        error
-      };
-      
-      newFiles.push(videoFile);
-    });
-
-    setVideoFiles(prev => [...prev, ...newFiles]);
-
-    // Process valid files
-    newFiles.forEach(videoFile => {
-      if (videoFile.status === 'pending') {
-        processVideoFile(videoFile.id);
-      }
-    });
-  }, []);
+  }, [ALLOWED_TYPES, MAX_FILE_SIZE]);
 
   // Process video file
-  const processVideoFile = async (fileId: string) => {
+  const processVideoFile = useCallback(async (fileId: string) => {
     setVideoFiles(prev => 
       prev.map(f => f.id === fileId ? { ...f, status: 'uploading' } : f)
     );
@@ -148,7 +118,37 @@ const VideoUploadZone: React.FC<VideoUploadZoneProps> = ({ onTranscriptionComple
         "An error occurred while processing your video."
       );
     }
-  };
+  }, [videoFiles, onTranscriptionComplete, feedbackToast]);
+
+  // Handle file selection
+  const handleFileSelect = useCallback((files: FileList | null) => {
+    if (!files) return;
+
+    const newFiles: VideoFile[] = [];
+    
+    Array.from(files).forEach((file) => {
+      const error = validateFile(file);
+      
+      const videoFile: VideoFile = {
+        id: Math.random().toString(36).substr(2, 9),
+        file,
+        status: error ? 'error' : 'pending',
+        progress: 0,
+        error
+      };
+      
+      newFiles.push(videoFile);
+    });
+
+    setVideoFiles(prev => [...prev, ...newFiles]);
+
+    // Process valid files
+    newFiles.forEach(videoFile => {
+      if (videoFile.status === 'pending') {
+        processVideoFile(videoFile.id);
+      }
+    });
+  }, [processVideoFile, validateFile]);
 
   // Remove file from queue
   const removeFile = (fileId: string) => {
@@ -285,7 +285,7 @@ const VideoUploadZone: React.FC<VideoUploadZoneProps> = ({ onTranscriptionComple
               {videoFiles.map((videoFile) => (
                 <div 
                   key={videoFile.id} 
-                  className="flex items-center gap-4 p-4 border border-primary/10 rounded-lg bg-white"
+                  className="flex items-center gap-4 p-4 border border-primary/10 rounded-lg bg-card"
                 >
                   <div className="flex-shrink-0">
                     {getStatusIcon(videoFile.status)}

@@ -49,14 +49,64 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
+// TypeScript interfaces
+interface Video {
+  id: number;
+  title: string;
+  category: string;
+  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+  duration: string;
+  status: 'published' | 'draft' | 'review';
+  uploadDate: string;
+  views: number;
+  description: string;
+  videoFile?: File | null;
+  thumbnail?: File | null;
+}
+
+interface Quiz {
+  id: number;
+  question: string;
+  correctAnswer: string;
+  incorrectOptions: string[];
+  category: string;
+  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+  videoClip?: File | null;
+  createdDate: string;
+  attempts: number;
+  successRate: number;
+}
+
+interface Category {
+  id: number;
+  name: string;
+  description: string;
+  contentCount: number;
+  createdDate: string;
+}
+
+interface NewQuiz {
+  question: string;
+  correctAnswer: string;
+  incorrectOptions: string[];
+  category: string;
+  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+  videoClip?: File | null;
+}
+
+interface NewCategory {
+  name: string;
+  description: string;
+}
+
 const ContentManagement = () => {
   // State management for modals and data
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-  const [editingVideo, setEditingVideo] = useState(null);
-  const [editingQuiz, setEditingQuiz] = useState(null);
-  const [editingCategory, setEditingCategory] = useState(null);
+  const [editingVideo, setEditingVideo] = useState<Video | null>(null);
+  const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
   const [searchTerm, setSearchTerm] = useState('');
   const [quizSearchTerm, setQuizSearchTerm] = useState('');
@@ -65,7 +115,7 @@ const ContentManagement = () => {
   const [difficultyFilter, setDifficultyFilter] = useState('all');
   
   // Tutorial Videos State
-  const [videos, setVideos] = useState([
+  const [videos, setVideos] = useState<Video[]>([
     {
       id: 1,
       title: 'Basic Vowels (A, E, I, O, U)',
@@ -108,7 +158,7 @@ const ContentManagement = () => {
   ]);
 
   // Quiz Questions State
-  const [quizzes, setQuizzes] = useState([
+  const [quizzes, setQuizzes] = useState<Quiz[]>([
     {
       id: 1,
       question: 'What word is being said?',
@@ -148,7 +198,7 @@ const ContentManagement = () => {
   ]);
 
   // Categories State
-  const [categories, setCategories] = useState([
+  const [categories, setCategories] = useState<Category[]>([
     { id: 1, name: 'Vowels', description: 'Vowel sounds and patterns', contentCount: 8, createdDate: '2024-01-01' },
     { id: 2, name: 'Consonants', description: 'Consonant sounds and combinations', contentCount: 12, createdDate: '2024-01-01' },
     { id: 3, name: 'Greetings', description: 'Common greeting words and phrases', contentCount: 5, createdDate: '2024-01-05' },
@@ -157,7 +207,7 @@ const ContentManagement = () => {
   ]);
 
   // Form states for new content
-  const [newQuiz, setNewQuiz] = useState({
+  const [newQuiz, setNewQuiz] = useState<NewQuiz>({
     question: '',
     correctAnswer: '',
     incorrectOptions: ['', '', ''],
@@ -166,7 +216,7 @@ const ContentManagement = () => {
     videoClip: null
   });
 
-  const [newCategory, setNewCategory] = useState({
+  const [newCategory, setNewCategory] = useState<NewCategory>({
     name: '',
     description: ''
   });
@@ -206,7 +256,7 @@ const ContentManagement = () => {
     setIsVideoModalOpen(true);
   };
 
-  const handleEditVideo = (video: any) => {
+  const handleEditVideo = (video: Video) => {
     setModalMode('edit');
     setEditingVideo(video);
     setIsVideoModalOpen(true);
@@ -217,7 +267,7 @@ const ContentManagement = () => {
     success('Video deleted', 'The tutorial video has been removed from your library.');
   };
 
-  const handleSaveVideo = (videoData: any) => {
+  const handleSaveVideo = (videoData: Video) => {
     if (modalMode === 'add') {
       const newVideo = {
         ...videoData,
@@ -249,7 +299,7 @@ const ContentManagement = () => {
     setIsQuizModalOpen(true);
   };
 
-  const handleEditQuiz = (quiz: any) => {
+  const handleEditQuiz = (quiz: Quiz) => {
     setModalMode('edit');
     setEditingQuiz(quiz);
     setNewQuiz(quiz);
@@ -309,7 +359,7 @@ const ContentManagement = () => {
     setIsCategoryModalOpen(true);
   };
 
-  const handleEditCategory = (category: any) => {
+  const handleEditCategory = (category: Category) => {
     setModalMode('edit');
     setEditingCategory(category);
     setNewCategory({ name: category.name, description: category.description });
@@ -411,10 +461,10 @@ const ContentManagement = () => {
       </motion.div>
 
       <Tabs defaultValue="videos" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 bg-white shadow-sm">
+        <TabsList className="grid w-full grid-cols-4 bg-background shadow-sm">
           <TabsTrigger 
             value="videos" 
-            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
+            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
           >
             <Video className="h-4 w-4" />
             Tutorial Videos
@@ -457,7 +507,7 @@ const ContentManagement = () => {
                   placeholder="Search videos by title, category, or description..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 border-primary/20 focus:border-primary bg-white"
+                  className="pl-10 border-primary/20 focus:border-primary bg-background"
                 />
               </div>
             </div>
@@ -671,7 +721,7 @@ const ContentManagement = () => {
                 placeholder="Search quiz questions..."
                 value={quizSearchTerm}
                 onChange={(e) => setQuizSearchTerm(e.target.value)}
-                className="pl-10 border-primary/20 focus:border-primary bg-white"
+                className="pl-10 border-primary/20 focus:border-primary bg-background"
               />
             </div>
             <Button 
@@ -1063,7 +1113,7 @@ const ContentManagement = () => {
                 <Label className="text-sm font-medium text-gray-700">Difficulty</Label>
                 <Select 
                   value={newQuiz.difficulty} 
-                  onValueChange={(value) => setNewQuiz(prev => ({ ...prev, difficulty: value }))}
+                  onValueChange={(value) => setNewQuiz(prev => ({ ...prev, difficulty: value as 'Beginner' | 'Intermediate' | 'Advanced' }))}
                 >
                   <SelectTrigger className="mt-1 border-primary/20">
                     <SelectValue placeholder="Select difficulty" />

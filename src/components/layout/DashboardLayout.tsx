@@ -20,7 +20,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-primary/5">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       <Navbar 
         onToggleSidebar={toggleSidebar} 
         sidebarOpen={sidebarOpen}

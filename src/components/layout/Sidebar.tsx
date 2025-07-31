@@ -147,7 +147,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
       <motion.div
         className={cn(
           "fixed left-0 top-16 h-[calc(100vh-4rem)] w-72 z-50",
-          "bg-white/95 backdrop-blur-md shadow-xl border-r border-primary/10",
+          "bg-background/95 backdrop-blur-md shadow-xl border-r border-border",
           "overflow-hidden"
         )}
         initial={false}
@@ -171,7 +171,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
             <h2 className="text-lg font-semibold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
               {user?.role === 'admin' ? 'Admin Console' : 'Navigation'}
             </h2>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {user?.role === 'admin' ? 'System Management' : 'Lip-Reading Platform'}
             </p>
           </motion.div>
@@ -184,7 +184,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
             >
-              <X className="h-5 w-5 text-gray-500" />
+              <X className="h-5 w-5 text-muted-foreground" />
             </motion.button>
           )}
         </div>
@@ -215,7 +215,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
                       'hover:scale-[1.02] hover:shadow-sm',
                       isActive
                         ? 'bg-gradient-to-r from-primary/15 to-secondary/15 text-primary shadow-sm border-l-3 border-primary'
-                        : 'text-gray-700 hover:bg-primary/5 hover:text-primary hover:border-l-3 hover:border-primary/30'
+                        : 'text-foreground hover:bg-primary/5 hover:text-primary hover:border-l-3 hover:border-primary/30'
                     )}
                   >
                     <div className="flex items-center">
@@ -226,7 +226,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
                         <item.icon
                           className={cn(
                             'mr-3 h-5 w-5 transition-colors',
-                            isActive ? 'text-primary' : 'text-gray-400 group-hover:text-primary'
+                            isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-primary'
                           )}
                         />
                       </motion.div>
@@ -234,7 +234,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
                     </div>
                     <span className={cn(
                       'text-xs mt-1 ml-8 transition-colors',
-                      isActive ? 'text-primary/70' : 'text-gray-500 group-hover:text-primary/70'
+                      isActive ? 'text-primary/70' : 'text-muted-foreground group-hover:text-primary/70'
                     )}>
                       {item.description}
                     </span>
@@ -259,10 +259,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
+              <p className="text-sm font-medium text-foreground truncate">
                 {user?.name}
               </p>
-              <p className="text-xs text-gray-500 capitalize">
+              <p className="text-xs text-muted-foreground capitalize">
                 {user?.role} Account
               </p>
             </div>

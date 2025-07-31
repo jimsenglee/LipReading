@@ -16,6 +16,11 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
+    /* Dialog components for light theme */
+    --dialog-background: 0 0% 100%;
+    --dialog-foreground: 222.2 84% 4.9%;
+    --dialog-border: 214.3 31.8% 91.4%;
+
     /* Updated purple-based primary colors */
     --primary: 262 52% 47%; /* #7E57C2 */
     --primary-foreground: 0 0% 100%;
@@ -59,17 +64,22 @@
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
 
+    /* Dialog components for dark theme */
+    --dialog-background: 222.2 84% 4.9%;
+    --dialog-foreground: 210 40% 98%;
+    --dialog-border: 217.2 32.6% 17.5%;
+
     --primary: 252 32% 75%;
     --primary-foreground: 262 76% 29%;
 
-    --secondary: 262 76% 29%;
-    --secondary-foreground: 252 32% 75%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
 
     --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted-foreground: 217.2 32.6% 65%;
 
-    --accent: 262 76% 29%;
-    --accent-foreground: 252 32% 75%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
@@ -78,13 +88,18 @@
     --input: 217.2 32.6% 17.5%;
     --ring: 252 32% 75%;
     
-    --sidebar-background: 262 76% 29%;
-    --sidebar-foreground: 252 32% 75%;
+    /* Enhanced dark theme coverage */
+    --muted-foreground: 217.2 32.6% 65%;
+    --accent-foreground: 210 40% 98%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --sidebar-background: 222.2 84% 4.9%;
+    --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 252 32% 75%;
-    --sidebar-primary-foreground: 262 76% 29%;
-    --sidebar-accent: 262 60% 20%;
-    --sidebar-accent-foreground: 252 32% 75%;
-    --sidebar-border: 262 60% 20%;
+    --sidebar-primary-foreground: 222.2 84% 4.9%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 17.5%;
     --sidebar-ring: 252 32% 75%;
   }
 }
@@ -97,6 +112,78 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Ensure dark theme applies to all containers */
+  .dark {
+    color-scheme: dark;
+  }
+
+  .dark body {
+    @apply bg-background text-foreground;
+  }
+
+  /* Comprehensive dark mode overrides */
+  .dark,
+  .dark * {
+    border-color: hsl(var(--border));
+  }
+
+  /* Fix for any remaining light backgrounds in dark mode */
+  .dark .bg-gray-50 {
+    @apply bg-gray-900;
+  }
+
+  .dark .bg-white {
+    @apply bg-background;
+  }
+
+  .dark .bg-gray-100 {
+    @apply bg-gray-800;
+  }
+
+  .dark .text-gray-900 {
+    @apply text-gray-100;
+  }
+
+  .dark .text-gray-600 {
+    @apply text-gray-400;
+  }
+
+  .dark .text-gray-700 {
+    @apply text-gray-300;
+  }
+
+  .dark .border-gray-200 {
+    @apply border-gray-700;
+  }
+
+  .dark .border-gray-300 {
+    @apply border-gray-600;
+  }
+
+  /* Force navbar and sidebar to use proper dark theme */
+  .dark nav,
+  .dark .sidebar,
+  .dark header {
+    @apply bg-background text-foreground border-border;
+  }
+
+  /* Ensure all cards use dark theme */
+  .dark .card {
+    @apply bg-card text-card-foreground border-border;
+  }
+
+  /* Fix input fields in dark mode */
+  .dark input,
+  .dark select,
+  .dark textarea {
+    @apply bg-background text-foreground border-border;
+  }
+
+  /* Fix button hover states */
+  .dark button:hover {
+    @apply bg-accent text-accent-foreground;
   }
 
   /* Focus styles for accessibility */

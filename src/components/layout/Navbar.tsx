@@ -30,7 +30,7 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false })
   };
 
   return (
-    <nav className="bg-white/90 backdrop-blur-md shadow-sm border-b border-primary/10 fixed top-0 left-0 right-0 z-50">
+    <nav className="bg-background/90 backdrop-blur-md shadow-sm border-b border-border fixed top-0 left-0 right-0 z-50">
       {/* Full width container - stick to walls */}
       <div className="flex justify-between items-center h-16 px-4">
         {/* Left side - Burger + Logo moved to far left */}
@@ -42,8 +42,8 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false })
               "p-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/30",
               "border border-transparent",
               sidebarOpen 
-                ? 'bg-gradient-to-br from-red-50 to-red-100 hover:from-red-100 hover:to-red-200 text-red-600 border-red-200/50 shadow-lg shadow-red-100/50' 
-                : 'bg-gradient-to-br from-primary/5 to-primary/10 hover:from-primary/10 hover:to-primary/20 text-gray-700 hover:text-primary border-primary/10 shadow-lg shadow-primary/5'
+                ? 'bg-gradient-to-br from-red-50 to-red-100 hover:from-red-100 hover:to-red-200 text-red-600 border-red-200/50 shadow-lg shadow-red-100/50 dark:from-red-900/20 dark:to-red-800/20 dark:hover:from-red-800/30 dark:hover:to-red-700/30 dark:text-red-400 dark:border-red-700/50 dark:shadow-red-900/20' 
+                : 'bg-gradient-to-br from-primary/5 to-primary/10 hover:from-primary/10 hover:to-primary/20 text-foreground hover:text-primary border-primary/10 shadow-lg shadow-primary/5'
             )}
             whileHover={{ scale: 1.05, y: -1 }}
             whileTap={{ scale: 0.95 }}
@@ -97,7 +97,7 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false })
             {user ? (
               <>
                 <motion.span 
-                  className="text-sm text-gray-700 hidden sm:block"
+                  className="text-sm text-foreground hidden sm:block"
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.2 }}
@@ -114,17 +114,17 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false })
                       </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56 bg-white/95 backdrop-blur-sm border-primary/20" align="end" forceMount>
-                    <DropdownMenuItem onClick={() => navigate('/profile')} className="hover:bg-primary/10">
+                  <DropdownMenuContent className="w-56 bg-background/95 backdrop-blur-sm border-border" align="end" forceMount>
+                    <DropdownMenuItem onClick={() => navigate('/profile')} className="hover:bg-primary/10 text-foreground">
                       <User className="mr-2 h-4 w-4 text-primary" />
                       <span>Profile</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/settings')} className="hover:bg-primary/10">
+                    <DropdownMenuItem onClick={() => navigate('/settings')} className="hover:bg-primary/10 text-foreground">
                       <Settings className="mr-2 h-4 w-4 text-primary" />
                       <span>Settings</span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout} className="hover:bg-red-50 text-red-600">
+                    <DropdownMenuItem onClick={handleLogout} className="hover:bg-destructive/10 text-destructive">
                       <LogOut className="mr-2 h-4 w-4" />
                       <span>Log out</span>
                     </DropdownMenuItem>

@@ -721,9 +721,9 @@ const ContentInteractionAnalytics = () => {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
-                              <div className="bg-white p-3 border rounded-lg shadow-lg">
-                                <p className="font-medium">{data.name}</p>
-                                <p className="text-sm text-gray-600">{data.value} items</p>
+                              <div className="bg-background p-3 border border-border rounded-lg shadow-lg">
+                                <p className="font-medium text-foreground">{data.name}</p>
+                                <p className="text-sm text-muted-foreground">{data.value} items</p>
                               </div>
                             );
                           }
@@ -763,9 +763,9 @@ const ContentInteractionAnalytics = () => {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
-                              <div className="bg-white p-3 border rounded-lg shadow-lg">
-                                <p className="font-medium">{data.type}</p>
-                                <p className="text-sm text-gray-600">{data.count} items</p>
+                              <div className="bg-background p-3 border border-border rounded-lg shadow-lg">
+                                <p className="font-medium text-foreground">{data.type}</p>
+                                <p className="text-sm text-muted-foreground">{data.count} items</p>
                               </div>
                             );
                           }
@@ -935,7 +935,7 @@ const ContentInteractionAnalytics = () => {
                   value={selectedFeedback.status} 
                   onValueChange={(value) => setSelectedFeedback({
                     ...selectedFeedback,
-                    status: value as any
+                    status: value as 'new' | 'in-progress' | 'resolved' | 'closed'
                   })}
                 >
                   <SelectTrigger>
@@ -955,7 +955,7 @@ const ContentInteractionAnalytics = () => {
                   value={selectedFeedback.priority} 
                   onValueChange={(value) => setSelectedFeedback({
                     ...selectedFeedback,
-                    priority: value as any
+                    priority: value as 'low' | 'medium' | 'high' | 'critical'
                   })}
                 >
                   <SelectTrigger>
@@ -973,13 +973,13 @@ const ContentInteractionAnalytics = () => {
             
             <div>
               <Label htmlFor="feedback-details">Feedback Details</Label>
-              <div className="p-3 bg-gray-50 rounded-md text-sm">
+              <div className="p-3 bg-muted rounded-md text-sm">
                 <p><strong>User:</strong> {selectedFeedback.userName} ({selectedFeedback.email})</p>
                 <p><strong>Type:</strong> {selectedFeedback.type}</p>
                 <p><strong>Category:</strong> {selectedFeedback.category}</p>
                 <p><strong>Submitted:</strong> {new Date(selectedFeedback.submittedAt).toLocaleString()}</p>
                 <p className="mt-2"><strong>Description:</strong></p>
-                <p className="text-gray-700">{selectedFeedback.description}</p>
+                <p className="text-muted-foreground">{selectedFeedback.description}</p>
               </div>
             </div>
 

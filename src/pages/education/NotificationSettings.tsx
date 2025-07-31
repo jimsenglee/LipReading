@@ -12,8 +12,6 @@ import {
   Clock, 
   Settings,
   CheckCircle,
-  Calendar,
-  Zap,
   Target
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -42,18 +40,6 @@ const NotificationSettings = () => {
       enabled: false,
       frequency: 'weekly',
       time: '10:00'
-    },
-    {
-      type: 'achievement-alerts',
-      enabled: true,
-      frequency: 'immediate',
-      time: '09:00'
-    },
-    {
-      type: 'progress-summary',
-      enabled: true,
-      frequency: 'weekly',
-      time: '19:00'
     }
   ]);
 
@@ -97,24 +83,10 @@ const NotificationSettings = () => {
       description: 'Reminders to take new quizzes and test your progress',
       icon: <Clock className="h-5 w-5 text-green-600" />,
       color: 'bg-green-50 border-green-200'
-    },
-    {
-      id: 'achievement-alerts',
-      title: 'Achievement Alerts',
-      description: 'Instant notifications when you unlock new achievements',
-      icon: <Zap className="h-5 w-5 text-yellow-600" />,
-      color: 'bg-yellow-50 border-yellow-200'
-    },
-    {
-      id: 'progress-summary',
-      title: 'Progress Summary',
-      description: 'Weekly summaries of your learning progress and statistics',
-      icon: <CheckCircle className="h-5 w-5 text-purple-600" />,
-      color: 'bg-purple-50 border-purple-200'
     }
   ];
 
-  const updateNotification = (type: string, field: keyof NotificationPreference, value: any) => {
+  const updateNotification = (type: string, field: keyof NotificationPreference, value: string | boolean) => {
     setNotifications(prev => prev.map(notification =>
       notification.type === type
         ? { ...notification, [field]: value }
@@ -373,7 +345,7 @@ const NotificationSettings = () => {
                         You're doing great! Keep up the momentum with a quick 10-minute practice session.
                       </p>
                       <div className="text-xs text-blue-600">
-                        🎯 Current streak: 5 days | 📈 Average score: 87%
+                        📈 Average score: 87%
                       </div>
                     </div>
                   </div>
@@ -385,28 +357,13 @@ const NotificationSettings = () => {
                     <Smartphone className="h-5 w-5 text-green-600 mt-1" />
                     <div className="flex-1">
                       <h4 className="font-semibold text-green-900 mb-1">
-                        🏆 Achievement Unlocked!
+                        📝 Weekly Quiz Available!
                       </h4>
-                      <p className="text-sm text-green-700">
-                        Congratulations! You've earned the "Weekly Warrior" badge for practicing 7 days in a row.
+                      <p className="text-sm text-green-700 mb-2">
+                        Test your progress with this week's lip-reading comprehension quiz.
                       </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Summary Preview */}
-                <div className="p-4 border border-purple-200 rounded-lg bg-purple-50">
-                  <div className="flex items-start gap-3">
-                    <Calendar className="h-5 w-5 text-purple-600 mt-1" />
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-purple-900 mb-1">
-                        📊 Your Weekly Progress Summary
-                      </h4>
-                      <p className="text-sm text-purple-700 mb-2">
-                        This week you completed 5 practice sessions and 3 quizzes. Your average score improved by 8%!
-                      </p>
-                      <div className="text-xs text-purple-600">
-                        ⭐ Keep up the excellent work!
+                      <div className="text-xs text-green-600">
+                        ⏰ Estimated time: 5 minutes
                       </div>
                     </div>
                   </div>

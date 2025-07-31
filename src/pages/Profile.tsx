@@ -24,8 +24,6 @@ import {
   Bell,
   Clock,
   Target,
-  CheckCircle,
-  Zap,
   Mail,
   Smartphone
 } from 'lucide-react';
@@ -60,18 +58,6 @@ const Profile = () => {
       enabled: false,
       frequency: 'weekly',
       time: '10:00'
-    },
-    {
-      type: 'achievement-alerts',
-      enabled: true,
-      frequency: 'immediate',  
-      time: '09:00'
-    },
-    {
-      type: 'progress-summary',
-      enabled: true,
-      frequency: 'weekly',
-      time: '19:00'
     }
   ]);
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -387,7 +373,7 @@ const Profile = () => {
                   <SelectTrigger className="border-primary/20 focus:border-primary">
                     <SelectValue placeholder="Select format" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white">
+                  <SelectContent className="bg-background border-border">
                     <SelectItem value="plain">Plain Text</SelectItem>
                     <SelectItem value="timestamped">With Timestamps</SelectItem>
                     <SelectItem value="formatted">Formatted with Punctuation</SelectItem>
@@ -476,20 +462,6 @@ const Profile = () => {
                       description: 'Reminders to take new quizzes and test your progress',
                       icon: <Clock className="h-5 w-5 text-green-600" />,
                       color: 'bg-green-50 border-green-200'
-                    },
-                    {
-                      id: 'achievement-alerts',
-                      title: 'Achievement Alerts',
-                      description: 'Instant notifications when you unlock new achievements',
-                      icon: <Zap className="h-5 w-5 text-yellow-600" />,
-                      color: 'bg-yellow-50 border-yellow-200'
-                    },
-                    {
-                      id: 'progress-summary',
-                      title: 'Progress Summary',
-                      description: 'Weekly summaries of your learning progress and statistics',
-                      icon: <CheckCircle className="h-5 w-5 text-purple-600" />,
-                      color: 'bg-purple-50 border-purple-200'
                     }
                   ].map((type) => {
                     const notification = notifications.find(n => n.type === type.id);
