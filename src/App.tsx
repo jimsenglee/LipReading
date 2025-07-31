@@ -18,6 +18,8 @@ import Dashboard from "./pages/Dashboard";
 import Transcription from "./pages/Transcription";
 import Education from "./pages/Education";
 import TutorialPlayer from "./pages/education/TutorialPlayer";
+import SeriesDetailPage from "./pages/education/SeriesDetailPage";
+import VideoPlayerPage from "./pages/education/VideoPlayerPage";
 import InteractiveQuizzes from "./pages/education/InteractiveQuizzes";
 import RealTimePractice from "./pages/education/RealTimePractice";
 import Reports from "./pages/Reports";
@@ -78,6 +80,20 @@ const App = () => (
               <ProtectedRoute>
                 <DashboardLayout>
                   <TutorialPlayer />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/education/series/:seriesId" element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <SeriesDetailPage />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/education/series/:seriesId/video/:videoId" element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <VideoPlayerPage />
                 </DashboardLayout>
               </ProtectedRoute>
             } />

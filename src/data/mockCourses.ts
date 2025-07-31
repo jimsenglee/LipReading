@@ -134,7 +134,7 @@ export const mockCourses: Course[] = [
     rating: 4.7,
     studentsCount: 1205,
     instructor: 'Prof. Michael Chen',
-    thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
+    thumbnail: 'https://img.youtube.com/vi/LmvpCSvm1qY/maxresdefault.jpg',
     tags: ['consonants', 'patterns', 'lip-reading', 'pronunciation'],
     learningOutcomes: [
       'Identify common consonant patterns',
@@ -147,16 +147,16 @@ export const mockCourses: Course[] = [
         id: '2-1',
         title: 'Visible Consonants Overview',
         description: 'Introduction to the most lip-readable consonant sounds',
-        videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-        videoId: 'dQw4w9WgXcQ',
+        videoUrl: 'https://www.youtube.com/watch?v=LmvpCSvm1qY',
+        videoId: 'LmvpCSvm1qY',
         duration: 480
       },
       {
         id: '2-2',
         title: 'B, P, M Sound Group',
         description: 'Detailed analysis of bilabial consonants',
-        videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-        videoId: 'dQw4w9WgXcQ',
+        videoUrl: 'https://www.youtube.com/watch?v=LmvpCSvm1qY',
+        videoId: 'LmvpCSvm1qY',
         duration: 420
       }
     ],
