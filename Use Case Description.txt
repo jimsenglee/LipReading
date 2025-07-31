@@ -1,0 +1,1373 @@
+3.1.1 Use Case Diagram Description
+3.1.1.1 Account Management Module
+3.1.1.1.1 User Registration and Authentication (Register New Account)
+Name of the use case: Register New Account
+Actor: New User
+Brief description: This use case describes the process for a new user to create a personal account to access
+the system's features.
+Pre-conditions: The user is on the system's landing page.
+Actor Action System Response
+1. The user clicks the "Register" button. 2. The system navigates to the registration page.
+3. The system displays the registration form with
+fields for name, email, password, and password
+confirmation.
+4. The user clicks the "Upload Profile Image"
+button.
+5. The system opens the user's file browser.
+6. The user selects an image file from their
+device.
+7. The system performs a file type check on the
+selected image.
+8. If the file type is valid, the system performs a file
+size check against the maximum allowed limit.
+9. If the file is valid, the system displays a preview
+of the selected image.
+10. The user enters their full name into the
+name field.
+11. The system performs a null value check on the
+name field.
+12. If the name field is not null, the system
+performs a data type check to ensure it contains
+only valid characters.
+13. The user enters their email address into the
+email field.
+14. The system performs a null value check on the
+email field.
+15. If the email field is not null, the system
+performs a format check to ensure it matches a
+standard email pattern.
+16. If the email format is valid, the system performs
+an existence check in the database for the entered
+email address.
+17. The user enters a password into the
+password field.
+18. The system performs a null value check on the
+password field.
+19. If the password field is not null, the system
+performs a complexity check to ensure it meets
+security requirements.
+20. The user re-enters the password into the
+password confirmation field.
+21. The system performs a null value check on the
+password confirmation field.
+22. If the password confirmation field is not null,
+the system performs a match check against the
+password field.
+23. The user clicks the "Create Account"
+button.
+24. The system securely hashes the password.
+25. The system stores the user's details and the
+hashed password.
+26. The system establishes an authenticated session.
+27. The system displays a "Registration Successful"
+message.
+28. The system redirects the user to the main
+dashboard.
+Alternative Flows:
+A1: Step 1 - User clicks "Login" instead.
+1. The system navigates to the login page.
+2. The use case terminates and proceeds to “User Login” use case.
+A2: Step 7 - Invalid Image Type
+1. If the selected image file type is invalid, the system will prompt an error message: "Invalid file
+type. Please upload a JPG, PNG, or JPEG."
+A3: Step 8 - Image Too Large
+1. If the selected image file exceeds the size limit, the system will prompt an error message: "File size
+exceeds the maximum limit."
+A4: Step 11 - Name field is empty.
+1. The system displays an error message: "Name field cannot be empty."
+A5: Step 12 - Name contains invalid characters.
+1. The system displays an error message: "Name contains invalid characters."
+A6: Step 14 - Email field is empty.
+1. The system displays an error message: "Email field cannot be empty."
+A7: Step 15 - Email format is invalid.
+1. The system displays an error message: "Please enter a valid email address."
+A8: Step 16 - Email already exists
+1. If the email address already exists, the system will prompt an error message: "An account with this
+email address already exists. Please log in."
+A9: Step 18 - Password field is empty.
+1. The system displays an error message: "Password cannot be empty."
+A10: Step 19 - Password does not meet complexity rules.
+2. The system displays an error message: "Password must be at least 8 characters and include both
+letters and numbers."
+A11: Step 22 - Confirmation Password field is empty.
+3. The system displays an error message: "Confirmation Password cannot be empty."
+A12: Step 23 - Passwords do not match.
+1. The system displays an error message: "Passwords do not match."
+Post-conditions: A new user account is successfully created and stored in the database.
+3.1.1.1.2 User Registration and Authentication (User Login)
+Name of the use case: User Login
+Actor: Registered User, Administrator
+Brief description: This use case allows a registered user to securely access their account.
+Pre-conditions: The user has a valid, existing account.
+Actor Action System Response
+1. The user navigates to the login page. 2. The system displays the login form with fields
+for email and password.
+3. The user enters their email address and
+password.
+4. The user clicks the "Login" button. 5. The system validates the user's credentials
+against the database.
+6. If the credentials are valid, the system checks if
+2FA is enabled for the account.
+7. If 2FA is not enabled, the system establishes an
+authenticated session and redirects the user to their
+dashboard.
+8. If 2FA is enabled, the system sends a verification
+code to the user's registered email and displays a
+page to enter the code.
+9. The user enters the 2FA code from their
+email.
+10. The user clicks the "Verify" button. 11. The system checks if the entered 2FA code is
+correct.
+12. If the code is correct, the system establishes an
+authenticated session and redirects the user to their
+dashboard.
+Alternative Flows:
+A1: Step 5 - Invalid Credentials
+1. If the email or password is incorrect, the system will prompt a generic error message: "Invalid
+email or password."
+A2: Step 11 - Invalid 2FA Code
+1. If the entered 2FA code is incorrect, the system will prompt an error message: "Invalid 2FA code."
+Post-conditions: The user is successfully authenticated and granted access to the system.
+3.1.1.1.3 User Registration and Authentication (Reset Forgotten Password)
+Name of the use case: Reset Forgotten Password
+Actor: Registered User
+Brief description: This use case enables a user who has forgotten their password to securely reset it via
+email.
+Pre-conditions: The user has an existing account with a valid email address.
+Actor Action System Response
+1. The user clicks the "Forgot Password?" link
+on the login page.
+2. The system displays the password reset request
+page.
+3. The user enters the email address associated
+with their account.
+4. The user clicks the "Send Reset Link" button. 5. The system verifies that the email address exists
+in the database.
+6. If the email exists, the system generates a unique,
+single-use, time-sensitive token.
+7. The system sends an email containing a link with
+the embedded token to the user's address.
+8. The system displays a confirmation message on
+the screen.
+9. The user receives an email and clicks the
+password reset link.
+10. The system receives the request from the link
+and validates the token for existence and expiry.
+11. If the token is valid, the system displays a
+secure page for setting a new password.
+12. The user enters a new password in the "New
+Password" field.
+13. The user enters the same new password in
+the "Confirm New Password" field.
+14. The user clicks the "Reset Password"
+button.
+15. The system validates the new password for
+complexity rules.
+16. If the complexity rules are met, the system
+validates that the two new password fields match.
+17. If the passwords match, the system hashes the
+new password.
+18. The system updates the user's record in the
+database with the new hashed password.
+19. The system invalidates the used reset token.
+20. The system displays a "Password has been
+successfully reset" message.
+21. The system redirects the user to the login page.
+Alternative Flows:
+A1: Step 5 - Email address not found.
+1. The system does not send an email but still displays a generic confirmation message to prevent
+account enumeration.
+2. The use case terminates.
+A2: Step 10 - Token is invalid or expired.
+1. The system displays an error page with the message: "This password reset link is invalid or has
+expired. Please request a new one."
+2. The use case terminates.
+A3: Step 16 - New password validation fails.
+1. The system displays an appropriate error message ("Password does not meet complexity rules" or
+"Passwords do not match").
+Post-conditions: The user's new password is securely updated in the database.
+3.1.1.1.4 User Profile Management (View and Update Profile Information)
+Name of the use case: View and Update Profile Information
+Actor: Authenticated User
+Brief description: This use case describes how a logged-in user can view and modify their personal profile
+information.
+Pre-conditions: The user is successfully logged into the system.
+Actor Action System Response
+1. The user navigates to their profile page. 2. The system retrieves and displays the user's
+current profile information (name, email) in
+read-only fields.
+3. The user clicks the "Edit Profile" button. 4. The system makes the name and email fields
+editable and displays "Save Changes" and "Cancel"
+buttons.
+5. The user modifies the content of the name
+field.
+6. The system performs a null value check on the
+name field.
+7. If the name field is not null, the system performs
+a data type check to ensure it contains only valid
+characters.
+8. The user modifies the content of the email
+field.
+9. The system performs a null value check on the
+email field.
+10. If the email field is not null, the system
+performs a format check to ensure it matches a
+standard email pattern.
+11. If the email format is valid, the system performs
+an existence check in the database to ensure the
+new email is not already in use by another account.
+12. The user clicks the "Save Changes" button. 13. The system updates the user's record in the
+database with the new information.
+14. The system displays a "Profile updated
+successfully" message.
+15. The system returns the fields to a read-only
+state.
+Alternative Flows:
+A1: Step 4 - User clicks "Cancel" at any point after step 3.
+1. The system discards any changes made to the fields.
+2. The system returns the fields to their original read-only state.
+3. The use case terminates.
+A2: Step 6 - Name field is left empty.
+1. The system displays an error message: "Name cannot be empty."
+A3: Step 7 - Name contains invalid characters.
+1. The system displays an error message: "Name contains invalid characters."
+A4: Step 9 - Email field is left empty.
+1. The system displays an error message: "Email cannot be empty."
+A5: Step 11 - New email address already exists.
+1. The system displays an error message: "This email address is already in use by another account."
+Post-conditions: The user's profile information is updated in the database.
+3.1.1.1.5 User Profile Management (Change Password)
+Name of the use case: Change Password
+Actor: Authenticated User
+Brief description: This use case allows a logged-in user to change their account password from their
+profile settings.
+Pre-conditions: The user is logged into the system and is on the "Change Password" page.
+Actor Action System Response
+1. The user enters their current password into
+the "Current Password" field.
+2. The system performs a null value check on the
+current password field.
+3. The user enters a new password into the
+"New Password" field.
+4. The system performs a null value check on the
+new password field.
+5. If the new password field is not null, the system
+performs a complexity check to ensure it meets
+security requirements.
+6. The user enters the new password again into
+the "Confirm New Password" field.
+7. The system performs a null value check on the
+confirmation field.
+8. If the confirmation field is not null, the system
+performs a match check against the new password
+field.
+9. The user clicks the "Update Password"
+button.
+10. The system retrieves the user's current hashed
+password from the database.
+11. The system compares the entered current
+password with the stored hash.
+12. If the current password is correct, the system
+securely hashes the new password.
+13. The system updates the user's record with the
+new hashed password.
+14. The system displays a "Password updated
+successfully" message and clears the form fields.
+Alternative Flows:
+A1: Step 2 - Current password field is empty.
+1. The system displays an error message: "Current password cannot be empty."
+A2: Step 5 - New password fails complexity check.
+1. The system displays an error message detailing the password requirements.
+A3: Step 8 - New passwords do not match.
+1. The system displays an error message: "New passwords do not match."
+A4: Step 11 - Current password is incorrect.
+1. The system displays an error message: "The current password you entered is incorrect."
+Post-conditions: The user's account password is changed.
+3.1.1.1.6 Accessibility and Customization (Adjust Font Size)
+Name of the use case: Adjust Font Size
+Actor: Authenticated User
+Brief description: This use case describes how a user can change the font size of the transcription text for
+better readability.
+Pre-conditions: The user is successfully logged into the system.
+Actor Action System Response
+1. The user navigates to the "Accessibility
+Settings" page.
+2. The system displays the available font size
+options, with the current selection highlighted.
+3. The user selects a new font size option. 4. The system immediately applies the selected font
+size to all transcription text areas across the
+application.
+5. The system saves the user's font size preference
+to their profile in the database.
+6. The system displays a confirmation message:
+"Font size updated to Large."
+Alternative Flows:
+- No Alternative Flow.
+Post-conditions: The font size for transcription text is changed for the user's current and future sessions.
+3.1.1.1.7 Accessibility and Customization (Switch Application Theme)
+Name of the use case: Switch Application Theme
+Actor: Authenticated User
+Brief description: This use case describes how a user can switch between a standard light theme and a
+high-contrast dark theme.
+Pre-conditions: The user is logged into the system.
+Actor Action System Response
+1. The user navigates to the "Accessibility
+Settings" page.
+2. The system displays the theme setting, typically
+as a toggle switch labeled "Dark Mode", reflecting
+the current state.
+3. The user clicks the theme toggle switch. 4. The system immediately applies the selected
+theme (light or dark) to the entire application user
+interface.
+5. The system saves the user's theme preference to
+their profile in the database.
+Alternative Flows:
+- No Alternative Flow.
+Post-conditions: The application's visual theme is changed for the user's sessions.
+3.1.1.1.8 Security and Privacy (Enable Two-Factor Authentication)
+Name of the use case: Enable Two-Factor Authentication (2FA)
+Actor: Authenticated User
+Brief description: This use case describes how a user can enhance their account security by enabling
+Two-Factor Authentication via email.
+Pre-conditions: The user is logged into the system, and 2FA is currently disabled for their account.
+Actor Action System Response
+1. The user navigates to the "Security Settings"
+page.
+2. The system displays the 2FA status as "Disabled"
+and presents an "Enable 2FA" button.
+3. The user clicks the "Enable 2FA" button. 4. The system generates a time-sensitive, 6-digit
+verification code.
+5. The system sends an email containing the
+verification code to the user's registered email
+address.
+6. The system displays a new page with a field for
+the user to enter the verification code.
+7. The user enters the 6-digit code from their
+email.
+8. The system validates the entered code.
+9. If the code is valid, the system check if the code
+has already expired.
+10. If the code is not expired, the system updates
+the user account to enable 2FA..
+11. The system redirects the user back to the
+"Security Settings" page, now showing 2FA status
+as "Enabled".
+Alternative Flows:
+A1: Step 9 - Code field is invalid.
+1. The system displays an error message: "Invalid code."
+A3: Step 10 - Entered code is expired.
+1. The system displays an error message: "The verification code has expired. Please try again."
+Post-conditions: The user's account is configured to require 2FA for subsequent logins.
+3.1.1.1.9 Security and Privacy (View Login Activity Log)
+Name of the use case: View Login Activity Log
+Actor: Authenticated User
+Brief description: This use case allows a user to review a log of recent login activity on their account for
+security monitoring.
+Pre-conditions: The user is logged into the system.
+Actor Action System Response
+1. The user navigates to the "Security Settings"
+or "Login Activity" page.
+2. The system retrieves the login history records
+associated with the user's account from the
+database.
+3. The system displays the login history in a list
+format. Each entry includes the information such as
+date and timestamp.
+Alternative Flows:
+A1: Step 2 - No login history exists.
+1. If there is no previous login history, the system displays a message: "No recent login activity
+to display."
+Post-conditions: The user has viewed their recent login history.
+3.1.1.1.10 Security and Privacy (Manage Third-Party Application Permissions)
+Name of the use case: Manage Third-Party Application Permissions
+Actor: Authenticated User
+Brief description: This use case describes how a user can review and revoke access for any third-party
+applications connected to their account.
+Pre-conditions: The user is logged into the system.
+Actor Action System Response
+1. The user navigates to the "Connected Apps"
+or "Permissions" page.
+2. The system retrieves and displays a list of all
+third-party applications that have been granted
+access to the user's account. Each entry shows the
+application name and the date access was granted.
+3. The user clicks the "Revoke Access" button
+next to a specific application.
+4. The system displays a confirmation dialog.
+5. The user clicks the "Confirm" button in the
+dialog.
+6. The system revokes the access token associated
+with that application for the user's account.
+7. The system removes the application from the
+user's list of connected apps.
+8. The system displays a success message: "Revoke
+Successfully" Message."
+Alternative Flows:
+A1: Step 2 - No connected applications.
+1. If no third-party applications have been granted access, the system displays a message: "You
+have not connected any third-party applications."
+A2: Step 4 - User clicks "Cancel" in the confirmation dialog.
+1. The system closes the dialog window.
+2. The use case terminates.
+Post-conditions: The specified third-party application can no longer access the user's account data.
+3.1.1.2 Transcription Module
+3.1.1.2.1 Real-Time Transcription
+Name of the use case: Perform Real-Time Transcription
+Actor: Authenticated User
+Brief description: This use case describes how a user can activate their webcam to get a live transcription
+of spoken words.
+Pre-conditions: The user is logged into the system.
+Actor Action System Response
+1. The user navigates to the "Real-Time
+Transcription" page.
+2. The user clicks “Start Transcription” button 3. The system requests permission to access the
+user's webcam and microphone through the web
+browser's native prompt.
+4. The user clicks "Allow" in the browser's
+permission prompt.
+5. The system detects the successful permission
+grant.
+6. The system activates the user's webcam and
+displays the live video feed on the page.
+7. The system displays a visual indicator with the
+status "Connecting...".
+8. The system establishes a connection with the
+backend transcription service.
+9. If the connection is successful, the system
+updates the visual indicator to "Status: Active".
+10. The user begins speaking towards the
+webcam.
+11. The system captures the video stream in
+segments.
+12. The system sends the video segments to the
+deep learning model for processing.
+13. The system receives the predicted text from the
+model.
+14. The system appends the predicted text to the
+transcription output area on the screen with minimal
+latency.
+15. The user clicks the "Pause" button. 16. The system temporarily stops capturing and
+sending the video stream.
+17. The system updates the visual indicator to
+"Status: Paused". The webcam feed remains active.
+18. The user clicks the "Resume" button. 19. The system resumes capturing and sending the
+video stream for transcription.
+20. The system updates the visual indicator back to
+"Status: Active".
+21. The user clicks the "Finish" button. 22. The system stops capturing the video stream
+and closes the connection to the transcription
+service.
+23. The system deactivates the webcam and
+removes the video feed from the page.
+24. The system updates the visual indicator to
+"Status: Finished".
+Alternative Flows:
+A1: Step 3 - User denies webcam permission.
+1. The system detects the permission denial.
+2. The system displays an error message: "Webcam access is required for real-time transcription.
+Please allow access in your browser settings."
+3. The use case terminates.
+A2: Step 5 - No webcam is detected.
+1. The system fails to detect a compatible camera device.
+2. The system displays an error message: "No webcam detected. Please connect a camera and
+try again."
+3. The use case terminates.
+A3: Step 8 - Connection to transcription service fails.
+1. The system displays an error message: "Could not connect to the transcription service. Please
+check your internet connection and try again."
+2. The system deactivates the webcam.
+3. The use case terminates.
+Post-conditions: The full transcription text is saved to the user's account history.
+3.1.1.2.2 Video Upload and Pre-processing
+Name of the use case: Transcribe Video File with Pre-processing
+Actor: Authenticated User
+Brief description: This use case describes how a user uploads a video file, receives feedback on its quality,
+and initiates the transcription process.
+Pre-conditions: The user is logged into the system.
+1. The user is on the "Upload Video" page. 2. The system displays clear guidelines for optimal
+video quality.
+3. The user clicks the "Select File" button. 4. The system opens the user's native file browser.
+5. The user selects a video file from their local
+device.
+6. The system performs a file type check on the
+selected file.
+7. If the file type is valid, the system performs a file
+size check against the maximum allowed limit.
+8. If the file size is valid, the system displays the
+file name and enables an "Upload and Analyze"
+button.
+9. The user clicks the "Upload and Analyze"
+button.
+10. The system uploads the file and displays a
+progress bar.
+11. Upon successful upload, the system initiates a
+pre-processing analysis.
+12. The system sends the video to the transcription
+model for processing.
+13. Upon completion, the system updates the status
+to "Complete" and provides a link to view the
+transcription.
+14. The user clicks the link to view the
+completed transcription.
+15. The system navigates the user to the
+transcription output page.
+Alternative Flows:
+A1: Step 6 - Unsupported file type.
+1. The system marks the invalid file in the queue with an error status.
+2. The system displays an error message for that file: "Unsupported file type."
+3. The user can remove the invalid file from the queue.
+A2: Step 7 - File exceeds size limit.
+1. The system marks the oversized file in the queue with an error status.
+2. The system displays an error message for that file: "File size exceeds the maximum limit."
+3. The user can remove the invalid file from the queue.
+A3: Step 10 - User clicks "Cancel" on an in-progress upload.
+1. The system terminates the upload for that specific file.
+2. The system updates the file's status to "Cancelled".
+Post-conditions: A transcription of the uploaded video is generated and saved to the user's history.
+3.1.1.2.3 Transcription Output and Controls (Interact with Transcription Output)
+Name of the use case: Interact with Transcription Output
+Actor: Authenticated User
+Brief description: This use case describes how a user interacts with the generated transcription and the
+associated video player.
+Pre-conditions: A transcription for an uploaded video has been successfully generated and is displayed on
+the screen.
+Actor Action System Response
+1. The user views the transcription page. 2. The system displays the transcribed text in a
+scrollable text area. Each segment of text is
+associated with a clickable timestamp.
+3. The system displays the video player with a full
+suite of controls: play/pause button, volume slider,
+seek bar, playback speed selector, and a full-screen
+toggle button.
+4. The user clicks the "Play" button on the video
+player.
+5. The system begins playing the video from its
+current position. The "Play" button changes to a
+"Pause" button.
+6. The user clicks the "Pause" button. 7. The system pauses the video playback. The
+"Pause" button changes back to a "Play" button.
+8. The user clicks on a specific timestamp
+within the transcription text.
+9. The system seeks the video playback to the
+corresponding time (1 minute, 15 seconds).
+10. The user selects a different playback speed
+from the speed selector.
+11. The system adjusts the video's playback speed
+to the selected rate.
+12. The user clicks the "Full Screen" button. 13. The system expands the video player to fill the
+entire screen.
+14. The user presses the 'Esc' key or clicks the
+"Exit Full Screen" button.
+15. The system returns the video player to its
+original size on the page.
+Alternative Flows:
+- No Alternative Flow.
+Post-conditions: The user has successfully interacted with the video player and transcription display.
+3.1.1.2.4 Transcription Output and Controls (Edit Transcription)
+Name of the use case: Edit Transcription
+Actor: Authenticated User
+Brief description: This use case allows a user to directly edit the generated transcription text to correct
+inaccuracies.
+Pre-conditions: A transcription is displayed on the screen.
+Actor Action System Response
+1. The user clicks an "Edit Text" button. 2. The system makes the transcription text area
+editable, with a visible cursor.
+3. The system displays "Save Changes" and
+"Cancel" buttons.
+4. The user clicks within the text area and
+modifies the text.
+5. The system reflects the user's changes in the text
+area.
+6. The user clicks the "Save Changes" button. 7. The system saves the updated transcription text
+to the user's history in the database.
+8. The system displays a success message:
+"Transcription updated."
+9. The system returns the text area to a read-only
+state.
+Alternative Flows:
+A1: Step 6 - User clicks "Cancel" instead of "Save Changes".
+1. The system discards any changes made to the text.
+2. The system reverts the text area to its last saved state.
+3. The system returns the text area to a read-only state.
+4. The use case terminates.
+Post-conditions: The transcription text is updated and saved in the user's history.
+3.1.1.2.5 Transcription Output and Controls (Export Transcription)
+Name of the use case: Export Transcription
+Actor: Authenticated User
+Brief description: This use case describes how a user can copy the transcription to their clipboard or
+download it as a file.
+Pre-conditions: A transcription is displayed on the screen.
+Actor Action System Response
+1. The user clicks the "Copy to Clipboard"
+button.
+2. The system selects and copies the entire content
+of the transcription text area to the user's device
+clipboard.
+3. The system displays a temporary confirmation
+message: "Copied to clipboard!"
+4. The user clicks the "Download" button. 5. The system displays download options.
+6. The user selects a file format. 7. The system generates the file in the selected
+format, including timestamps if applicable.
+8. The system initiates a file download through the
+browser, with a filename based on the original
+video's name.
+Alternative Flows:
+- No Alternative Flow.
+Post-conditions: The transcription text is copied to the user's clipboard or saved as a file on their local
+device.
+3.1.1.3 Educational Module
+3.1.1.3.1 Tutorial Library (Browse and Watch Tutorials)
+Name of the use case: Browse and Watch Tutorials
+Actor: Authenticated User
+Brief description: This use case describes how a user can find, filter, and watch instructional videos from
+the tutorial library.
+Pre-conditions: The user is logged into the system.
+Actor Action System Response
+1. The user navigates to the "Tutorial Library"
+page.
+2. The system retrieves all tutorial categories and
+tutorial videos from the database.
+3. The system displays the categories as clickable
+filters.
+4. The system displays all tutorial videos in a grid
+or list format, each showing a thumbnail and title.
+5. The system displays a search bar for filtering by
+keyword.
+6. The user clicks on a category filter. 7. The system filters the displayed list to show only
+the tutorials belonging to the selected category.
+8. The user types a keyword into the search bar. 9. The system dynamically filters the currently
+displayed list of tutorials to show only those whose
+titles or descriptions contain the keyword.
+10. The user clicks on a specific tutorial video 11. The system navigates the user to the individual
+from the list. tutorial player page.
+12. The system displays the selected tutorial video
+in a player with controls for play/pause, volume,
+and playback speed (0.5x, 0.75x, 1x).
+13. The user clicks the "Play" button. 14. The system begins playing the tutorial video.
+15. The user selects a different playback speed. 16. The system immediately adjusts the video's
+playback speed to the selected rate.
+Alternative Flows:
+A1: Step 9 - No search results found.
+1. If no tutorials match the search keyword, the system displays a message: "No tutorials found
+for '[keyword]'."
+Post-conditions: The user has successfully found and watched a tutorial video.
+3.1.1.3.2 Tutorial Library (Manage Bookmarked Tutorials)
+Name of the use case: Manage Bookmarked Tutorials
+Actor: Authenticated User
+Brief description: This use case describes how a user can add a tutorial to their bookmarks or remove it if
+it's already bookmarked.
+Pre-conditions: The user is logged into the system.
+Actor Action System Response
+1. The user is viewing a tutorial. 2. The system displays a "Bookmark" icon next to
+the tutorial's title. The icon's state indicates if it is
+already bookmarked.
+3. The user clicks the "Bookmark" icon. 4. The system checks if the tutorial is already in the
+user's bookmark list.
+5. If the tutorial is not bookmarked, the system adds
+a record to the database linking the user's profile to
+the selected tutorial.
+6. The system changes the icon's state to
+"bookmarked" and displays a confirmation
+message: "Tutorial bookmarked."
+Alternative Flows:
+A1: Step 3 - Remove “bookmarked” status
+1. If the tutorial is already bookmarked, the system will remove the corresponding record from the
+database and change the icon back to its default state.
+Post-conditions: The user's list of bookmarked tutorials is updated.
+3.1.1.3.3 Interactive Quizzes
+Name of the use case: Take an Interactive Quiz
+Actor: Authenticated User
+Brief description: This use case describes how a user selects and completes an interactive quiz to test their
+lip-reading skills, receiving immediate feedback and a final score.
+Pre-conditions: The user is logged into the system.
+Actor Action System Response
+1. The user navigates to the "Quizzes" page. 2. The system retrieves and displays a list of
+available quiz categories.
+3. The user selects a quiz category. 4. The system retrieves the questions for the
+selected quiz.
+5. The system displays the first quiz question,
+which includes a video player and a set of
+multiple-choice text options.
+6. The user clicks the "Play" button on the
+video.
+7. The system plays the short video clip showing a
+person speaking a word or phrase.
+8. The user selects one of the multiple-choice
+options.
+9. The system immediately evaluates the selected
+answer.
+10. If the answer is correct, the system provides
+visual feedback by highlighting the selected option
+in green and displays a "Correct!" message.
+11. If the answer is incorrect, the system provides
+visual feedback by highlighting the selected option
+in red and the correct option in green. It also
+displays the message "Incorrect. The correct answer
+was: [Correct Answer]".
+12. The system displays a "Next Question" button.
+13. The user clicks the "Next Question" button. 14. The system loads and displays the next question
+in the quiz.
+15. After the final question is answered, the
+user clicks "Finish Quiz".
+16. The system calculates the final score.
+17. The system displays a summary page showing
+the final score and a list of the questions with the
+user's answers and the correct answers.
+18. The system displays a "Retry Quiz" button and
+a "End Quiz" button.
+19. The user clicks the "Retry Quiz" button. 20. The system reloads the quiz from the beginning.
+The use case returns to step 4.
+Alternative Flows:
+A1: Step 7 - 14 User decides to exit the quiz midway.
+1. The user clicks a "Quit Quiz" button available during the quiz.
+2. The system displays a confirmation dialog: "Are you sure you want to quit? Your progress
+will not be saved."
+3. The user clicks "Confirm".
+4. The system navigates the user back to the quiz category selection page.
+5. The use case terminates.
+A2: Step 18 - User clicks "End Quiz" on the summary page.
+1. The system navigates the user back to the quiz category selection page.
+2. The use case terminates.
+Post-conditions: The user's score for the completed quiz is recorded in their performance history.
+3.1.1.3.4 Real-Time Practice Mode
+Name of the use case: Practice Lip Formation in Real-Time
+Actor: Authenticated User
+Brief description: This use case describes how a user can practice forming words with their mouth using
+their webcam and receive a visual comparison against a reference video.
+Pre-conditions: The user is logged into the system.
+Actor Action System Response
+1. The user navigates to the "Real-Time
+Practice" page.
+2. The system displays a selection of words or
+phrases for practice, organized by category.
+3. The user selects a word to practice. 4. The system displays the practice interface.
+5. The system requests permission to access the
+user's webcam and microphone via the browser.
+6. The user clicks "Allow" in the browser's
+permission prompt.
+7. The system activates the user's webcam and
+displays the live video feed in a second video
+player, side-by-side with the reference video.
+8. The user clicks the "Start Practice" button. 9. The system plays the reference video on a loop.
+10. The user attempts to mimic the lip
+formation shown in the reference video.
+11. The system captures the user's live video feed
+for real-time comparison.
+12. The system provides simple, visual feedback,
+such as highlighting key points on the user's mouth
+to compare with the reference.
+13. The user clicks the "Stop Practice" button. 14. The system stops the reference video loop and
+the live capture.
+Alternative Flows:
+A1: Step 6 - User denies webcam permission.
+1. The system detects the permission denial.
+2. The system displays an error message: "Webcam access is required for practice mode. Please
+allow access to continue."
+A2: Step 7 - No webcam is detected.
+1. The system fails to detect a compatible camera device.
+2. The system displays an error message: "No webcam detected. Please connect a camera and
+try again."
+3. The use case terminates.
+Post-conditions: The user has completed a practice session.
+3.1.1.3.5 Progress and Engagement Tracking (View Performance and Progress)
+Name of the use case: View Performance and Progress
+Actor: Authenticated User
+Brief description: This use case describes how a user can view their quiz history and track their
+performance over time.
+Pre-conditions: The user is logged into the system and has completed at least one quiz.
+Actor Action System Response
+1. The user navigates to the "My Progress"
+page.
+2. The system retrieves all historical quiz results
+associated with the user's account from the
+database.
+3. The system displays a summary of overall
+performance, such as "Average Score" and
+"Quizzes Completed".
+4. The system displays a chart or graph visualizing
+the user's quiz scores over time to show progress.
+5. The system displays a detailed list of all
+completed quizzes, with each entry showing the
+quiz name, the date it was taken, and the score
+achieved.
+6. The user clicks on a specific quiz result from
+the history list.
+7. The system navigates to a detailed view of that
+specific quiz attempt, showing each question, the
+user's answer, and the correct answer.
+Alternative Flows:
+A1: Step 7 - User has not completed any quizzes.
+1. If the system finds no quiz history for the user, it displays a message: "You have not
+completed any quizzes yet. Go to the Quizzes section to get started!"
+Post-conditions: The user has reviewed their quiz performance history.
+3.1.1.3.6 Progress and Engagement Tracking (Manage Practice Reminders)
+Name of the use case: Manage Practice Reminders
+Actor: Authenticated User
+Brief description: This use case allows a user to opt-in or opt-out of receiving periodic email notifications
+to remind them to practice.
+Pre-conditions: The user is logged into the system.
+Actor Action System Response
+1. The user navigates to the "Notification
+Settings" page.
+2. The system retrieves the user's current
+notification preference from the database.
+3. The system displays the reminder options as
+radio buttons, with the user's current preference
+selected.
+4. The user selects a different reminder option.
+5. The user clicks the "Save Settings" button. 6. The system updates the user's notification
+preference in the database.
+7. The system displays a success message: "Your
+notification settings have been saved."
+Alternative Flows:
+- No Alternative Flow.
+Post-conditions: The user's preference for receiving practice reminder emails is updated.
+3.1.1.4 Reporting and Analytics Module
+3.1.1.4.1 Manage Transcription History
+Name of the use case: Manage Transcription History
+Actor: Authenticated User
+Brief description: This use case describes how a user can view, search, filter, rename, and delete their past
+transcription sessions.
+Pre-conditions: The user is logged into the system and has previously completed at least one transcription
+session.
+Actor Action System Response
+1. The user navigates to the "Transcription 2. The system retrieves all transcription history
+History" page. records associated with the user's account from the
+database.
+3. The system displays the transcription sessions in
+a list, with each entry showing a title, date, and
+summary.
+4. The system displays a search bar and a date range
+filter.
+5. The user types a keyword into the search bar. 6. The system dynamically filters the displayed list
+to show only sessions whose title or content
+contains the keyword.
+7. The user selects a date range using the date
+filter.
+8. The system further filters the displayed list to
+show only sessions created within the selected date
+range.
+9. The user clicks on the title of a specific
+transcription session from the list.
+10. The system navigates to the detailed view page
+for that session.
+11. The system displays the full transcription text
+and the associated video player.
+12. The user clicks the "Rename" button next to
+a session in the history list.
+13. The system makes the title of the session an
+editable text field and displays "Save" and "Cancel"
+buttons.
+14. The user enters a new title into the field. 15. The system performs a null value check on the
+new title.
+16. If the title is not null, the system performs a
+character check to ensure it is valid.
+17. The user clicks the "Save" button. 18. If the new title is valid, the system updates the
+session title in the database.
+19. The system refreshes the history list to show the
+new title.
+20. The user clicks the "Delete" button next to a
+session.
+21. The system displays a confirmation dialog: "Are
+you sure you want to permanently delete this
+transcription? This action cannot be undone."
+22. The user clicks the "Confirm Delete"
+button.
+23. The system removes the transcription record
+and its associated data from the database.
+24. The system removes the session from the
+displayed list.
+25. The system displays a success message:
+"Transcription deleted."
+Alternative Flows:
+A1: Step 2 - User has no transcription history.
+1. The system displays a message: "You have no saved transcriptions."
+A2: Step 6 or Step 8 - No results for search or filter.
+1. The system displays a message: "No transcriptions match your criteria."
+A3: Step 14 - User clicks "Cancel" during rename.
+1. The system discards the changes and reverts the title to its original state.
+2. The use case terminates the sub-flow.
+A4: Step 15 - New title is empty.
+1. The system displays an error message: "Title cannot be empty."
+A5: Step 21 - User clicks "Cancel" in delete confirmation dialog.
+1. The system closes the dialog window.
+2. The use case terminates the sub-flow.
+Post-conditions: The user's transcription history list is updated based on their actions.
+3.1.1.4.2 Performance and Progress Visualization (View Learning Progress Dashboard)
+Name of the use case: View Learning Progress Dashboard
+Actor: Authenticated User
+Brief description: This use case describes how a user views a dashboard that visualizes their performance
+and progress in the educational quizzes.
+Pre-conditions: The user is logged into the system and has completed at least one quiz.
+Actor Action System Response
+1. The user navigates to the "My Progress"
+page.
+2. The system retrieves all historical quiz results
+and performance data associated with the user's
+account from the database.
+3. The system generates and displays a chart
+visualizing the user's quiz scores over time.
+4. The system generates and displays a second chart
+showing the user's average score broken down by
+quiz category.
+5. The system displays a list of recently completed
+quizzes, including the score and date for each.
+Alternative Flows:
+A1: Step 2 - User has no quiz history.
+1. The system displays a message instead of charts and lists: "You haven't completed any
+quizzes yet. Start a quiz to see your progress here!"
+Post-conditions: The user has reviewed their visualized learning progress.
+3.1.1.4.3 Performance and Progress Visualization (Download Progress Report)
+Name of the use case: Download Progress Report
+Actor: Authenticated User
+Brief description: This use case allows a user to download a summary report of their learning progress.
+Pre-conditions: The user is on the "My Progress" page.
+Actor Action System Response
+1. The user clicks the "Download Report"
+button.
+2. The system displays options for the download
+format.
+3. The user selects a file format. 4. The system gathers all the user's progress data,
+including quiz scores, completion dates, and
+average performance by category.
+5. The system generates a report file in the selected
+format, including the charts and data from the
+progress dashboard.
+6. The system initiates a file download through the
+browser.
+Alternative Flows:
+- No Alternative Flow
+Post-conditions: A file containing the user's learning progress summary is saved to their local device.
+3.1.1.4.4 Performance and Progress Visualization (Submit Feedback)
+Name of the use case: Submit Feedback
+Actor: Authenticated User
+Brief description: This use case describes how a user can submit feedback, suggest a feature, or report a
+bug, with the option to attach a file.
+Pre-conditions: The user is logged into the system.
+Actor Action System Response
+1. The user navigates to the "Help and
+Feedback" page.
+2. The system displays the feedback submission
+form.
+3. The system displays a dropdown menu for
+"Feedback Type" with options: "General Feedback,"
+"Bug Report," "Feature Suggestion."
+4. The system displays a text area for the
+description and an optional "Attach File" button.
+5. The user selects a "Feedback Type" from the
+dropdown.
+6. The system records the user's selection.
+7. The user types a detailed description into the
+text area.
+8. The system performs a null value check on the
+description text area.
+9. If the text area is not null, the system performs a
+minimum length check to ensure the feedback is
+sufficiently detailed.
+10. The user clicks the "Attach File" button. 11. The system opens the user's native file browser.
+12. The user selects an file. 13. The system performs a file type check to ensure
+it is a supported format.
+14. If the file type is valid, the system performs a
+file size check against the maximum allowed limit.
+15. If the file is valid, the system displays the
+filename next to the "Attach File" button.
+16. The user clicks the "Submit Feedback"
+button.
+17. The system saves the feedback type,
+description, and the attached file to the feedback
+table in the database, linking it to the user's account.
+19. The system displays a success message: "Thank
+you for your feedback! Your submission has been
+received."
+20. The system clears all the form fields.
+Alternative Flows:
+A1: Step 9 - Description is too short.
+1. The system displays an error message: "Please provide a more detailed description."
+A2: Step 13 - Unsupported file type.
+1. The system displays an error message: "Unsupported file type. Please attach a valid image or
+video file."
+A3: Step 14 - File exceeds size limit.
+1. The system displays an error message: "File size exceeds the maximum limit of [X] MB."
+Post-conditions: The user's feedback is successfully submitted and stored in the database for review by an
+administrator.
+3.1.1.5 User Management Module
+3.1.1.5.1 User Account Oversight
+Name of the use case: View and Filter User List
+Actor: Administrator
+Brief description: This use case describes how an administrator views, searches, and filters the list of all
+registered users.
+Pre-conditions: The administrator is logged into the system.
+Actor Action System Response
+1. The administrator navigates to the "User
+Management" page.
+2. The system retrieves all user records from the
+database.
+3. The system displays the users in a paginated list,
+showing key details like User ID, Name, Email, and
+Registration Date for each user.
+4. The system displays a search bar and filter
+options.
+5. The administrator types a user's name or
+email into the search bar.
+6. The system dynamically filters the user list to
+show only users whose name or email matches the
+search query.
+7. The administrator selects a range of date
+from the "Filter By Registered Date Range"
+dropdown.
+8. The system filters the user list to show only users
+with the selected date range.
+Alternative Flows:
+A1: Step 6 or 8 - No users match the criteria.
+1. The system displays a message: "No users found matching your criteria."
+Post-conditions: The administrator has viewed a list of users based on their specified criteria.
+3.1.1.5.2 User Account Support
+Name of the use case: Provide Password Reset Support
+Actor: Administrator
+Brief description: This use case describes how an administrator helps a user by initiating a password reset
+process on their behalf, following a verified support request.
+Pre-conditions: The administrator is logged in and is viewing the specific user's profile page after finding
+them in the User Directory.
+Actor Action System Response
+1. The administrator is viewing the user's
+profile page.
+2. The system displays the user's public profile
+information (Name, Email, Status).
+3. The system displays a "Reset User's Password"
+button as an available support action.
+4. The administrator clicks the "Reset User's
+Password" button.
+5. The system displays a confirmation dialog: "Are
+you sure you want to send a password reset link to
+this user's email address?"
+6. The administrator clicks "Confirm". 7. The system generates a secure, single-use
+password reset link.
+8. The system sends the password reset link to the
+user's registered email address.
+9. The system logs this administrative action for
+accountability.
+10. The system displays a success message: "A
+password reset link has been sent to the user."
+Alternative Flows:
+A1: Step 6 - Cancel Action
+1. If the administrator clicks "Cancel" in the confirmation dialog, the system will close the dialog
+and no action will be taken.
+Post-conditions: A password reset email is sent to the user.
+3.1.1.6 Content Management Module
+3.1.1.6.1 Tutorial Management (Create Tutorial)
+Name of the use case: Create Tutorial
+Actor: Administrator
+Brief description: This use case describes how an administrator creates and uploads a new tutorial video.
+Pre-conditions: The administrator is logged in and has navigated to the "Tutorial Management" page.
+Actor Action System Response
+1. The administrator clicks the "Add New
+Tutorial" button.
+2. The system displays a form with fields for Title,
+Description, a Category dropdown, and a "Select
+Video File" button.
+3. The administrator enters a title for the
+tutorial.
+4. The system performs a null value check on the
+title field.
+5. If the title is valid, the system prompts the
+administrator to enter the description.
+6. The administrator enters a description for the
+tutorial.
+7. The system performs a null value check on the
+description field.
+8. If the description is valid, the system prompts the
+administrator to select a category.
+9. The administrator selects a category from the
+dropdown.
+10. The system validates that a category has been
+selected.
+11. If a category is selected, the system prompts the
+administrator to select a video file.
+12. The administrator clicks "Select Video File"
+and chooses a file.
+13. The system performs a file type check on the
+selected video.
+14. If the file type is valid, the system performs a
+file size check against the maximum allowed limit.
+15. The administrator clicks the "Save Tutorial"
+button.
+16. The system performs a final validation on all
+fields and the selected file.
+17. If all validations pass, the system uploads the
+video and creates a new tutorial record in the
+database.
+18. The system displays a success message:
+"Tutorial created successfully."
+Alternative Flows:
+A1: Step 4 - Invalid Title
+1. If the title field is empty, the system will prompt an error message: "Title field cannot be empty."
+A2: Step 14 - Invalid File Upload
+1. If the selected video file is an unsupported format or exceeds the size limit, the system will
+prompt a relevant error message.
+A3: Step 16 - Invalid Form Submission
+1. If any required field is empty or invalid upon submission, the system will highlight the field and
+prompt the relevant error message.
+Post-conditions: A new tutorial is successfully created and stored in the database.
+3.1.1.6.2 Tutorial Management (Update or Delete Tutorial)
+Name of the use case: Update or Delete Tutorial
+Actor: Administrator
+Brief description: This use case describes how an administrator edits or deletes an existing tutorial.
+Pre-conditions: The administrator is viewing the list of existing tutorials.
+Actor Action System Response
+1. The administrator clicks the "Edit" button
+next to a specific tutorial.
+2. The system populates the editing form with the
+tutorial's current data (Title, Description, Category).
+3. The administrator modifies the title or
+description.
+4. The system performs validation on the modified
+fields.
+5. The administrator clicks the "Save Changes"
+button.
+6. If the fields are valid, the system updates the
+tutorial record in the database.
+7. The system displays a success message: "Tutorial
+updated successfully."
+Alternative Flows:
+A1: Step 1 - Delete Tutorial
+1. If the administrator clicks the "Delete" button next to a tutorial, the system will display a
+confirmation dialog before permanently removing the item.
+A2: Step 4 - Invalid Input
+1. If a modified field is invalid, the system will prompt an error message.
+Post-conditions: The selected tutorial is updated or deleted from the database.
+3.1.1.6.3 Quiz Management (Create Quiz Question)
+Name of the use case: Create Quiz Question
+Actor: Administrator
+Brief description: This use case describes how an administrator creates a new quiz question with a video
+clip and multiple-choice answers.
+Pre-conditions: The administrator is logged in and has navigated to the "Quiz Management" page.
+Actor Action System Response
+1. The administrator clicks the "Add New
+Question" button.
+2. The system displays a form with fields for a
+Correct Answer, three Incorrect Options, a
+Category dropdown, and a "Select Video Clip"
+button.
+3. The administrator enters the text for the
+correct answer.
+4. The system performs a null value check on the
+correct answer field.
+5. If the correct answer is valid, the system prompts
+the administrator to enter the incorrect options.
+6. The administrator enters the text for the three
+incorrect answers.
+7. The system performs null value checks on all
+three incorrect answer fields.
+8. If the answers are valid, the system prompts the
+administrator to select a category.
+9. The administrator selects a category from the
+dropdown.
+10. The system validates that a category has been
+selected.
+11. If a category is selected, the system prompts the
+administrator to select a video clip.
+12. The administrator clicks "Select Video Clip"
+and chooses a file.
+13. The system performs a file type check on the
+selected video.
+14. If the file type is valid, the system performs a
+file size check against the maximum allowed limit.
+15. The administrator clicks the "Save
+Question" button.
+16. The system performs a final validation on all
+fields and the selected file.
+17. If all validations pass, the system uploads the
+video and creates a new quiz question record in the
+database.
+18. The system displays a success message: "Quiz
+Question created successfully."
+Alternative Flows:
+A1: Step 4 - Invalid Correct Answer
+1. If the correct answer field is empty, the system will prompt an error message: "Correct Answer
+field cannot be empty."
+A2: Step 14 - Invalid File Upload
+1. If the selected video file is an unsupported format or exceeds the size limit, the system will
+prompt a relevant error message.
+A3: Step 16 - Invalid Form Submission
+1. If any required field is empty or invalid upon submission, the system will highlight the field and
+prompt the relevant error message.
+Post-conditions: A new quiz question is successfully created and stored in the database.
+3.1.1.6.4 Quiz Management (Update or Delete Quiz Question)
+Name of the use case: Update or Delete Quiz Question
+Actor: Administrator
+Brief description: This use case describes how an administrator edits or deletes an existing tutorial.
+Pre-conditions: This use case describes how an administrator edits or deletes an existing quiz question.
+Actor Action System Response
+1. The administrator clicks the "Edit" button
+next to a specific quiz question.
+2. The system populates the editing form with the
+question's current data (answers, category, etc.).
+3. The administrator modifies the text of the
+answers or changes the category.
+4. The system performs validation on the modified
+fields.
+5. The administrator clicks the "Save Changes"
+button.
+6. If the fields are valid, the system updates the quiz
+question record in the database.
+7. The system displays a success message: "Quiz
+Question updated successfully."
+Alternative Flows:
+A1: Step 1 - Delete Quiz Question
+1. If the administrator clicks the "Delete" button next to a quiz question, the system will display a
+confirmation dialog before permanently removing the item.
+A2: Step 4 - Invalid Input
+1. If a modified field is invalid, the system will prompt an error message.
+Post-conditions: The selected quiz question is updated or deleted from the database.
+3.1.1.6.5 Category Management (Create Content Category)
+Name of the use case: Create Content Category
+Actor: Administrator
+Brief description: This use case describes how an administrator creates a new category for organizing
+educational content.
+Pre-conditions: The administrator is logged in and has navigated to the "Category Management" area.
+Actor Action System Response
+1. The administrator is on the "Category
+Management" page.
+2. The system displays a list of all existing
+categories.
+3. The administrator clicks the "Add New
+Category" button.
+4. The system displays an input field for the new
+category name.
+5. The administrator enters a name for the new
+category.
+6. The system performs a null value check on the
+input field.
+7. If the name is not null, the system performs an
+existence check to ensure the category name is
+unique.
+8. The administrator clicks the "Save Category"
+button.
+9. If the name is valid and unique, the system saves
+the new category to the database.
+10. The system refreshes the category list to include
+the new one and displays a success message.
+Alternative Flows:
+A1: Step 6 - Empty Name
+1. If the administrator tries to save with an empty name field, the system will prompt an error
+message: "Category name cannot be empty."
+A2: Step 7 - Duplicate Name
+1. If the entered category name already exists, the system will prompt an error message: "This
+category name already exists."
+Post-conditions: A new quiz question is successfully created and stored in the database.
+3.1.1.6.6 Category Management (Update or Delete Content Category)
+Name of the use case: Update or Delete Content Category
+Actor: Administrator
+Brief description: This use case describes how an administrator can rename or delete an existing content
+category.
+Pre-conditions: The administrator is viewing the list of existing categories on the "Category Management"
+page.
+Actor Action System Response
+1. The administrator clicks the "Edit" button
+next to an existing category.
+2. The system makes the category name an editable
+text field.
+3. The administrator modifies the category
+name.
+4. The system performs null value and uniqueness
+checks on the new name.
+5. The administrator clicks a "Save" icon to
+confirm the change.
+6. If the new name is valid, the system updates the
+category record in the database.
+7. The system displays a success message:
+"Category successfully renamed."
+Alternative Flows:
+A1: Step 1 - Delete Category
+1. If the administrator clicks the "Delete" button next to a category, the system will first check if any
+tutorials or quizzes are assigned to it.
+A2: Step A1 - Attempt to Delete Non-Empty Category
+1. If the category is not empty, the system will display an error message: "Cannot delete a category
+that contains content. Please reassign or delete the content first."
+A3: Step A1 - Confirm Deletion of Empty Category
+1. If the category is empty, the system will display a confirmation dialog before permanently
+deleting it.
+A4: Step 4 - Invalid Name on Edit
+1. If the administrator enters an empty or duplicate name while editing, the system will display the
+appropriate error message.
+Post-conditions: The selected category is updated or deleted from the database.
+3.1.1.7 System Analytics Module
+3.1.1.7.1 User Learning and Performance Analytics
+Name of the use case: Analyze User Learning and Performance
+Actor: Administrator
+Brief description: This use case describes how an administrator analyzes user performance in quizzes to
+identify trends, top performers, and areas for improvement.
+Pre-conditions: The administrator is logged into the system.
+Actor Action System Response
+1. The administrator navigates to the "User
+Learning Analytics" page.
+2. The system retrieves and aggregates all user quiz
+performance data from the database.
+3. The system displays a dashboard summarizing
+overall learning performance, including average
+quiz scores by category.
+4. The system displays a ranked list of users with
+the highest performance averages.
+5. The system displays a ranked list of the quizzes
+that have the lowest average scores across all users.
+6. The system presents filter options for date range
+and quiz category.
+7. The administrator applies a filter by selecting
+a specific quiz category.
+8. The system refreshes the dashboard and lists to
+show only the data corresponding to the selected
+filter.
+9. The administrator clicks the "Export Report"
+button.
+10. The system gathers the currently displayed
+performance data.
+11. The system generates a report file in a standard
+format, such as CSV.
+12. The system initiates a file download through the
+browser.
+Alternative Flows:
+A1: Step 2 - Insufficient Data
+1. If there is not enough quiz data to generate meaningful analytics, the system will display a
+message: "More quiz completions are needed to generate performance reports."
+A2: Step 8 - No Filter Results
+1. If no data matches the applied filter, the system will display a message: "No results found for the
+selected criteria."
+Post-conditions: The administrator has gained insight into user learning performance.
+3.1.1.7.2 Content Interaction and Feedback Analysis
+Name of the use case: Analyze Content Interaction and Manage Feedback
+Actor: Administrator
+Brief description: This use case describes how an administrator analyzes user interaction with tutorials
+and manages user-submitted feedback.
+Pre-conditions: The administrator is logged into the system.
+Actor Action System Response
+1. The administrator navigates to the "Content
+Interaction and Feedback" page.
+2. The system retrieves and aggregates all tutorial
+interaction data and feedback submissions from the
+database.
+3. The system displays a dashboard summarizing
+tutorial interactions, including a ranked list of the
+most frequently viewed and most frequently
+bookmarked tutorials.
+4. The system displays a list of tutorials that have
+not been accessed within a specified time period.
+5. The system provides a centralized interface
+listing all user-submitted feedback items.
+6. The administrator selects a feedback item 7. The system displays the full details of the
+from the list. feedback submission.
+8. The system displays options for the administrator
+to categorize the feedback and update its status.
+9. The administrator updates the category and
+status, then saves the changes.
+10. The system updates the feedback item's record
+in the database.
+11. The system displays a success message:
+"Feedback status updated."
+Alternative Flows:
+A1: Step 5 - No Feedback
+1. If there are no user-submitted feedback items, the system will display a message: "There are no
+new feedback submissions."
+A2: Export Logs
+1. From the main page, the administrator can click an "Export Logs" button, which will generate and
+download a report of the content interaction and feedback data.
+Post-conditions: The administrator has reviewed content interaction data and managed user feedback.

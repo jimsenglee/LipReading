@@ -9,7 +9,6 @@ export interface User {
   profilePicture?: string;
   preferences?: {
     transcriptionFormat: string;
-    customDictionary: string[];
   };
 }
 
@@ -56,8 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name: email === 'admin@example.com' ? 'Administrator' : 'John Doe',
       role: email === 'admin@example.com' ? 'admin' : 'user',
       preferences: {
-        transcriptionFormat: 'plain',
-        customDictionary: []
+        transcriptionFormat: 'plain'
       }
     };
     
@@ -77,8 +75,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name,
       role: 'user',
       preferences: {
-        transcriptionFormat: 'plain',
-        customDictionary: []
+        transcriptionFormat: 'plain'
       }
     };
     

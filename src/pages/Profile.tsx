@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import { useFeedbackToast } from '@/components/ui/feedback-toast';
 import SecuritySettings from '@/components/security/SecuritySettings';
@@ -16,13 +17,17 @@ import ProfileImageUpload from '@/components/auth/ProfileImageUpload';
 import { 
   User, 
   Settings, 
-  BookOpen,
   Save,
-  Plus,
-  X,
   Shield,
   Eye,
-  Key
+  Key,
+  Bell,
+  Clock,
+  Target,
+  CheckCircle,
+  Zap,
+  Mail,
+  Smartphone
 } from 'lucide-react';
 
 const Profile = () => {
@@ -39,10 +44,38 @@ const Profile = () => {
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    transcriptionFormat: user?.preferences?.transcriptionFormat || 'plain',
-    customDictionary: user?.preferences?.customDictionary || []
+    transcriptionFormat: user?.preferences?.transcriptionFormat || 'plain'
   });
-  const [newWord, setNewWord] = useState('');
+
+  // Notification Settings State
+  const [notifications, setNotifications] = useState([
+    {
+      type: 'practice-reminders',
+      enabled: true,
+      frequency: 'daily',
+      time: '18:00'
+    },
+    {
+      type: 'quiz-reminders', 
+      enabled: false,
+      frequency: 'weekly',
+      time: '10:00'
+    },
+    {
+      type: 'achievement-alerts',
+      enabled: true,
+      frequency: 'immediate',  
+      time: '09:00'
+    },
+    {
+      type: 'progress-summary',
+      enabled: true,
+      frequency: 'weekly',
+      time: '19:00'
+    }
+  ]);
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [pushNotifications, setPushNotifications] = useState(false);
 
   const breadcrumbItems = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -70,8 +103,7 @@ const Profile = () => {
       name: formData.name,
       email: formData.email,
       preferences: {
-        transcriptionFormat: formData.transcriptionFormat,
-        customDictionary: formData.customDictionary
+        transcriptionFormat: formData.transcriptionFormat
       }
     });
     setIsEditing(false);
@@ -123,23 +155,6 @@ const Profile = () => {
     feedbackToast.success("Password Updated", "Your password has been changed successfully.");
   };
 
-  const addCustomWord = () => {
-    if (newWord.trim() && !formData.customDictionary.includes(newWord.trim())) {
-      setFormData({
-        ...formData,
-        customDictionary: [...formData.customDictionary, newWord.trim()]
-      });
-      setNewWord('');
-    }
-  };
-
-  const removeCustomWord = (wordToRemove) => {
-    setFormData({
-      ...formData,
-      customDictionary: formData.customDictionary.filter(word => word !== wordToRemove)
-    });
-  };
-
   return (
     <div className="space-y-6 animate-fade-in">
       <AnimatedBreadcrumb items={breadcrumbItems} />
@@ -165,9 +180,9 @@ const Profile = () => {
             <Settings className="h-4 w-4" />
             Preferences
           </TabsTrigger>
-          <TabsTrigger value="dictionary" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <BookOpen className="h-4 w-4" />
-            Dictionary
+          <TabsTrigger value="notifications" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
+            <Bell className="h-4 w-4" />
+            Notifications
           </TabsTrigger>
           <TabsTrigger value="security" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
             <Shield className="h-4 w-4" />
@@ -192,7 +207,7 @@ const Profile = () => {
               <div className="flex flex-col items-center space-y-4">
                 <ProfileImageUpload 
                   onImageSelect={setProfileImage}
-                  currentImage={(user as any)?.profileImage}
+                  currentImage={user?.profilePicture || undefined}
                   isEditing={isEditing}
                 />
               </div>
@@ -239,8 +254,7 @@ const Profile = () => {
                         setFormData({
                           name: user?.name || '',
                           email: user?.email || '',
-                          transcriptionFormat: user?.preferences?.transcriptionFormat || 'plain',
-                          customDictionary: user?.preferences?.customDictionary || []
+                          transcriptionFormat: user?.preferences?.transcriptionFormat || 'plain'
                         });
                       }}
                       className="border-primary/20 text-primary hover:bg-primary/10"
@@ -408,62 +422,171 @@ const Profile = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="dictionary" className="space-y-6">
+        <TabsContent value="notifications" className="space-y-6">
           <Card className="border-primary/20">
             <CardHeader>
-              <CardTitle className="text-primary">Custom Dictionary</CardTitle>
+              <CardTitle className="text-primary flex items-center gap-2">
+                <Bell className="h-5 w-5" />
+                Notification Preferences
+              </CardTitle>
               <CardDescription>
-                Add words specific to your vocabulary to improve recognition accuracy
+                Configure how and when you receive reminders and updates
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Add a new word..."
-                  value={newWord}
-                  onChange={(e) => setNewWord(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && addCustomWord()}
-                  className="border-primary/20 focus:border-primary"
-                />
-                <Button onClick={addCustomWord} className="flex items-center gap-2 bg-primary hover:bg-primary/90">
-                  <Plus className="h-4 w-4" />
-                  Add
-                </Button>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Your Custom Words ({formData.customDictionary.length})</Label>
-                <div className="min-h-32 max-h-64 overflow-y-auto border border-primary/20 rounded-lg p-4">
-                  {formData.customDictionary.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">
-                      No custom words added yet. Add words that are specific to your vocabulary.
-                    </p>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {formData.customDictionary.map((word, index) => (
-                        <Badge key={index} variant="secondary" className="flex items-center gap-1 bg-primary/10 text-primary border-primary/20">
-                          {word}
-                          <button
-                            onClick={() => removeCustomWord(word)}
-                            className="ml-1 hover:bg-primary/20 rounded-full p-1 transition-colors"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
+            <CardContent className="space-y-6">
+              {/* Global Notification Settings */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label className="text-base font-medium">Email Notifications</Label>
+                    <p className="text-sm text-gray-600">Receive notifications via email</p>
+                  </div>
+                  <Switch
+                    checked={emailNotifications}
+                    onCheckedChange={setEmailNotifications}
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label className="text-base font-medium">Push Notifications</Label>
+                    <p className="text-sm text-gray-600">Receive browser push notifications</p>
+                  </div>
+                  <Switch
+                    checked={pushNotifications}
+                    onCheckedChange={setPushNotifications}
+                  />
                 </div>
               </div>
 
-              <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-                <h4 className="font-medium text-primary mb-2">Tips for Custom Dictionary:</h4>
-                <ul className="text-sm text-gray-700 space-y-1">
-                  <li>• Add names, technical terms, and specialized vocabulary</li>
-                  <li>• Include common phrases you use frequently</li>
-                  <li>• Words are case-insensitive</li>
-                  <li>• Adding more relevant words improves accuracy</li>
-                </ul>
+              <div className="border-t pt-6">
+                <h4 className="text-lg font-medium text-primary mb-4">Notification Types</h4>
+                <div className="space-y-4">
+                  {[
+                    {
+                      id: 'practice-reminders',
+                      title: 'Practice Reminders',
+                      description: 'Get reminded to practice your lip-reading skills',
+                      icon: <Target className="h-5 w-5 text-blue-600" />,
+                      color: 'bg-blue-50 border-blue-200'
+                    },
+                    {
+                      id: 'quiz-reminders',
+                      title: 'Quiz Reminders', 
+                      description: 'Reminders to take new quizzes and test your progress',
+                      icon: <Clock className="h-5 w-5 text-green-600" />,
+                      color: 'bg-green-50 border-green-200'
+                    },
+                    {
+                      id: 'achievement-alerts',
+                      title: 'Achievement Alerts',
+                      description: 'Instant notifications when you unlock new achievements',
+                      icon: <Zap className="h-5 w-5 text-yellow-600" />,
+                      color: 'bg-yellow-50 border-yellow-200'
+                    },
+                    {
+                      id: 'progress-summary',
+                      title: 'Progress Summary',
+                      description: 'Weekly summaries of your learning progress and statistics',
+                      icon: <CheckCircle className="h-5 w-5 text-purple-600" />,
+                      color: 'bg-purple-50 border-purple-200'
+                    }
+                  ].map((type) => {
+                    const notification = notifications.find(n => n.type === type.id);
+                    return (
+                      <Card key={type.id} className={`${type.color} border`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3">
+                              {type.icon}
+                              <div className="space-y-1">
+                                <h5 className="font-medium">{type.title}</h5>
+                                <p className="text-sm text-gray-600">{type.description}</p>
+                              </div>
+                            </div>
+                            <Switch
+                              checked={notification?.enabled || false}
+                              onCheckedChange={(checked) => {
+                                setNotifications(prev => prev.map(n =>
+                                  n.type === type.id ? { ...n, enabled: checked } : n
+                                ));
+                              }}
+                            />
+                          </div>
+                          
+                          {notification?.enabled && (
+                            <div className="mt-4 grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label className="text-sm">Frequency</Label>
+                                <Select
+                                  value={notification.frequency}
+                                  onValueChange={(value) => {
+                                    setNotifications(prev => prev.map(n =>
+                                      n.type === type.id ? { ...n, frequency: value } : n
+                                    ));
+                                  }}
+                                >
+                                  <SelectTrigger className="h-9">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="daily">Daily</SelectItem>  
+                                    <SelectItem value="weekly">Weekly</SelectItem>
+                                    <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
+                                    <SelectItem value="immediate">Immediate</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <Label className="text-sm">Time</Label>
+                                <Select
+                                  value={notification.time}
+                                  onValueChange={(value) => {
+                                    setNotifications(prev => prev.map(n =>
+                                      n.type === type.id ? { ...n, time: value } : n
+                                    ));
+                                  }}
+                                >
+                                  <SelectTrigger className="h-9">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="09:00">9:00 AM</SelectItem>
+                                    <SelectItem value="12:00">12:00 PM</SelectItem>
+                                    <SelectItem value="15:00">3:00 PM</SelectItem>
+                                    <SelectItem value="18:00">6:00 PM</SelectItem>
+                                    <SelectItem value="20:00">8:00 PM</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <Button 
+                  onClick={() => {
+                    feedbackToast.success('Notification settings saved successfully!');
+                  }}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Settings
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={() => {
+                    feedbackToast.info('Test notification sent! 🔔');
+                  }}
+                >
+                  Test Notification
+                </Button>
               </div>
             </CardContent>
           </Card>

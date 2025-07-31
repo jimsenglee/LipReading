@@ -20,7 +20,6 @@ import TutorialPlayer from "./pages/education/TutorialPlayer";
 import InteractiveQuizzes from "./pages/education/InteractiveQuizzes";
 import RealTimePractice from "./pages/education/RealTimePractice";
 import ProgressTracking from "./pages/education/ProgressTracking";
-import NotificationSettings from "./pages/education/NotificationSettings";
 import Reports from "./pages/Reports";
 import Profile from "./pages/Profile";
 import TranscriptionHistory from "./pages/TranscriptionHistory";
@@ -104,7 +103,7 @@ const App = () => (
             <Route path="/education/notifications" element={
               <ProtectedRoute>
                 <DashboardLayout>
-                  <NotificationSettings />
+                  <Profile />
                 </DashboardLayout>
               </ProtectedRoute>
             } />
