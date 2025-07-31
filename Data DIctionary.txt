@@ -1,0 +1,448 @@
+Data Dictionary for Web-Based Lip-Reading System
+This data dictionary outlines a database schema meticulously designed based on the provided UML class diagram and attributes list. It employs a Class Table Inheritance pattern, where the Accounts table stores common data for all account types, and a separate Users table stores data specific only to the user role. This approach directly translates the object-oriented inheritance model into a relational database structure.
+Table 1: Accounts
+Stores the base information for all account holders. This table acts as the parent in the inheritance structure.
+Attribute
+Data Type
+Description
+Key/Constraint
+Example/Format
+userID
+VARCHAR(20)
+A unique, system-generated identifier. Format: ACC-[U/A]-[YYYYMMDD]-[4-digit hash]
+Primary Key
+ACC-U-20250731-A4B1
+name
+VARCHAR(255)
+The full name of the account holder.
+NOT NULL
+Siti Nurhaliza
+email
+VARCHAR(255)
+The email address used for login and communication.
+NOT NULL, UNIQUE
+siti.n@example.com
+hashedPassword
+VARCHAR(255)
+The user's password, stored securely after hashing (e.g., with bcrypt).
+NOT NULL
+$2b$12$... (bcrypt hash)
+profileImageURL
+VARCHAR(255)
+The server path or URL to the user's uploaded profile picture.
+NULL
+/media/profiles/ACC-U-20250731-A4B1.jpg
+registrationDate
+DATETIME
+The timestamp when the account was created.
+NOT NULL, DEFAULT NOW()
+2025-07-31 16:10:00
+accountType
+VARCHAR(20)
+Specifies the role of the account.
+NOT NULL, CHECK (accountType IN ('User', 'Administrator'))
+User
+
+Table 2: Users
+Stores attributes specific to the 'User' role. This table has a one-to-one relationship with the Accounts table.
+Attribute
+Data Type
+Description
+Key/Constraint
+Example/Format
+userID
+VARCHAR(20)
+Links to the parent Accounts table.
+Primary Key, Foreign Key (Accounts.userID)
+ACC-U-20250731-A4B1
+is2FAEnabled
+BOOLEAN
+Flag indicating if Two-Factor Authentication is active for the user.
+NOT NULL, DEFAULT FALSE
+TRUE
+
+Table 3: AccessibilitySettings
+Stores individual accessibility preferences for each user.
+Attribute
+Data Type
+Description
+Key/Constraint
+Example/Format
+userID
+VARCHAR(20)
+Links to the user who owns these settings.
+Primary Key, Foreign Key (Users.userID)
+ACC-U-20250731-A4B1
+fontSize
+VARCHAR(20)
+The user's preferred font size for transcriptions.
+NOT NULL, DEFAULT 'Medium'
+Large
+theme
+VARCHAR(20)
+The user's preferred application theme.
+NOT NULL, DEFAULT 'Light'
+Dark
+
+Table 4: NotificationSettings
+Stores the user's preferences for receiving email reminders.
+Attribute
+Data Type
+Description
+Key/Constraint
+Example/Format
+userID
+VARCHAR(20)
+Links to the user who owns these settings.
+Primary Key, Foreign Key (Users.userID)
+ACC-U-20250731-A4B1
+reminderFrequency
+VARCHAR(20)
+How often the user wishes to receive practice reminders.
+NOT NULL, DEFAULT 'None'
+Daily
+
+Table 5: LoginActivity
+Logs all login attempts for a specific user.
+Attribute
+Data Type
+Description
+Key/Constraint
+Example/Format
+activityID
+VARCHAR(25)
+A unique identifier for each login event.
+Primary Key
+LOG-20250731-E8F2A1B4
+userID
+VARCHAR(20)
+Foreign key linking to the user who logged in.
+Foreign Key (Users.userID), NOT NULL
+ACC-U-20250731-A4B1
+timestamp
+DATETIME
+The date and time of the login event.
+NOT NULL, DEFAULT NOW()
+2025-07-31 16:15:15
+ipAddress
+VARCHAR(45)
+The IP address from which the login occurred.
+NULL
+203.0.113.195
+deviceInfo
+TEXT
+Information about the device/browser used (User-Agent string).
+NULL
+Mozilla/5.0 (Windows NT 10.0...)
+
+Table 6: ThirdPartyApps
+Stores records of third-party applications granted access by a user.
+Attribute
+Data Type
+Description
+Key/Constraint
+Example/Format
+appConnectionID
+VARCHAR(25)
+A unique identifier for each app connection.
+Primary Key
+TPA-20250731-C3D4E5F6
+userID
+VARCHAR(20)
+Foreign key linking to the user's account.
+Foreign Key (Users.userID), NOT NULL
+ACC-U-20250731-A4B1
+appName
+VARCHAR(255)
+The name of the third-party application (e.g., Google).
+NOT NULL
+Google
+dateGranted
+DATETIME
+The date and time access was granted.
+NOT NULL, DEFAULT NOW()
+2025-07-31 16:20:00
+
+Table 7: Transcriptions
+Stores the details and content of every transcription session created by a user.
+Attribute
+Data Type
+Description
+Key/Constraint
+Example/Format
+transcriptionID
+VARCHAR(25)
+A unique identifier for each transcription.
+Primary Key
+TRN-20250731-B5C6D7E8
+userID
+VARCHAR(20)
+Foreign key linking to the user who created it.
+Foreign Key (Users.userID), NOT NULL
+ACC-U-20250731-A4B1
+title
+VARCHAR(255)
+A user-defined title for the transcription.
+NOT NULL
+Project Alpha Kick-off Meeting
+contentText
+LONGTEXT
+The full, editable text content of the transcription.
+NULL
+"Alright everyone, welcome to the kick-off..."
+timestamps
+JSON
+A JSON array storing text segments linked to video timecodes.
+NULL
+[{"time": "0:01", "text": "Alright everyone"}, ...]
+creationDate
+DATETIME
+The date and time the transcription was created.
+NOT NULL, DEFAULT NOW()
+2025-07-31 16:25:00
+videoSourcePath
+VARCHAR(255)
+The server path to the source video file.
+NULL
+/media/uploads/ACC-U-20250731-A4B1/vid_alpha.mp4
+
+Table 8: Categories
+Stores categories for organizing educational content.
+Attribute
+Data Type
+Description
+Key/Constraint
+Example/Format
+categoryID
+VARCHAR(20)
+A unique identifier for each category.
+Primary Key
+CAT-1F9A
+categoryName
+VARCHAR(255)
+The name of the category (e.g., Vowels, Consonants).
+NOT NULL, UNIQUE
+Common Business Phrases
+
+Table 9: Tutorials
+Stores information about each instructional tutorial video.
+Attribute
+Data Type
+Description
+Key/Constraint
+Example/Format
+tutorialID
+VARCHAR(20)
+A unique identifier for each tutorial.
+Primary Key
+TUT-B2C3
+categoryID
+VARCHAR(20)
+Foreign key linking to its content category.
+Foreign Key (Categories.categoryID), NOT NULL
+CAT-1F9A
+title
+VARCHAR(255)
+The title of the tutorial.
+NOT NULL
+Lip-Reading for "Can" vs "Can't"
+description
+TEXT
+A brief description of the tutorial's content.
+NULL
+Learn the subtle differences...
+videoPath
+VARCHAR(255)
+The server path to the tutorial video file.
+NOT NULL
+/media/tutorials/TUT-B2C3.mp4
+
+Table 10: UserBookmarks
+A linking table for the many-to-many relationship between users and bookmarked tutorials.
+Attribute
+Data Type
+Description
+Key/Constraint
+Example/Format
+userID
+VARCHAR(20)
+Part of the composite key, links to the user's account.
+Primary Key, Foreign Key (Users.userID)
+ACC-U-20250731-A4B1
+tutorialID
+VARCHAR(20)
+Part of the composite key, links to the bookmarked tutorial.
+Primary Key, Foreign Key (Tutorials.tutorialID)
+TUT-B2C3
+
+Table 11: Quizzes
+Stores metadata for each quiz.
+Attribute
+Data Type
+Description
+Key/Constraint
+Example/Format
+quizID
+VARCHAR(20)
+A unique identifier for each quiz.
+Primary Key
+QZ-D4E5
+categoryID
+VARCHAR(20)
+Foreign key linking to its content category.
+Foreign Key (Categories.categoryID), NOT NULL
+CAT-1F9A
+title
+VARCHAR(255)
+The title of the quiz.
+NOT NULL
+Intermediate Phrases Quiz
+
+Table 12: QuizQuestions
+Stores the individual questions that make up the quizzes.
+Attribute
+Data Type
+Description
+Key/Constraint
+Example/Format
+questionID
+VARCHAR(25)
+A unique identifier for each question.
+Primary Key
+QQ-F6A1
+quizID
+VARCHAR(20)
+Foreign key linking to the quiz it belongs to.
+Foreign Key (Quizzes.quizID), NOT NULL
+QZ-D4E5
+videoClipPath
+VARCHAR(255)
+The server path to the question's video clip.
+NOT NULL
+/media/quizzes/QQ-F6A1.mp4
+correctAnswer
+VARCHAR(255)
+The correct text answer for the video clip.
+NOT NULL
+See you tomorrow
+incorrectOptions
+JSON
+A JSON array of incorrect text-based answer choices.
+NOT NULL
+["See you later", "Are you tomorrow", "See you soon"]
+
+Table 13: QuizAttempts
+Represents a user's single attempt at a quiz, combining QuizSession and QuizResult from the class diagram.
+Attribute
+Data Type
+Description
+Key/Constraint
+Example/Format
+attemptID
+VARCHAR(25)
+A unique identifier for each quiz attempt.
+Primary Key
+QA-20250731-9B8C7D6E
+userID
+VARCHAR(20)
+Foreign key linking to the user who took the quiz.
+Foreign Key (Users.userID), NOT NULL
+ACC-U-20250731-A4B1
+quizID
+VARCHAR(20)
+Foreign key linking to the quiz that was taken.
+Foreign Key (Quizzes.quizID), NOT NULL
+QZ-D4E5
+score
+DECIMAL(3,2)
+The final score (e.g., 0.75 for 75%).
+NOT NULL, CHECK (score BETWEEN 0.00 AND 1.00)
+0.75
+answers
+JSON
+A JSON object mapping questionID to the user's selected answer.
+NULL
+{"QQ-F6A1": "See you tomorrow", ...}
+completionDate
+DATETIME
+The timestamp when the quiz was completed.
+NOT NULL, DEFAULT NOW()
+2025-07-31 16:40:00
+
+Table 14: PracticeSessions
+Logs each real-time practice session a user undertakes.
+Attribute
+Data Type
+Description
+Key/Constraint
+Example/Format
+practiceID
+VARCHAR(25)
+A unique identifier for each practice session.
+Primary Key
+PRAC-20250731-5A4B3C2D
+userID
+VARCHAR(20)
+Foreign key linking to the user's account.
+Foreign Key (Users.userID), NOT NULL
+ACC-U-20250731-A4B1
+referenceVideoPath
+VARCHAR(255)
+The path to the reference video used for practice.
+NOT NULL
+/media/practice/word_synergy.mp4
+sessionDate
+DATETIME
+The timestamp when the practice session occurred.
+NOT NULL, DEFAULT NOW()
+2025-07-31 16:55:00
+
+Table 15: Feedback
+Stores all feedback, bug reports, and feature suggestions submitted by users and reviewed by administrators.
+Attribute
+Data Type
+Description
+Key/Constraint
+Example/Format
+feedbackID
+VARCHAR(25)
+A unique identifier for each feedback submission.
+Primary Key
+FB-20250731-1A2B3C4D
+submittedByUserID
+VARCHAR(20)
+Foreign key linking to the user who submitted it.
+Foreign Key (Users.userID), NOT NULL
+ACC-U-20250731-A4B1
+feedbackType
+VARCHAR(50)
+The type of feedback submitted.
+NOT NULL
+Feature Suggestion
+description
+TEXT
+The detailed description provided by the user.
+NOT NULL
+Could we have a feature to slow down the playback speed even more?
+attachedFilePath
+VARCHAR(255)
+The server path of any attachment included.
+NULL
+/media/feedback/FB-20250731-1A2B3C4D.jpg
+submissionDate
+DATETIME
+The timestamp when the feedback was submitted.
+NOT NULL, DEFAULT NOW()
+2025-07-31 17:00:00
+status
+VARCHAR(50)
+The current status of the feedback item.
+NOT NULL, DEFAULT 'New'
+In Progress
+reviewedByAdminID
+VARCHAR(20)
+Foreign key linking to the admin who reviewed or resolved it.
+Foreign Key (Accounts.userID), NULL
+ACC-A-20250101-E5F6
+
+

@@ -1,0 +1,191 @@
+
+**Account**
+**Attributes:**
+#userID: string
+#name: string
+#email: string
+#hashedPassword: string
+#profileImageURL: string
+#registrationDate: Date
+**Methods:**
++login(email, password): bool
++logout(): void
++resetPassword(token, newPassword): bool
++changePassword(currentPassword, newPassword): bool
++updateProfile(newName, newEmail): bool
++toString(): string
+
+**User**
+**Attributes:**
+-is2FAEnabled: bool
+-loginActivity: LoginActivity[]
+-connectedApps: ThirdPartyApp[]
+**Methods:**
++enable2FA(code): bool
++disable2FA(): bool
++verify2FACode(code): bool
++viewLoginActivity(): LoginActivity[]
++revokeAppAccess(appID): bool
++startRealTimeTranscription(): Transcription
++uploadVideoForTranscription(file): Transcription
++viewTranscriptionHistory(): Transcription[]
++takeQuiz(quizID): QuizSession
++viewProgressDashboard(): Report
++startPracticeSession(practiceID): PracticeSession
++bookmarkTutorial(tutorialID): bool
++submitFeedback(feedbackData): bool
+
+**Administrator**
+**Attributes:**
+*(Note: Attributes for Administrator are not explicitly listed in the sources beyond inheriting from Account)*
+**Methods:**
++viewUserList(filters): User[]
++manageUser(userID): void
++initiatePasswordResetForUser(userID): bool
++createTutorial(tutorialData): Tutorial
++updateTutorial(tutorialID, newData): bool
++deleteTutorial(tutorialID): bool
++createQuizQuestion(questionData): QuizQuestion
++updateQuizQuestion(questionID, newData): bool
++deleteQuizQuestion(questionID): bool
++createCategory(categoryName): Category
++updateCategory(categoryID, newName): bool
++deleteCategory(categoryID): bool
++viewSystemAnalytics(): Report
++manageFeedback(feedbackID, status): bool
++exportLogs(logType): File
+
+**AccessibilitySettings**
+**Attributes:**
+-fontSize: string
+-theme: string
+**Methods:**
++updateFontSize(newSize): void
++updateTheme(newTheme): void
+
+**NotificationSettings**
+**Attributes:**
+-reminderFrequency: string
+**Methods:**
++saveNotificationPreference(newPreference): void
+
+**LoginActivity**
+**Attributes:**
+-timestamp: Date
+-ipAddress: string
+-deviceInfo: string
+**Methods:**
+*(None explicitly listed in the sources)*
+
+**ThirdPartyApp**
+**Attributes:**
+-appID: string
+-appName: string
+-dateGranted: Date
+**Methods:**
+*(None explicitly listed in the sources)*
+
+**Transcription**
+**Attributes:**
+-transcriptionID: string
+-title: string
+-contentText: string
+-timestamps: object[]
+-creationDate: Date
+-videoSourcePath: string
+**Methods:**
++playVideo(): void
++pauseVideo(): void
++seekVideoToTimestamp(timestamp): void
++changePlaybackSpeed(speed): void
++copyToClipboard(): void
++download(format): File
++saveChanges(newText): bool
++rename(newTitle): bool
++delete(): bool
+
+**Tutorial**
+**Attributes:**
+-tutorialID: string
+-title: string
+-description: string
+-videoPath: string
+**Methods:**
++play(): void
++setPlaybackSpeed(speed): void
+
+**Quiz**
+**Attributes:**
+-quizID: string
+-title: string
+-questions: QuizQuestion[]
+**Methods:**
++getQuestions(): QuizQuestion[]
+
+**QuizQuestion**
+**Attributes:**
+-questionID: string
+-videoClipPath: string
+-correctAnswer: string
+-incorrectOptions: string[]
+**Methods:**
++playQuestionVideo(): void
++evaluateAnswer(selectedAnswer): bool
+
+**QuizSession**
+**Attributes:**
+-quiz: Quiz
+-user: User
+-answers: object[]
+-score: float
+**Methods:**
++start(): void
++submitAnswer(questionID, answer): bool
++finishQuiz(): QuizResult
+
+**QuizResult**
+**Attributes:**
+-resultID: string
+-score: float
+-completionDate: Date
+**Methods:**
+*(None explicitly listed in the sources)*
+
+**PracticeSession**
+**Attributes:**
+-practiceID: string
+-referenceVideoPath: string
+-userWebcamStream: object
+**Methods:**
++start(): void
++stop(): void
++getVisualFeedback(): object
+
+**Category**
+**Attributes:**
+-categoryID: string
+-categoryName: string
+**Methods:**
++getTutorials(): Tutorial[]
++getQuizzes(): Quiz[]
+
+**Feedback**
+**Attributes:**
+-feedbackID: string
+-feedbackType: string
+-description: string
+-attachedFilePath: string
+-submissionDate: Date
+-status: string
+**Methods:**
+*(None explicitly listed in the sources)*
+
+**Report**
+**Attributes:**
+-reportID: string
+-reportType: string
+-generatedDate: Date
+-data: object
+**Methods:**
++generate(): void
++download(format): File
