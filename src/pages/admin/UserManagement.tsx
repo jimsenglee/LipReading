@@ -40,7 +40,6 @@ const UserManagement = () => {
   const [isPasswordResetModalOpen, setIsPasswordResetModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
@@ -59,11 +58,9 @@ const UserManagement = () => {
       name: 'John Doe',
       email: 'john@example.com',
       role: 'user',
-      status: 'active',
       joinDate: '2024-01-15',
       lastActive: '2024-01-20',
       totalSessions: 47,
-      avgAccuracy: 89,
       totalHours: 12.5,
       phone: '+1 234-567-8900',
       location: 'New York, USA',
@@ -78,11 +75,9 @@ const UserManagement = () => {
       name: 'Jane Smith',
       email: 'jane@example.com',
       role: 'user',
-      status: 'active',
       joinDate: '2024-01-10',
       lastActive: '2024-01-19',
       totalSessions: 32,
-      avgAccuracy: 92,
       totalHours: 8.3,
       phone: '+1 234-567-8901',
       location: 'California, USA',
@@ -97,11 +92,9 @@ const UserManagement = () => {
       name: 'Admin User',
       email: 'admin@example.com',
       role: 'admin',
-      status: 'active',
       joinDate: '2023-12-01',
       lastActive: '2024-01-20',
       totalSessions: 15,
-      avgAccuracy: 95,
       totalHours: 4.2,
       phone: '+1 234-567-8902',
       location: 'Texas, USA',
@@ -116,11 +109,9 @@ const UserManagement = () => {
       name: 'Mike Johnson',
       email: 'mike@example.com',
       role: 'user',
-      status: 'inactive',
       joinDate: '2024-01-05',
       lastActive: '2024-01-12',
       totalSessions: 8,
-      avgAccuracy: 76,
       totalHours: 2.1,
       phone: '+1 234-567-8903',
       location: 'Florida, USA',
@@ -135,11 +126,9 @@ const UserManagement = () => {
       name: 'Sarah Wilson',
       email: 'sarah@example.com',
       role: 'user',
-      status: 'suspended',
       joinDate: '2024-01-20',
       lastActive: '2024-01-22',
       totalSessions: 25,
-      avgAccuracy: 84,
       totalHours: 6.7,
       phone: '+1 234-567-8904',
       location: 'Washington, USA',
@@ -182,15 +171,6 @@ const UserManagement = () => {
     }
   ];
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800 border-green-200';
-      case 'inactive': return 'bg-gray-100 text-gray-800 border-gray-200';
-      case 'suspended': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
   const getRoleColor = (role) => {
     switch (role) {
       case 'admin': return 'bg-primary/10 text-primary border-primary/20';
@@ -204,7 +184,6 @@ const UserManagement = () => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     
     let matchesDate = true;
@@ -225,7 +204,7 @@ const UserManagement = () => {
       }
     }
     
-    return matchesSearch && matchesStatus && matchesRole && matchesDate;
+    return matchesSearch && matchesRole && matchesDate;
   }).sort((a, b) => {
     let aValue, bValue;
     
@@ -249,10 +228,6 @@ const UserManagement = () => {
       case 'sessions':
         aValue = a.totalSessions;
         bValue = b.totalSessions;
-        break;
-      case 'accuracy':
-        aValue = a.avgAccuracy;
-        bValue = b.avgAccuracy;
         break;
       default:
         aValue = a.name.toLowerCase();
@@ -320,16 +295,14 @@ const UserManagement = () => {
 
   const exportUsers = () => {
     const csvContent = [
-      ['Name', 'Email', 'Role', 'Status', 'Join Date', 'Last Active', 'Sessions', 'Accuracy'],
+      ['Name', 'Email', 'Role', 'Join Date', 'Last Active', 'Sessions'],
       ...filteredUsers.map(user => [
         user.name,
         user.email,
         user.role,
-        user.status,
         user.joinDate,
         user.lastActive,
-        user.totalSessions,
-        `${user.avgAccuracy}%`
+        user.totalSessions
       ])
     ].map(row => row.join(',')).join('\n');
     
@@ -419,22 +392,7 @@ const UserManagement = () => {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                      <Label className="text-sm font-medium text-gray-700">Status Filter</Label>
-                      <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="border-primary/20">
-                          <SelectValue placeholder="All Statuses" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Statuses</SelectItem>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="inactive">Inactive</SelectItem>
-                          <SelectItem value="suspended">Suspended</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <Label className="text-sm font-medium text-gray-700">Role Filter</Label>
                       <Select value={roleFilter} onValueChange={setRoleFilter}>
@@ -476,7 +434,6 @@ const UserManagement = () => {
                           <SelectItem value="joinDate">Join Date</SelectItem>
                           <SelectItem value="lastActive">Last Active</SelectItem>
                           <SelectItem value="sessions">Sessions</SelectItem>
-                          <SelectItem value="accuracy">Accuracy</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -526,7 +483,6 @@ const UserManagement = () => {
                           </div>
                         </th>
                         <th className="text-left p-3 font-medium text-primary">Role</th>
-                        <th className="text-left p-3 font-medium text-primary">Status</th>
                         <th 
                           className="text-left p-3 font-medium text-primary cursor-pointer hover:bg-primary/5 transition-colors"
                           onClick={() => handleSort('lastActive')}
@@ -543,15 +499,6 @@ const UserManagement = () => {
                           <div className="flex items-center gap-1">
                             Sessions
                             {sortBy === 'sessions' && (sortOrder === 'asc' ? <SortAsc className="h-3 w-3" /> : <SortDesc className="h-3 w-3" />)}
-                          </div>
-                        </th>
-                        <th 
-                          className="text-left p-3 font-medium text-primary cursor-pointer hover:bg-primary/5 transition-colors"
-                          onClick={() => handleSort('accuracy')}
-                        >
-                          <div className="flex items-center gap-1">
-                            Accuracy
-                            {sortBy === 'accuracy' && (sortOrder === 'asc' ? <SortAsc className="h-3 w-3" /> : <SortDesc className="h-3 w-3" />)}
                           </div>
                         </th>
                         <th className="text-left p-3 font-medium text-primary">Actions</th>
@@ -577,21 +524,11 @@ const UserManagement = () => {
                               {user.role}
                             </Badge>
                           </td>
-                          <td className="p-3">
-                            <Badge className={`${getStatusColor(user.status)} border`}>
-                              {user.status}
-                            </Badge>
-                          </td>
                           <td className="p-3 text-sm text-gray-600">
                             {user.lastActive}
                           </td>
                           <td className="p-3 text-sm">
                             {user.totalSessions}
-                          </td>
-                          <td className="p-3 text-sm">
-                            <span className={user.avgAccuracy >= 90 ? 'text-green-600' : user.avgAccuracy >= 80 ? 'text-yellow-600' : 'text-red-600'}>
-                              {user.avgAccuracy}%
-                            </span>
                           </td>
                           <td className="p-3">
                             <div className="flex items-center gap-1">
@@ -709,7 +646,7 @@ const UserManagement = () => {
                     <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-500 mb-2">No users found</h3>
                     <p className="text-gray-400">
-                      {searchTerm || statusFilter !== 'all' || roleFilter !== 'all' || dateFilter !== 'all' 
+                      {searchTerm || roleFilter !== 'all' || dateFilter !== 'all' 
                         ? 'Try adjusting your search and filter criteria' 
                         : 'No users have been registered yet'}
                     </p>
@@ -799,24 +736,14 @@ const UserManagement = () => {
                     {selectedUser.role}
                   </Badge>
                 </div>
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Status</Label>
-                  <Badge className={`${getStatusColor(selectedUser.status)} border mt-1`}>
-                    {selectedUser.status}
-                  </Badge>
-                </div>
               </div>
               
               <div className="border-t pt-4">
                 <h4 className="font-medium text-gray-900 mb-3">Account Activity</h4>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="text-center p-3 bg-primary/5 rounded-lg">
                     <div className="text-lg font-semibold text-primary">{selectedUser.totalSessions}</div>
                     <div className="text-xs text-gray-600">Total Sessions</div>
-                  </div>
-                  <div className="text-center p-3 bg-primary/5 rounded-lg">
-                    <div className="text-lg font-semibold text-primary">{selectedUser.avgAccuracy}%</div>
-                    <div className="text-xs text-gray-600">Avg Accuracy</div>
                   </div>
                   <div className="text-center p-3 bg-primary/5 rounded-lg">
                     <div className="text-lg font-semibold text-primary">{selectedUser.totalHours}h</div>

@@ -32,6 +32,11 @@ import TranscriptionResult from "./pages/TranscriptionResult";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UserManagement from "./pages/admin/UserManagement";
 import ContentManagement from "./pages/admin/ContentManagement";
+import CreateTutorialSeriesWizard from "./pages/admin/CreateTutorialSeriesWizard";
+import CreateQuizWizard from "./pages/admin/CreateQuizWizard";
+import CreateCategoryWizard from "./pages/admin/CreateCategoryWizard";
+import EditTutorialSeriesWizard from "./pages/admin/EditTutorialSeriesWizard";
+import EditQuizWizard from "./pages/admin/EditQuizWizard";
 import SystemAnalytics from "./pages/admin/SystemAnalytics";
 import UserLearningAnalytics from "./pages/admin/UserLearningAnalytics";
 import ContentInteractionAnalytics from "./pages/admin/ContentInteractionAnalytics";
@@ -203,6 +208,41 @@ const App = () => (
               <ProtectedRoute requiredRole="admin">
                 <DashboardLayout>
                   <ContentManagement />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/content/create-tutorial" element={
+              <ProtectedRoute requiredRole="admin">
+                <DashboardLayout>
+                  <CreateTutorialSeriesWizard />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/content/create-quiz" element={
+              <ProtectedRoute requiredRole="admin">
+                <DashboardLayout>
+                  <CreateQuizWizard />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/content/create-category" element={
+              <ProtectedRoute requiredRole="admin">
+                <DashboardLayout>
+                  <CreateCategoryWizard />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/content/edit-tutorial/:id" element={
+              <ProtectedRoute requiredRole="admin">
+                <DashboardLayout>
+                  <EditTutorialSeriesWizard />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/content/edit-quiz/:id" element={
+              <ProtectedRoute requiredRole="admin">
+                <DashboardLayout>
+                  <EditQuizWizard />
                 </DashboardLayout>
               </ProtectedRoute>
             } />

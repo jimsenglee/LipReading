@@ -1,425 +1,294 @@
-
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
+import ContentPreviewModal from '@/components/admin/ContentPreviewModal';
+import EditCategoryModal from '@/components/admin/EditCategoryModal';
+import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 import { 
-  FileText, 
-  BookOpen, 
-  HelpCircle,
-  Plus,
-  Edit,
-  Trash2,
-  Eye,
-  Search,
+  Plus, 
+  Search, 
+  Filter, 
+  MoreHorizontal, 
+  Edit, 
+  Eye, 
+  Trash2, 
+  Upload, 
+  Copy,
+  BookOpen,
+  Brain,
   Video,
-  Upload,
-  Folder,
-  Tag,
+  Target,
   Clock,
   Users,
-  Star,
-  PlayCircle,
+  TrendingUp,
+  CheckCircle,
+  AlertCircle,
+  FileText,
+  Settings,
+  ArrowUpDown,
   Download,
-  Filter,
-  ChevronLeft,
-  ChevronRight,
-  BarChart3,
-  Settings
+  RefreshCw
 } from 'lucide-react';
-import { motion } from 'framer-motion';
-import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
-import VideoModal from '@/components/admin/VideoModal';
-import { useFeedbackToast } from '@/components/ui/feedback-toast';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { motion } from 'framer-motion';
 
-// TypeScript interfaces
-interface Video {
-  id: number;
+// Mock data that matches the user-side structure
+interface TutorialSeries {
+  id: string;
   title: string;
-  category: string;
-  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
-  duration: string;
-  status: 'published' | 'draft' | 'review';
-  uploadDate: string;
-  views: number;
   description: string;
-  videoFile?: File | null;
-  thumbnail?: File | null;
+  category: string;
+  difficulty: string;
+  totalVideos: number;
+  totalDuration: string;
+  estimatedTime: string;
+  status: string;
+  createdDate: string;
+  updatedDate: string;
+  views: number;
+  completions: number;
+  rating: number;
+  thumbnailUrl: string;
+  author: string;
 }
 
-interface Quiz {
-  id: number;
-  question: string;
-  correctAnswer: string;
-  incorrectOptions: string[];
+interface QuizSeries {
+  id: string;
+  title: string;
+  description: string;
   category: string;
-  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
-  videoClip?: File | null;
+  difficulty: string;
+  totalQuestions: number;
+  estimatedTime: string;
+  status: string;
   createdDate: string;
+  updatedDate: string;
   attempts: number;
-  successRate: number;
+  averageScore: number;
+  rating: number;
+  author: string;
 }
 
 interface Category {
-  id: number;
+  id: string;
   name: string;
   description: string;
   contentCount: number;
-  createdDate: string;
+  status: string;
 }
 
-interface NewQuiz {
-  question: string;
-  correctAnswer: string;
-  incorrectOptions: string[];
-  category: string;
-  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
-  videoClip?: File | null;
-}
+type ContentItem = TutorialSeries | QuizSeries;
 
-interface NewCategory {
-  name: string;
+interface PreviewItemData {
+  id: string;
+  title: string;
   description: string;
+  detailedDescription?: string;
+  category: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  type: 'tutorial' | 'quiz';
+  status: 'draft' | 'published';
+  createdAt: string;
+  updatedAt: string;
+  videos?: Array<{
+    id: string;
+    title: string;
+    description: string;
+    duration?: string;
+    order: number;
+  }>;
+  learningObjectives?: string[];
+  prerequisites?: string[];
+  tags?: string[];
+  questions?: Array<{
+    id: string;
+    type: 'multiple-choice';
+    question: string;
+    points: number;
+    order: number;
+  }>;
+  timeLimit?: number;
+  passingScore?: number;
+  maxAttempts?: number;
+  stats?: {
+    totalViews?: number;
+    enrolledUsers?: number;
+    completionRate?: number;
+    averageScore?: number;
+  };
 }
 
-const ContentManagement = () => {
-  // State management for modals and data
-  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
-  const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
-  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-  const [editingVideo, setEditingVideo] = useState<Video | null>(null);
-  const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+const mockTutorialSeries: TutorialSeries[] = [
+  {
+    id: 'tutorial-series-1',
+    title: 'Basic Vowel Sounds',
+    description: 'Learn to recognize basic vowel lip patterns',
+    category: 'Vowel Sounds',
+    difficulty: 'beginner',
+    totalVideos: 8,
+    totalDuration: '45:30',
+    estimatedTime: '45 minutes',
+    status: 'published',
+    createdDate: '2025-01-15',
+    updatedDate: '2025-01-20',
+    views: 1234,
+    completions: 456,
+    rating: 4.5,
+    thumbnailUrl: 'https://via.placeholder.com/300x200',
+    author: 'Dr. Sarah Chen'
+  },
+  {
+    id: 'tutorial-series-2',
+    title: 'Advanced Consonant Blends',
+    description: 'Master complex consonant combinations',
+    category: 'Consonant Sounds',
+    difficulty: 'advanced',
+    totalVideos: 12,
+    totalDuration: '68:45',
+    estimatedTime: '68 minutes',
+    status: 'draft',
+    createdDate: '2025-01-18',
+    updatedDate: '2025-01-22',
+    views: 0,
+    completions: 0,
+    rating: 0,
+    thumbnailUrl: 'https://via.placeholder.com/300x200',
+    author: 'Prof. Michael Torres'
+  }
+];
+
+const mockQuizSeries: QuizSeries[] = [
+  {
+    id: 'quiz-series-1',
+    title: 'Vowel Recognition Quiz',
+    description: 'Test your vowel sound recognition skills',
+    category: 'Vowel Sounds',
+    difficulty: 'beginner',
+    totalQuestions: 15,
+    estimatedTime: '12 minutes',
+    status: 'published',
+    createdDate: '2025-01-16',
+    updatedDate: '2025-01-21',
+    attempts: 789,
+    averageScore: 78.5,
+    rating: 4.2,
+    author: 'Dr. Sarah Chen'
+  },
+  {
+    id: 'quiz-series-2',
+    title: 'Consonant Challenge',
+    description: 'Advanced consonant identification test',
+    category: 'Consonant Sounds',
+    difficulty: 'intermediate',
+    totalQuestions: 20,
+    estimatedTime: '18 minutes',
+    status: 'published',
+    createdDate: '2025-01-17',
+    updatedDate: '2025-01-22',
+    attempts: 456,
+    averageScore: 65.3,
+    rating: 4.0,
+    author: 'Prof. Michael Torres'
+  }
+];
+
+const mockCategories: Category[] = [
+  { id: 'vowel-sounds', name: 'Vowel Sounds', description: 'Basic and advanced vowel patterns', contentCount: 12, status: 'active' },
+  { id: 'consonant-sounds', name: 'Consonant Sounds', description: 'Consonant blends and combinations', contentCount: 8, status: 'active' },
+  { id: 'sentence-reading', name: 'Sentence Reading', description: 'Full sentence lip reading practice', contentCount: 6, status: 'active' }
+];
+
+const ContentManagement: React.FC = () => {
+  const [activeTab, setActiveTab] = useState('tutorials');
   const [searchTerm, setSearchTerm] = useState('');
-  const [quizSearchTerm, setQuizSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [difficultyFilter, setDifficultyFilter] = useState('all');
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [previewItem, setPreviewItem] = useState<PreviewItemData | null>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [editCategoryItem, setEditCategoryItem] = useState<Category | null>(null);
+  const [showEditCategoryModal, setShowEditCategoryModal] = useState(false);
   
-  // Tutorial Videos State
-  const [videos, setVideos] = useState<Video[]>([
-    {
-      id: 1,
-      title: 'Basic Vowels (A, E, I, O, U)',
-      category: 'Vowels',
-      difficulty: 'Beginner',
-      duration: '12 min',
-      status: 'published',
-      uploadDate: '2024-01-15',
-      views: 1247,
-      description: 'Learn fundamental vowel sounds',
-      videoFile: null,
-      thumbnail: null
-    },
-    {
-      id: 2,
-      title: 'Common Consonants (B, P, M)',
-      category: 'Consonants',
-      difficulty: 'Beginner',
-      duration: '15 min',
-      status: 'published',
-      uploadDate: '2024-01-10',
-      views: 892,
-      description: 'Master lip-readable consonant sounds',
-      videoFile: null,
-      thumbnail: null
-    },
-    {
-      id: 3,
-      title: 'Advanced Lip Patterns',
-      category: 'Advanced',
-      difficulty: 'Advanced',
-      duration: '25 min',
-      status: 'draft',
-      uploadDate: '2024-01-18',
-      views: 0,
-      description: 'Complex lip movement patterns',
-      videoFile: null,
-      thumbnail: null
-    }
-  ]);
+  const { toast } = useToast();
+  const navigate = useNavigate();
 
-  // Quiz Questions State
-  const [quizzes, setQuizzes] = useState<Quiz[]>([
-    {
-      id: 1,
-      question: 'What word is being said?',
-      correctAnswer: 'Hello',
-      incorrectOptions: ['Help', 'House', 'Happy'],
-      category: 'Greetings',
-      difficulty: 'Beginner',
-      videoClip: null,
-      createdDate: '2024-01-15',
-      attempts: 453,
-      successRate: 89
-    },
-    {
-      id: 2,
-      question: 'Which vowel sound is shown?',
-      correctAnswer: 'A (ah)',
-      incorrectOptions: ['E (eh)', 'I (ih)', 'O (oh)'],
-      category: 'Vowels',
-      difficulty: 'Beginner',
-      videoClip: null,
-      createdDate: '2024-01-12',
-      attempts: 621,
-      successRate: 94
-    },
-    {
-      id: 3,
-      question: 'Identify the consonant pattern',
-      correctAnswer: 'B-P-M',
-      incorrectOptions: ['D-T-N', 'F-V-TH', 'K-G-NG'],
-      category: 'Consonants',
-      difficulty: 'Intermediate',
-      videoClip: null,
-      createdDate: '2024-01-10',
-      attempts: 287,
-      successRate: 76
-    }
-  ]);
-
-  // Categories State
-  const [categories, setCategories] = useState<Category[]>([
-    { id: 1, name: 'Vowels', description: 'Vowel sounds and patterns', contentCount: 8, createdDate: '2024-01-01' },
-    { id: 2, name: 'Consonants', description: 'Consonant sounds and combinations', contentCount: 12, createdDate: '2024-01-01' },
-    { id: 3, name: 'Greetings', description: 'Common greeting words and phrases', contentCount: 5, createdDate: '2024-01-05' },
-    { id: 4, name: 'Advanced', description: 'Complex lip reading patterns', contentCount: 3, createdDate: '2024-01-10' },
-    { id: 5, name: 'Numbers', description: 'Numerical expressions', contentCount: 10, createdDate: '2024-01-08' }
-  ]);
-
-  // Form states for new content
-  const [newQuiz, setNewQuiz] = useState<NewQuiz>({
-    question: '',
-    correctAnswer: '',
-    incorrectOptions: ['', '', ''],
-    category: '',
-    difficulty: 'Beginner',
-    videoClip: null
-  });
-
-  const [newCategory, setNewCategory] = useState<NewCategory>({
-    name: '',
-    description: ''
-  });
-
-  const { success, error } = useFeedbackToast();
-
-  // Breadcrumb for admin content management
   const breadcrumbItems = [
     { title: 'Admin Dashboard', href: '/admin' },
     { title: 'Content Management' }
   ];
 
-  // Filter videos based on search and filters
-  const filteredVideos = videos.filter(video => {
-    const matchesSearch = video.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         video.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         video.description.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesCategory = categoryFilter === 'all' || video.category === categoryFilter;
-    const matchesStatus = statusFilter === 'all' || video.status === statusFilter;
-    const matchesDifficulty = difficultyFilter === 'all' || video.difficulty === difficultyFilter;
-    
-    return matchesSearch && matchesCategory && matchesStatus && matchesDifficulty;
-  });
-
-  // Filter quizzes based on search
-  const filteredQuizzes = quizzes.filter(quiz =>
-    quiz.question.toLowerCase().includes(quizSearchTerm.toLowerCase()) ||
-    quiz.category.toLowerCase().includes(quizSearchTerm.toLowerCase()) ||
-    quiz.correctAnswer.toLowerCase().includes(quizSearchTerm.toLowerCase())
-  );
-
-  // Handle video operations
-  const handleAddVideo = () => {
-    setModalMode('add');
-    setEditingVideo(null);
-    setIsVideoModalOpen(true);
-  };
-
-  const handleEditVideo = (video: Video) => {
-    setModalMode('edit');
-    setEditingVideo(video);
-    setIsVideoModalOpen(true);
-  };
-
-  const handleDeleteVideo = (videoId: number) => {
-    setVideos(prev => prev.filter(v => v.id !== videoId));
-    success('Video deleted', 'The tutorial video has been removed from your library.');
-  };
-
-  const handleSaveVideo = (videoData: Video) => {
-    if (modalMode === 'add') {
-      const newVideo = {
-        ...videoData,
-        id: Date.now(),
-        uploadDate: new Date().toISOString().split('T')[0],
-        views: 0
-      };
-      setVideos(prev => [...prev, newVideo]);
-      success('Video created', 'The tutorial video has been added successfully.');
-    } else {
-      setVideos(prev => prev.map(v => v.id === videoData.id ? videoData : v));
-      success('Video updated', 'The tutorial video has been updated successfully.');
-    }
-    setIsVideoModalOpen(false);
-  };
-
-  // Handle quiz operations
-  const handleAddQuiz = () => {
-    setModalMode('add');
-    setEditingQuiz(null);
-    setNewQuiz({
-      question: '',
-      correctAnswer: '',
-      incorrectOptions: ['', '', ''],
-      category: '',
-      difficulty: 'Beginner',
-      videoClip: null
+  // Filter tutorial series
+  const filteredTutorialSeries = useMemo(() => {
+    return mockTutorialSeries.filter(series => {
+      const matchesSearch = series.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           series.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           series.author.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || series.status === statusFilter;
+      const matchesCategory = categoryFilter === 'all' || series.category === categoryFilter;
+      const matchesDifficulty = difficultyFilter === 'all' || series.difficulty === difficultyFilter;
+      
+      return matchesSearch && matchesStatus && matchesCategory && matchesDifficulty;
     });
-    setIsQuizModalOpen(true);
-  };
+  }, [searchTerm, statusFilter, categoryFilter, difficultyFilter]);
 
-  const handleEditQuiz = (quiz: Quiz) => {
-    setModalMode('edit');
-    setEditingQuiz(quiz);
-    setNewQuiz(quiz);
-    setIsQuizModalOpen(true);
-  };
+  // Filter quiz series
+  const filteredQuizSeries = useMemo(() => {
+    return mockQuizSeries.filter(series => {
+      const matchesSearch = series.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           series.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           series.author.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || series.status === statusFilter;
+      const matchesCategory = categoryFilter === 'all' || series.category === categoryFilter;
+      const matchesDifficulty = difficultyFilter === 'all' || series.difficulty === difficultyFilter;
+      
+      return matchesSearch && matchesStatus && matchesCategory && matchesDifficulty;
+    });
+  }, [searchTerm, statusFilter, categoryFilter, difficultyFilter]);
 
-  const handleDeleteQuiz = (quizId: number) => {
-    setQuizzes(prev => prev.filter(q => q.id !== quizId));
-    success('Quiz deleted', 'The quiz question has been removed.');
-  };
-
-  const handleSaveQuiz = () => {
-    // Validation
-    if (!newQuiz.question.trim()) {
-      error('Validation Error', 'Question field cannot be empty.');
-      return;
-    }
-    if (!newQuiz.correctAnswer.trim()) {
-      error('Validation Error', 'Correct answer field cannot be empty.');
-      return;
-    }
-    if (newQuiz.incorrectOptions.some(option => !option.trim())) {
-      error('Validation Error', 'All incorrect answer fields must be filled.');
-      return;
-    }
-    if (!newQuiz.category) {
-      error('Validation Error', 'Please select a category.');
-      return;
-    }
-
-    if (modalMode === 'add') {
-      const newQuizItem = {
-        ...newQuiz,
-        id: Date.now(),
-        createdDate: new Date().toISOString().split('T')[0],
-        attempts: 0,
-        successRate: 0
-      };
-      setQuizzes(prev => [...prev, newQuizItem]);
-      success('Quiz created', 'The quiz question has been created successfully.');
+  const handleSelectAll = (items: ContentItem[]) => {
+    if (selectedItems.length === items.length) {
+      setSelectedItems([]);
     } else {
-      setQuizzes(prev => prev.map(q => 
-        q.id === editingQuiz.id 
-          ? { ...q, ...newQuiz, id: editingQuiz.id }
-          : q
-      ));
-      success('Quiz updated', 'The quiz question has been updated successfully.');
+      setSelectedItems(items.map(item => item.id));
     }
-    setIsQuizModalOpen(false);
   };
 
-  // Handle category operations
-  const handleAddCategory = () => {
-    setModalMode('add');
-    setEditingCategory(null);
-    setNewCategory({ name: '', description: '' });
-    setIsCategoryModalOpen(true);
-  };
-
-  const handleEditCategory = (category: Category) => {
-    setModalMode('edit');
-    setEditingCategory(category);
-    setNewCategory({ name: category.name, description: category.description });
-    setIsCategoryModalOpen(true);
-  };
-
-  const handleDeleteCategory = (categoryId: number) => {
-    const category = categories.find(c => c.id === categoryId);
-    if (category && category.contentCount > 0) {
-      error('Cannot Delete', 'Cannot delete a category that contains content. Please reassign or delete the content first.');
-      return;
-    }
-    setCategories(prev => prev.filter(c => c.id !== categoryId));
-    success('Category deleted', 'The category has been removed.');
-  };
-
-  const handleSaveCategory = () => {
-    // Validation
-    if (!newCategory.name.trim()) {
-      error('Validation Error', 'Category name cannot be empty.');
-      return;
-    }
-    
-    // Check for duplicate names
-    const existsAlready = categories.some(c => 
-      c.name.toLowerCase() === newCategory.name.toLowerCase() && 
-      (modalMode === 'add' || c.id !== editingCategory?.id)
+  const handleSelectItem = (itemId: string) => {
+    setSelectedItems(prev => 
+      prev.includes(itemId) 
+        ? prev.filter(id => id !== itemId)
+        : [...prev, itemId]
     );
-    
-    if (existsAlready) {
-      error('Duplicate Name', 'This category name already exists.');
-      return;
-    }
-
-    if (modalMode === 'add') {
-      const newCategoryItem = {
-        ...newCategory,
-        id: Date.now(),
-        contentCount: 0,
-        createdDate: new Date().toISOString().split('T')[0]
-      };
-      setCategories(prev => [...prev, newCategoryItem]);
-      success('Category created', 'The category has been created successfully.');
-    } else {
-      setCategories(prev => prev.map(c => 
-        c.id === editingCategory.id 
-          ? { ...c, name: newCategory.name, description: newCategory.description }
-          : c
-      ));
-      success('Category updated', 'The category has been updated successfully.');
-    }
-    setIsCategoryModalOpen(false);
   };
 
-  // Utility functions
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
-      case 'Beginner': return 'bg-green-100 text-green-800 border-green-200';
-      case 'Intermediate': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Advanced': return 'bg-red-100 text-red-800 border-red-200';
+      case 'beginner': return 'bg-green-100 text-green-800 border-green-200';
+      case 'intermediate': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'advanced': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -427,793 +296,615 @@ const ContentManagement = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'published': return 'bg-green-100 text-green-800 border-green-200';
-      case 'draft': return 'bg-gray-100 text-gray-800 border-gray-200';
-      case 'review': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'draft': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'archived': return 'bg-gray-100 text-gray-800 border-gray-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const handleCreateNew = (type: string) => {
+    switch (type) {
+      case 'tutorial':
+        navigate('/admin/content/create-tutorial');
+        break;
+      case 'quiz':
+        navigate('/admin/content/create-quiz');
+        break;
+      case 'category':
+        navigate('/admin/content/create-category');
+        break;
+    }
+  };
+
+  const handlePreview = (item: ContentItem) => {
+    // Convert the item to the preview modal format
+    const previewData: PreviewItemData = {
+      ...item,
+      difficulty: item.difficulty as 'beginner' | 'intermediate' | 'advanced',
+      status: item.status as 'published' | 'draft',
+      type: 'totalVideos' in item ? 'tutorial' : 'quiz' as 'tutorial' | 'quiz',
+      detailedDescription: item.description,
+      createdAt: item.createdDate,
+      updatedAt: item.updatedDate,
+      // Add mock data for preview
+      videos: 'totalVideos' in item ? Array.from({ length: item.totalVideos }, (_, i) => ({
+        id: `video-${i + 1}`,
+        title: `Video ${i + 1}`,
+        description: `Description for video ${i + 1}`,
+        duration: '5:00',
+        order: i + 1
+      })) : undefined,
+      questions: 'totalQuestions' in item ? Array.from({ length: item.totalQuestions }, (_, i) => ({
+        id: `question-${i + 1}`,
+        type: 'multiple-choice' as const,
+        question: `Sample question ${i + 1}`,
+        points: 1,
+        order: i + 1
+      })) : undefined,
+      timeLimit: 'totalQuestions' in item ? 30 : undefined,
+      passingScore: 'totalQuestions' in item ? 70 : undefined,
+      maxAttempts: 'totalQuestions' in item ? 3 : undefined,
+      stats: {
+        totalViews: 'views' in item ? item.views : undefined,
+        enrolledUsers: 'completions' in item ? item.completions : undefined,
+        completionRate: 'completions' in item && 'views' in item ? Math.round((item.completions / item.views) * 100) : undefined,
+        averageScore: 'averageScore' in item ? item.averageScore : undefined
+      }
+    };
+    
+    setPreviewItem(previewData);
+    setShowPreviewModal(true);
+  };
+
+  const handleEdit = (item: ContentItem) => {
+    const type = 'totalVideos' in item ? 'tutorial' : 'quiz';
+    navigate(`/admin/content/edit-${type}/${item.id}`);
+  };
+
+  const handleDuplicate = (item: ContentItem) => {
+    toast({
+      title: "Content Duplicated",
+      description: `${item.title} has been duplicated successfully.`
+    });
+  };
+
+  const handleDelete = (item: ContentItem) => {
+    toast({
+      variant: "destructive",
+      title: "Content Deleted",
+      description: `${item.title} has been deleted successfully.`
+    });
+  };
+
+  // Category-specific handlers
+  const handleEditCategory = (category: Category) => {
+    setEditCategoryItem(category);
+    setShowEditCategoryModal(true);
+  };
+
+  const handleDeleteCategory = (category: Category) => {
+    if (category.contentCount > 0) {
+      toast({
+        variant: "destructive",
+        title: "Cannot Delete Category",
+        description: `${category.name} has ${category.contentCount} content items. Please move or delete them first.`
+      });
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Category Deleted",
+        description: `${category.name} has been deleted successfully.`
+      });
+    }
+  };
+
+  const handleSaveCategory = (updatedCategory: Category) => {
+    // In a real app, this would update the category in the backend
+    toast({
+      title: "Category Updated",
+      description: `${updatedCategory.name} has been updated successfully.`
+    });
+  };
+
   return (
-    <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
-      {/* Animated Breadcrumbs */}
+    <div className="space-y-6">
       <AnimatedBreadcrumb items={breadcrumbItems} />
-
-      {/* Header Section */}
-      <motion.div 
-        className="flex items-center justify-between"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
+      
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-primary">Content Management</h1>
-          <p className="text-gray-600 mt-1">
-            Manage tutorials, quizzes, and educational content for the platform
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900">Content Management</h1>
+          <p className="text-gray-600 mt-1">Manage tutorials, quizzes, and educational content</p>
         </div>
-        <Button 
-          onClick={handleAddVideo}
-          className="flex items-center gap-2 bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
-        >
-          <Plus className="h-4 w-4" />
-          Upload New Video
-        </Button>
-      </motion.div>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+          <Button variant="outline" size="sm">
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+        </div>
+      </div>
 
-      <Tabs defaultValue="videos" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 bg-background shadow-sm">
-          <TabsTrigger 
-            value="videos" 
-            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-          >
-            <Video className="h-4 w-4" />
-            Tutorial Videos
-          </TabsTrigger>
-          <TabsTrigger 
-            value="quizzes" 
-            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
-          >
-            <FileText className="h-4 w-4" />
-            Interactive Quizzes
-          </TabsTrigger>
-          <TabsTrigger 
-            value="categories" 
-            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
-          >
-            <Folder className="h-4 w-4" />
-            Categories
-          </TabsTrigger>
-          <TabsTrigger 
-            value="analytics" 
-            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
-          >
-            <BarChart3 className="h-4 w-4" />
-            Analytics
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="videos" className="space-y-6">
-          {/* Enhanced Search and Filter Bar */}
-          <motion.div 
-            className="space-y-4"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search videos by title, category, or description..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 border-primary/20 focus:border-primary bg-background"
-                />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="border-blue-200">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-blue-600" />
               <div>
-                <Label className="text-sm font-medium text-gray-700">Category</Label>
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="border-primary/20">
-                    <SelectValue placeholder="All Categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map(category => (
-                      <SelectItem key={category.id} value={category.name}>{category.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <p className="text-sm font-medium text-blue-600">Tutorial Series</p>
+                <p className="text-2xl font-bold text-blue-700">{mockTutorialSeries.length}</p>
               </div>
-              
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-purple-200">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-purple-600" />
               <div>
-                <Label className="text-sm font-medium text-gray-700">Status</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="border-primary/20">
-                    <SelectValue placeholder="All Statuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="published">Published</SelectItem>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="review">Under Review</SelectItem>
-                  </SelectContent>
-                </Select>
+                <p className="text-sm font-medium text-purple-600">Quiz Series</p>
+                <p className="text-2xl font-bold text-purple-700">{mockQuizSeries.length}</p>
               </div>
-              
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-green-200">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-green-600" />
               <div>
-                <Label className="text-sm font-medium text-gray-700">Difficulty</Label>
-                <Select value={difficultyFilter} onValueChange={setDifficultyFilter}>
-                  <SelectTrigger className="border-primary/20">
-                    <SelectValue placeholder="All Levels" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Levels</SelectItem>
-                    <SelectItem value="Beginner">Beginner</SelectItem>
-                    <SelectItem value="Intermediate">Intermediate</SelectItem>
-                    <SelectItem value="Advanced">Advanced</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="flex items-end">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setSearchTerm('');
-                    setCategoryFilter('all');
-                    setStatusFilter('all');
-                    setDifficultyFilter('all');
-                  }}
-                  className="w-full border-primary/20 text-primary hover:bg-primary/10"
-                >
-                  Clear Filters
-                </Button>
+                <p className="text-sm font-medium text-green-600">Categories</p>
+                <p className="text-2xl font-bold text-green-700">{mockCategories.length}</p>
               </div>
             </div>
-          </motion.div>
-
-          {/* Video Library */}
-          <Card className="border-primary/20 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="h-5 w-5 text-primary" />
-                Tutorial Video Library
-              </CardTitle>
-              <CardDescription>Manage your educational video content</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-primary/10">
-                      <th className="text-left p-4 font-medium text-primary">Video Details</th>
-                      <th className="text-left p-4 font-medium text-primary">Category</th>
-                      <th className="text-left p-4 font-medium text-primary">Difficulty</th>
-                      <th className="text-left p-4 font-medium text-primary">Status</th>
-                      <th className="text-left p-4 font-medium text-primary">Views</th>
-                      <th className="text-left p-4 font-medium text-primary">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredVideos.map((video, index) => (
-                      <motion.tr 
-                        key={video.id} 
-                        className="border-b hover:bg-primary/5 transition-colors"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                      >
-                        <td className="p-4">
-                          <div className="flex items-start gap-3">
-                            <div className="w-16 h-12 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg flex items-center justify-center">
-                              <Video className="h-6 w-6 text-primary" />
-                            </div>
-                            <div>
-                              <div className="font-medium text-gray-900">{video.title}</div>
-                              <div className="text-sm text-gray-500">{video.duration} • {video.uploadDate}</div>
-                              <div className="text-xs text-gray-400 mt-1">{video.description}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <span className="bg-primary/10 text-primary px-2 py-1 rounded-full text-xs">
-                            {video.category}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <Badge className={getDifficultyColor(video.difficulty)}>
-                            {video.difficulty}
-                          </Badge>
-                        </td>
-                        <td className="p-4">
-                          <Badge className={getStatusColor(video.status)}>
-                            {video.status}
-                          </Badge>
-                        </td>
-                        <td className="p-4 text-sm font-medium">{video.views.toLocaleString()}</td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => handleEditVideo(video)}
-                              className="border-primary/20 hover:bg-primary/10 hover:border-primary/40"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              className="border-primary/20 hover:bg-primary/10 hover:border-primary/40"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button 
-                                  size="sm" 
-                                  variant="outline"
-                                  className="border-red-200 hover:bg-red-50 hover:border-red-300 text-red-600 hover:text-red-700"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Video</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to delete "{video.title}"? 
-                                    This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDeleteVideo(video.id)}
-                                    className="bg-red-600 hover:bg-red-700"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </tbody>
-                </table>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-orange-200">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-orange-600" />
+              <div>
+                <p className="text-sm font-medium text-orange-600">Total Views</p>
+                <p className="text-2xl font-bold text-orange-700">1.2K</p>
               </div>
-
-              {filteredVideos.length === 0 && (
-                <div className="text-center py-12">
-                  <Video className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-500 mb-2">No videos found</h3>
-                  <p className="text-gray-400 mb-4">
-                    {searchTerm ? 'Try adjusting your search criteria' : 'Start by uploading your first tutorial video'}
-                  </p>
-                  {!searchTerm && (
-                    <Button onClick={handleAddVideo} className="bg-primary hover:bg-primary/90">
-                      <Upload className="mr-2 h-4 w-4" />
-                      Upload First Video
-                    </Button>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="quizzes" className="space-y-6">
-          {/* Quiz Search Bar */}
-          <motion.div 
-            className="flex flex-col md:flex-row gap-4 items-center justify-between"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search quiz questions..."
-                value={quizSearchTerm}
-                onChange={(e) => setQuizSearchTerm(e.target.value)}
-                className="pl-10 border-primary/20 focus:border-primary bg-background"
-              />
             </div>
-            <Button 
-              onClick={handleAddQuiz}
-              className="flex items-center gap-2 bg-primary hover:bg-primary/90"
-            >
-              <Plus className="h-4 w-4" />
-              Add New Question
-            </Button>
-          </motion.div>
+          </CardContent>
+        </Card>
+      </div>
 
-          {/* Quiz Management */}
-          <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-primary" />
-                Interactive Quiz Questions ({filteredQuizzes.length})
-              </CardTitle>
-              <CardDescription>Create and manage quiz questions for lip reading practice</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-primary/10">
-                      <th className="text-left p-4 font-medium text-primary">Question</th>
-                      <th className="text-left p-4 font-medium text-primary">Category</th>
-                      <th className="text-left p-4 font-medium text-primary">Difficulty</th>
-                      <th className="text-left p-4 font-medium text-primary">Success Rate</th>
-                      <th className="text-left p-4 font-medium text-primary">Attempts</th>
-                      <th className="text-left p-4 font-medium text-primary">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredQuizzes.map((quiz, index) => (
-                      <motion.tr 
-                        key={quiz.id} 
-                        className="border-b hover:bg-primary/5 transition-colors"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                      >
-                        <td className="p-4">
-                          <div className="flex items-start gap-3">
-                            <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center">
-                              <PlayCircle className="h-6 w-6 text-blue-600" />
-                            </div>
-                            <div>
-                              <div className="font-medium text-gray-900">{quiz.question}</div>
-                              <div className="text-sm text-gray-500">Correct: {quiz.correctAnswer}</div>
-                              <div className="text-xs text-gray-400 mt-1">Created: {quiz.createdDate}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <span className="bg-primary/10 text-primary px-2 py-1 rounded-full text-xs">
-                            {quiz.category}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <Badge className={getDifficultyColor(quiz.difficulty)}>
-                            {quiz.difficulty}
-                          </Badge>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-2">
-                            <div className="w-12 h-2 bg-gray-200 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-green-500 transition-all duration-300"
-                                style={{ width: `${quiz.successRate}%` }}
-                              />
-                            </div>
-                            <span className="text-sm font-medium">{quiz.successRate}%</span>
-                          </div>
-                        </td>
-                        <td className="p-4 text-sm font-medium">{quiz.attempts}</td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => handleEditQuiz(quiz)}
-                              className="border-primary/20 hover:bg-primary/10 hover:border-primary/40"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              className="border-primary/20 hover:bg-primary/10 hover:border-primary/40"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button 
-                                  size="sm" 
-                                  variant="outline"
-                                  className="border-red-200 hover:bg-red-50 hover:border-red-300 text-red-600 hover:text-red-700"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Quiz Question</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to delete this quiz question? 
-                                    This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDeleteQuiz(quiz.id)}
-                                    className="bg-red-600 hover:bg-red-700"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {filteredQuizzes.length === 0 && (
-                <div className="text-center py-12">
-                  <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-500 mb-2">No quiz questions found</h3>
-                  <p className="text-gray-400 mb-4">
-                    {quizSearchTerm ? 'Try adjusting your search criteria' : 'Start by creating your first quiz question'}
-                  </p>
-                  {!quizSearchTerm && (
-                    <Button onClick={handleAddQuiz} className="bg-primary hover:bg-primary/90">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Create First Question
-                    </Button>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="categories" className="space-y-6">
-          {/* Category Management Header */}
-          <motion.div 
-            className="flex items-center justify-between"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <div>
-              <h3 className="text-lg font-semibold text-primary">Content Categories</h3>
-              <p className="text-gray-600">Organize your educational content with categories</p>
-            </div>
-            <Button 
-              onClick={handleAddCategory}
-              className="flex items-center gap-2 bg-primary hover:bg-primary/90"
-            >
-              <Plus className="h-4 w-4" />
-              Add Category
-            </Button>
-          </motion.div>
-
-          {/* Categories List */}
-          <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Folder className="h-5 w-5 text-primary" />
-                Category Management ({categories.length})
-              </CardTitle>
-              <CardDescription>Create and organize content categories</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
-                {categories.map((category, index) => (
-                  <motion.div
-                    key={category.id}
-                    className="p-4 border border-primary/10 rounded-lg hover:bg-primary/5 transition-colors"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                          <Tag className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-gray-900">{category.name}</h4>
-                          <p className="text-sm text-gray-600">{category.description}</p>
-                          <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
-                            <span>{category.contentCount} items</span>
-                            <span>Created: {category.createdDate}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => handleEditCategory(category)}
-                          className="border-primary/20 hover:bg-primary/10"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              className="border-red-200 text-red-600 hover:bg-red-50"
-                              disabled={category.contentCount > 0}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Category</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to delete the "{category.name}" category? 
-                                This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteCategory(category.id)}
-                                className="bg-red-600 hover:bg-red-700"
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-
-              {categories.length === 0 && (
-                <div className="text-center py-12">
-                  <Folder className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-500 mb-2">No categories yet</h3>
-                  <p className="text-gray-400 mb-4">Create your first category to organize content</p>
-                  <Button onClick={handleAddCategory} className="bg-primary hover:bg-primary/90">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create First Category
+      {/* Main Content */}
+      <Card className="border-gray-200">
+        <CardHeader className="border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xl">Content Library</CardTitle>
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create New
                   </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Create Content</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleCreateNew('tutorial')}>
+                    <BookOpen className="h-4 w-4 mr-2" />
+                    Tutorial Series
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleCreateNew('quiz')}>
+                    <Brain className="h-4 w-4 mr-2" />
+                    Quiz Series
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleCreateNew('category')}>
+                    <Target className="h-4 w-4 mr-2" />
+                    Category
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </CardHeader>
+        
+        <CardContent className="p-0">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <div className="border-b border-gray-200 bg-gray-50 px-6 py-3">
+              <TabsList className="bg-white border border-gray-200">
+                <TabsTrigger value="tutorials" className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4" />
+                  Tutorial Series
+                </TabsTrigger>
+                <TabsTrigger value="quizzes" className="flex items-center gap-2">
+                  <Brain className="h-4 w-4" />
+                  Quiz Series
+                </TabsTrigger>
+                <TabsTrigger value="categories" className="flex items-center gap-2">
+                  <Target className="h-4 w-4" />
+                  Categories
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-        <TabsContent value="analytics" className="space-y-6">
-          {/* Content Analytics */}
-          <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-primary" />
-                Content Analytics Overview
-              </CardTitle>
-              <CardDescription>Performance metrics for your educational content</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className="text-center p-4 bg-primary/5 rounded-lg">
-                  <div className="text-2xl font-bold text-primary">{videos.length}</div>
-                  <div className="text-sm text-gray-600">Tutorial Videos</div>
-                </div>
-                <div className="text-center p-4 bg-primary/5 rounded-lg">
-                  <div className="text-2xl font-bold text-primary">{quizzes.length}</div>
-                  <div className="text-sm text-gray-600">Quiz Questions</div>
-                </div>
-                <div className="text-center p-4 bg-primary/5 rounded-lg">
-                  <div className="text-2xl font-bold text-primary">{categories.length}</div>
-                  <div className="text-sm text-gray-600">Categories</div>
-                </div>
-                <div className="text-center p-4 bg-primary/5 rounded-lg">
-                  <div className="text-2xl font-bold text-primary">
-                    {videos.reduce((sum, video) => sum + video.views, 0).toLocaleString()}
+            {/* Filters */}
+            <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex-1 min-w-[300px]">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Search content..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
                   </div>
-                  <div className="text-sm text-gray-600">Total Views</div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-gray-500" />
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="published">Published</SelectItem>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="archived">Archived</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {mockCategories.map(category => (
+                        <SelectItem key={category.id} value={category.name}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select value={difficultyFilter} onValueChange={setDifficultyFilter}>
+                    <SelectTrigger className="w-36">
+                      <SelectValue placeholder="Difficulty" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Levels</SelectItem>
+                      <SelectItem value="beginner">Beginner</SelectItem>
+                      <SelectItem value="intermediate">Intermediate</SelectItem>
+                      <SelectItem value="advanced">Advanced</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               
-              <div className="text-center py-8">
-                <BarChart3 className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-500 mb-2">Detailed Analytics</h3>
-                <p className="text-gray-400">Advanced analytics dashboard coming soon...</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Video Upload/Edit Modal */}
-      <VideoModal
-        isOpen={isVideoModalOpen}
-        onClose={() => setIsVideoModalOpen(false)}
-        onSave={handleSaveVideo}
-        editingVideo={editingVideo}
-        mode={modalMode}
-      />
-
-      {/* Quiz Creation/Edit Modal */}
-      <Dialog open={isQuizModalOpen} onOpenChange={setIsQuizModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-primary">
-              {modalMode === 'add' ? 'Create New Quiz Question' : 'Edit Quiz Question'}
-            </DialogTitle>
-            <DialogDescription>
-              Create engaging quiz questions to test lip reading skills
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-6">
-            <div>
-              <Label className="text-sm font-medium text-gray-700">Question</Label>
-              <Textarea
-                placeholder="What word or phrase is being said?"
-                value={newQuiz.question}
-                onChange={(e) => setNewQuiz(prev => ({ ...prev, question: e.target.value }))}
-                className="mt-1 border-primary/20 focus:border-primary"
-                rows={3}
-              />
-            </div>
-            
-            <div>
-              <Label className="text-sm font-medium text-gray-700">Correct Answer</Label>
-              <Input
-                placeholder="Enter the correct answer"
-                value={newQuiz.correctAnswer}
-                onChange={(e) => setNewQuiz(prev => ({ ...prev, correctAnswer: e.target.value }))}
-                className="mt-1 border-primary/20 focus:border-primary"
-              />
-            </div>
-            
-            <div>
-              <Label className="text-sm font-medium text-gray-700">Incorrect Options</Label>
-              <div className="space-y-2 mt-1">
-                {newQuiz.incorrectOptions.map((option, index) => (
-                  <Input
-                    key={index}
-                    placeholder={`Incorrect option ${index + 1}`}
-                    value={option}
-                    onChange={(e) => {
-                      const newOptions = [...newQuiz.incorrectOptions];
-                      newOptions[index] = e.target.value;
-                      setNewQuiz(prev => ({ ...prev, incorrectOptions: newOptions }));
-                    }}
-                    className="border-primary/20 focus:border-primary"
-                  />
-                ))}
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-sm font-medium text-gray-700">Category</Label>
-                <Select 
-                  value={newQuiz.category} 
-                  onValueChange={(value) => setNewQuiz(prev => ({ ...prev, category: value }))}
+              {/* Bulk Actions */}
+              {selectedItems.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg"
                 >
-                  <SelectTrigger className="mt-1 border-primary/20">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map(category => (
-                      <SelectItem key={category.id} value={category.name}>
-                        {category.name}
-                      </SelectItem>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-blue-700">
+                      {selectedItems.length} item{selectedItems.length > 1 ? 's' : ''} selected
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline">
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Publish
+                      </Button>
+                      <Button size="sm" variant="outline">
+                        <Copy className="h-4 w-4 mr-2" />
+                        Duplicate
+                      </Button>
+                      <Button size="sm" variant="outline">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+
+            {/* Tutorial Series Tab */}
+            <TabsContent value="tutorials" className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={selectedItems.length === filteredTutorialSeries.length && filteredTutorialSeries.length > 0}
+                          onCheckedChange={() => handleSelectAll(filteredTutorialSeries)}
+                        />
+                      </TableHead>
+                      <TableHead>Series Title</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Difficulty</TableHead>
+                      <TableHead>Videos</TableHead>
+                      <TableHead>Duration</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Views</TableHead>
+                      <TableHead>Rating</TableHead>
+                      <TableHead>Updated</TableHead>
+                      <TableHead className="w-12"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTutorialSeries.map((series) => (
+                      <TableRow key={series.id} className="hover:bg-gray-50">
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedItems.includes(series.id)}
+                            onCheckedChange={() => handleSelectItem(series.id)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-3">
+                            <img 
+                              src={series.thumbnailUrl} 
+                              alt={series.title}
+                              className="w-10 h-10 rounded object-cover"
+                            />
+                            <div>
+                              <p className="font-medium text-gray-900">{series.title}</p>
+                              <p className="text-sm text-gray-500 line-clamp-1">{series.description}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{series.category}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getDifficultyColor(series.difficulty)}>
+                            {series.difficulty}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{series.totalVideos}</TableCell>
+                        <TableCell>{series.totalDuration}</TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(series.status)}>
+                            {series.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{series.views.toLocaleString()}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <span className="text-yellow-500">★</span>
+                            <span>{series.rating || 'N/A'}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{formatDate(series.updatedDate)}</TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handlePreview(series)}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                Preview
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEdit(series)}>
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handlePreview(series)}>
+                                <Copy className="h-4 w-4 mr-2" />
+                                Duplicate
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-600">
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </TableBody>
+                </Table>
               </div>
-              
-              <div>
-                <Label className="text-sm font-medium text-gray-700">Difficulty</Label>
-                <Select 
-                  value={newQuiz.difficulty} 
-                  onValueChange={(value) => setNewQuiz(prev => ({ ...prev, difficulty: value as 'Beginner' | 'Intermediate' | 'Advanced' }))}
-                >
-                  <SelectTrigger className="mt-1 border-primary/20">
-                    <SelectValue placeholder="Select difficulty" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Beginner">Beginner</SelectItem>
-                    <SelectItem value="Intermediate">Intermediate</SelectItem>
-                    <SelectItem value="Advanced">Advanced</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            <div>
-              <Label className="text-sm font-medium text-gray-700">Video Clip</Label>
-              <div className="mt-1 p-4 border-2 border-dashed border-primary/20 rounded-lg text-center">
-                <Video className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-600">
-                  Upload a video clip showing the word/phrase being spoken
-                </p>
-                <Button 
-                  variant="outline" 
-                  className="mt-2 border-primary/20 text-primary hover:bg-primary/10"
-                >
-                  Select Video File
-                </Button>
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setIsQuizModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveQuiz}
-              className="bg-primary hover:bg-primary/90"
-            >
-              {modalMode === 'add' ? 'Create Question' : 'Update Question'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+            </TabsContent>
 
-      {/* Category Creation/Edit Modal */}
-      <Dialog open={isCategoryModalOpen} onOpenChange={setIsCategoryModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-primary">
-              {modalMode === 'add' ? 'Create New Category' : 'Edit Category'}
-            </DialogTitle>
-            <DialogDescription>
-              Organize your content with descriptive categories
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <Label className="text-sm font-medium text-gray-700">Category Name</Label>
-              <Input
-                placeholder="Enter category name"
-                value={newCategory.name}
-                onChange={(e) => setNewCategory(prev => ({ ...prev, name: e.target.value }))}
-                className="mt-1 border-primary/20 focus:border-primary"
-              />
-            </div>
-            
-            <div>
-              <Label className="text-sm font-medium text-gray-700">Description</Label>
-              <Textarea
-                placeholder="Describe what this category contains"
-                value={newCategory.description}
-                onChange={(e) => setNewCategory(prev => ({ ...prev, description: e.target.value }))}
-                className="mt-1 border-primary/20 focus:border-primary"
-                rows={3}
-              />
-            </div>
-          </div>
-          
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setIsCategoryModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveCategory}
-              className="bg-primary hover:bg-primary/90"
-            >
-              {modalMode === 'add' ? 'Create Category' : 'Update Category'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+            {/* Quiz Series Tab */}
+            <TabsContent value="quizzes" className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={selectedItems.length === filteredQuizSeries.length && filteredQuizSeries.length > 0}
+                          onCheckedChange={() => handleSelectAll(filteredQuizSeries)}
+                        />
+                      </TableHead>
+                      <TableHead>Quiz Title</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Difficulty</TableHead>
+                      <TableHead>Questions</TableHead>
+                      <TableHead>Est. Time</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Attempts</TableHead>
+                      <TableHead>Avg. Score</TableHead>
+                      <TableHead>Updated</TableHead>
+                      <TableHead className="w-12"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredQuizSeries.map((series) => (
+                      <TableRow key={series.id} className="hover:bg-gray-50">
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedItems.includes(series.id)}
+                            onCheckedChange={() => handleSelectItem(series.id)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          <div>
+                            <p className="font-medium text-gray-900">{series.title}</p>
+                            <p className="text-sm text-gray-500 line-clamp-1">{series.description}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{series.category}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getDifficultyColor(series.difficulty)}>
+                            {series.difficulty}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{series.totalQuestions}</TableCell>
+                        <TableCell>{series.estimatedTime}</TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(series.status)}>
+                            {series.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{series.attempts.toLocaleString()}</TableCell>
+                        <TableCell>{series.averageScore}%</TableCell>
+                        <TableCell>{formatDate(series.updatedDate)}</TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handlePreview(series)}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                Preview
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEdit(series)}>
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handlePreview(series)}>
+                                <Copy className="h-4 w-4 mr-2" />
+                                Duplicate
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-600">
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
+
+            {/* Categories Tab */}
+            <TabsContent value="categories" className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="w-12">
+                        <Checkbox />
+                      </TableHead>
+                      <TableHead>Category Name</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Content Count</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-12"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {mockCategories.map((category) => (
+                      <TableRow key={category.id} className="hover:bg-gray-50">
+                        <TableCell>
+                          <Checkbox />
+                        </TableCell>
+                        <TableCell className="font-medium">{category.name}</TableCell>
+                        <TableCell className="text-gray-600">{category.description}</TableCell>
+                        <TableCell>{category.contentCount}</TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(category.status)}>
+                            {category.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleEditCategory(category)}>
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteCategory(category)}>
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+      {/* Preview Modal */}
+      {previewItem && (
+        <ContentPreviewModal
+          isOpen={showPreviewModal}
+          onClose={() => setShowPreviewModal(false)}
+          onEdit={(content) => {
+            setShowPreviewModal(false);
+            const contentType = activeTab === 'tutorials' ? 'tutorial' : 'quiz';
+            navigate(`/admin/content/edit-${contentType}/${content.id}`);
+          }}
+          content={previewItem}
+        />
+      )}
+      
+      {/* Edit Category Modal */}
+      <EditCategoryModal
+        isOpen={showEditCategoryModal}
+        onClose={() => setShowEditCategoryModal(false)}
+        category={editCategoryItem}
+        onSave={handleSaveCategory}
+      />
     </div>
   );
 };
 
 export default ContentManagement;
+
