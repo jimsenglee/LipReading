@@ -1,0 +1,8 @@
+FLASK_APP=app:create_app
+FLASK_DEBUG=1
+MYSQL_USER=root
+MYSQL_PASSWORD=root
+MYSQL_HOST=127.0.0.1
+MYSQL_PORT=3306
+MYSQL_DB=my_fyp_database
+SECRET_KEY=dev-secret

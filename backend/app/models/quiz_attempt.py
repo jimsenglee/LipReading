@@ -1,0 +1,25 @@
+from datetime import datetime
+import sqlalchemy as sa
+import sqlalchemy.orm as so
+
+from ..extensions import db
+
+
+class QuizAttempt(db.Model):
+    __tablename__ = 'quiz_attempts'
+
+    id: so.Mapped[int] = so.mapped_column(primary_key=True, autoincrement=True)
+    public_id: so.Mapped[str] = so.mapped_column(sa.String(25), unique=True, index=True)
+    user_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey('users.id'), nullable=False, index=True)
+    quiz_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey('quizzes.id'), nullable=False, index=True)
+    score: so.Mapped[float] = so.mapped_column(sa.Float(), nullable=False)
+    answers_json: so.Mapped[str | None] = so.mapped_column(sa.Text())
+    completion_date: so.Mapped[datetime] = so.mapped_column(sa.DateTime(), nullable=False, default=datetime.utcnow)
+
+    user: so.Mapped['User'] = so.relationship(back_populates='quiz_attempts')
+    quiz: so.Mapped['Quiz'] = so.relationship()
+
+    def __repr__(self) -> str:
+        return f"<QuizAttempt user_id={self.user_id} quiz_id={self.quiz_id} score={self.score}>"
+
+
