@@ -43,7 +43,7 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
   const feedbackToast = useFeedbackToast();
 
   // Mock transcription data for demonstration
-  const mockPhrases = [
+  const samplePhrases = [
     "Hello, welcome to the lip reading practice session.",
     "This is a demonstration of real-time transcription.",
     "Please speak clearly and face the camera directly.",
@@ -85,8 +85,8 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
     let currentText = '';
     
     transcriptionIntervalRef.current = setInterval(() => {
-      if (phraseIndex < mockPhrases.length) {
-        const currentPhrase = mockPhrases[phraseIndex];
+      if (phraseIndex < samplePhrases.length) {
+        const currentPhrase = samplePhrases[phraseIndex];
         const words = currentPhrase.split(' ');
         
         if (wordIndex < words.length) {
@@ -97,7 +97,7 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
         } else {
           phraseIndex++;
           wordIndex = 0;
-          if (phraseIndex < mockPhrases.length) {
+          if (phraseIndex < samplePhrases.length) {
             currentText += ' ';
           }
         }

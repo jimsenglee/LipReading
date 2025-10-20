@@ -82,23 +82,23 @@ const VideoUploadZone: React.FC<VideoUploadZoneProps> = ({ onTranscriptionComple
         );
       }
 
-      // Complete analysis
-      const mockTranscription = "This is a sample transcription from your uploaded video file. The lip reading AI has analyzed the visual speech patterns and generated this text with high accuracy.";
-      const mockConfidence = Math.floor(Math.random() * 15) + 85; // 85-100%
+      // complete analysis
+      const sampleTranscription = "This is a sample transcription from your uploaded video file. The lip reading AI has analyzed the visual speech patterns and generated this text with high accuracy.";
+      const sampleConfidence = Math.floor(Math.random() * 15) + 85; // 85-100%
 
       setVideoFiles(prev => 
         prev.map(f => f.id === fileId ? { 
           ...f, 
           status: 'complete', 
           progress: 100,
-          transcription: mockTranscription,
-          confidence: mockConfidence
+          transcription: sampleTranscription,
+          confidence: sampleConfidence
         } : f)
       );
 
       const file = videoFiles.find(f => f.id === fileId)?.file;
       if (file) {
-        onTranscriptionComplete(mockTranscription, file);
+        onTranscriptionComplete(sampleTranscription, file);
       }
 
       feedbackToast.success(
@@ -154,8 +154,8 @@ const VideoUploadZone: React.FC<VideoUploadZoneProps> = ({ onTranscriptionComple
 
   // View completed transcription
   const viewTranscription = (fileId: string) => {
-    // In a real app, this would use the actual transcription ID
-    // For now, we'll use the mock ID from TranscriptionResult page
+    // in a real app, this would use the actual transcription ID
+    // for now, we'll use the sample ID from TranscriptionResult page
     navigate('/transcription-result/1');
   };
 

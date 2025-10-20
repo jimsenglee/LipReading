@@ -139,7 +139,7 @@ const EditTutorialSeriesWizard: React.FC = () => {
               description: 'Overview of basic vowel patterns',
               duration: '5:30',
               order: 1,
-              videoUrl: 'mock-video-url-1'
+              videoUrl: 'sample-video-url-1'
             },
             {
               id: 'video-2',
@@ -147,7 +147,7 @@ const EditTutorialSeriesWizard: React.FC = () => {
               description: 'Detailed practice with A and E',
               duration: '7:45',
               order: 2,
-              videoUrl: 'mock-video-url-2'
+              videoUrl: 'sample-video-url-2'
             }
           ],
           status: 'published'

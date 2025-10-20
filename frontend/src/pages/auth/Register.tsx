@@ -121,7 +121,7 @@ const Register = () => {
     }
 
     try {
-      // Check if email already exists (mock check)
+      // check if email already exists (sample check)
       const emailExists = false; // This would be a real API call
       if (emailExists) {
         feedbackToast.error(

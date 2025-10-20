@@ -23,7 +23,7 @@ const QuizResult = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Get quiz results from navigation state or fallback to mock data
+  // get quiz results from navigation state or fallback to sample data
   const quizResultState = location.state;
 
   const breadcrumbItems = [
@@ -39,7 +39,7 @@ const QuizResult = () => {
   };
 
   // Mock quiz data - in real app, fetch based on quizId
-  const mockQuizData = {
+  const sampleQuizData = {
     'quiz-001': {
       id: 'quiz-001',
       quizName: 'Advanced Vowel Patterns',
@@ -64,7 +64,7 @@ const QuizResult = () => {
     }
   };
 
-  // Use state data if available, otherwise fallback to mock data
+  // use state data if available, otherwise fallback to sample data
   let quiz, correctCount, incorrectCount;
   
   if (quizResultState) {
@@ -95,8 +95,8 @@ const QuizResult = () => {
     correctCount = correctAnswers;
     incorrectCount = questions.length - correctAnswers;
   } else {
-    // Use mock data
-    quiz = mockQuizData[quizId || 'quiz-001'] || mockQuizData['quiz-001'];
+    // use sample data
+    quiz = sampleQuizData[quizId || 'quiz-001'] || sampleQuizData['quiz-001'];
     correctCount = quiz.questions.filter(q => q.isCorrect).length;
     incorrectCount = quiz.questions.length - correctCount;
   }

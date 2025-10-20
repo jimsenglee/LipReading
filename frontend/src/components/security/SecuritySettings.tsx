@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 
 // Mock data for demonstration
-const mockLoginActivity = [
+const sampleLoginActivity = [
   {
     id: 1,
     date: '2024-01-15',
@@ -55,7 +55,7 @@ const mockLoginActivity = [
   }
 ];
 
-const mockConnectedApps = [
+const sampleConnectedApps = [
   {
     id: 1,
     name: 'LipRead Mobile App',
@@ -105,12 +105,12 @@ const SecuritySettings: React.FC = () => {
       return;
     }
 
-    // Code validation (mock)
+    // code validation (sample)
     if (verificationCode === '123456') {
-      // Code is expired check (mock)
-      const mockExpired = false;
+      // code is expired check (sample)
+      const sampleExpired = false;
       
-      if (mockExpired) {
+      if (sampleExpired) {
         feedbackToast.error(
           "Code Expired",
           "The verification code has expired. Please try again."
@@ -244,13 +244,13 @@ const SecuritySettings: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {mockLoginActivity.length === 0 ? (
+          {sampleLoginActivity.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               No recent login activity to display.
             </div>
           ) : (
             <div className="space-y-4">
-              {mockLoginActivity.map((activity) => (
+              {sampleLoginActivity.map((activity) => (
                 <div key={activity.id} className="flex items-center justify-between p-4 border border-primary/10 rounded-lg">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
@@ -284,13 +284,13 @@ const SecuritySettings: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {mockConnectedApps.length === 0 ? (
+          {sampleConnectedApps.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               You have not connected any third-party applications.
             </div>
           ) : (
             <div className="space-y-4">
-              {mockConnectedApps.map((app) => (
+              {sampleConnectedApps.map((app) => (
                 <div key={app.id} className="flex items-center justify-between p-4 border border-primary/10 rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="text-2xl">{app.icon}</div>

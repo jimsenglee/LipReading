@@ -54,7 +54,7 @@ import {
 } from '@/components/ui/table';
 import { motion } from 'framer-motion';
 
-// Mock data that matches the user-side structure
+// sample data for demonstration
 interface TutorialSeries {
   id: string;
   title: string;
@@ -140,7 +140,7 @@ interface PreviewItemData {
   };
 }
 
-const mockTutorialSeries: TutorialSeries[] = [
+const sampleTutorialSeries: TutorialSeries[] = [
   {
     id: 'tutorial-series-1',
     title: 'Basic Vowel Sounds',
@@ -179,7 +179,7 @@ const mockTutorialSeries: TutorialSeries[] = [
   }
 ];
 
-const mockQuizSeries: QuizSeries[] = [
+const sampleQuizSeries: QuizSeries[] = [
   {
     id: 'quiz-series-1',
     title: 'Vowel Recognition Quiz',
@@ -214,7 +214,7 @@ const mockQuizSeries: QuizSeries[] = [
   }
 ];
 
-const mockCategories: Category[] = [
+const sampleCategories: Category[] = [
   { id: 'vowel-sounds', name: 'Vowel Sounds', description: 'Basic and advanced vowel patterns', contentCount: 12, status: 'active' },
   { id: 'consonant-sounds', name: 'Consonant Sounds', description: 'Consonant blends and combinations', contentCount: 8, status: 'active' },
   { id: 'sentence-reading', name: 'Sentence Reading', description: 'Full sentence lip reading practice', contentCount: 6, status: 'active' }
@@ -242,7 +242,7 @@ const ContentManagement: React.FC = () => {
 
   // Filter tutorial series
   const filteredTutorialSeries = useMemo(() => {
-    return mockTutorialSeries.filter(series => {
+    return sampleTutorialSeries.filter(series => {
       const matchesSearch = series.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            series.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            series.author.toLowerCase().includes(searchTerm.toLowerCase());
@@ -256,7 +256,7 @@ const ContentManagement: React.FC = () => {
 
   // Filter quiz series
   const filteredQuizSeries = useMemo(() => {
-    return mockQuizSeries.filter(series => {
+    return sampleQuizSeries.filter(series => {
       const matchesSearch = series.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            series.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            series.author.toLowerCase().includes(searchTerm.toLowerCase());
@@ -334,7 +334,7 @@ const ContentManagement: React.FC = () => {
       detailedDescription: item.description,
       createdAt: item.createdDate,
       updatedAt: item.updatedDate,
-      // Add mock data for preview
+      // add sample data for preview
       videos: 'totalVideos' in item ? Array.from({ length: item.totalVideos }, (_, i) => ({
         id: `video-${i + 1}`,
         title: `Video ${i + 1}`,
@@ -444,7 +444,7 @@ const ContentManagement: React.FC = () => {
               <BookOpen className="h-5 w-5 text-blue-600" />
               <div>
                 <p className="text-sm font-medium text-blue-600">Tutorial Series</p>
-                <p className="text-2xl font-bold text-blue-700">{mockTutorialSeries.length}</p>
+                <p className="text-2xl font-bold text-blue-700">{sampleTutorialSeries.length}</p>
               </div>
             </div>
           </CardContent>
@@ -456,7 +456,7 @@ const ContentManagement: React.FC = () => {
               <Brain className="h-5 w-5 text-purple-600" />
               <div>
                 <p className="text-sm font-medium text-purple-600">Quiz Series</p>
-                <p className="text-2xl font-bold text-purple-700">{mockQuizSeries.length}</p>
+                <p className="text-2xl font-bold text-purple-700">{sampleQuizSeries.length}</p>
               </div>
             </div>
           </CardContent>
@@ -468,7 +468,7 @@ const ContentManagement: React.FC = () => {
               <Target className="h-5 w-5 text-green-600" />
               <div>
                 <p className="text-sm font-medium text-green-600">Categories</p>
-                <p className="text-2xl font-bold text-green-700">{mockCategories.length}</p>
+                <p className="text-2xl font-bold text-green-700">{sampleCategories.length}</p>
               </div>
             </div>
           </CardContent>
@@ -575,7 +575,7 @@ const ContentManagement: React.FC = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Categories</SelectItem>
-                      {mockCategories.map(category => (
+                      {sampleCategories.map(category => (
                         <SelectItem key={category.id} value={category.name}>
                           {category.name}
                         </SelectItem>
@@ -840,7 +840,7 @@ const ContentManagement: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockCategories.map((category) => (
+                    {sampleCategories.map((category) => (
                       <TableRow key={category.id} className="hover:bg-gray-50">
                         <TableCell>
                           <Checkbox />

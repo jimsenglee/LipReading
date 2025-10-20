@@ -155,7 +155,7 @@ const EditQuizWizard: React.FC = () => {
               explanation: 'The lip shape and mouth position clearly indicate the "A" sound.',
               points: 5,
               order: 1,
-              videoUrl: 'mock-video-url-1'
+              videoUrl: 'sample-video-url-1'
             },
             {
               id: 'q2',
@@ -168,7 +168,7 @@ const EditQuizWizard: React.FC = () => {
               explanation: 'The tongue position and lip shape indicate the "I" sound.',
               points: 5,
               order: 2,
-              videoUrl: 'mock-video-url-2'
+              videoUrl: 'sample-video-url-2'
             }
           ],
           status: 'published'

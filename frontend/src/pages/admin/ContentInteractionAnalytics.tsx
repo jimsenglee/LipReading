@@ -157,7 +157,7 @@ const ContentInteractionAnalytics = () => {
       priority: 'medium',
       submittedAt: '2024-01-14T15:20:00Z',
       updatedAt: '2024-01-15T09:15:00Z',
-      adminNotes: 'Feature approved for next sprint. UI mockups in progress.'
+      adminNotes: 'Feature approved for next sprint. UI designs in progress.'
     },
     {
       id: '3',

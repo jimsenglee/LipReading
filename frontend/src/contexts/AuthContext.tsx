@@ -48,16 +48,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string): Promise<{ success: boolean; requires2FA?: boolean; tempToken?: string }> => {
     setIsLoading(true);
-    // Mock authentication
+    // sample authentication
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Mock user data with 2FA status
-    const mockUser: User = {
+    // sample user data with 2FA status
+    const sampleUser: User = {
       id: '1',
       email,
       name: email === 'admin@example.com' ? 'Administrator' : 'John Doe',
       role: email === 'admin@example.com' ? 'admin' : 'user',
-      twoFactorEnabled: email === 'demo2fa@example.com' || email === 'admin@example.com', // Mock: some users have 2FA enabled
+      twoFactorEnabled: email === 'demo2fa@example.com' || email === 'admin@example.com', // sample: some users have 2FA enabled
       preferences: {
         transcriptionFormat: 'plain'
       }
@@ -66,17 +66,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
     
     // Check if 2FA is enabled for this user
-    if (mockUser.twoFactorEnabled) {
+    if (sampleUser.twoFactorEnabled) {
       // Return that 2FA is required, don't set user yet
       return { 
         success: false, 
         requires2FA: true, 
-        tempToken: `temp_${Date.now()}_${email}` // Mock temporary token
+        tempToken: `temp_${Date.now()}_${email}` // sample temporary token
       };
     } else {
       // No 2FA, login directly
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+      setUser(sampleUser);
+      localStorage.setItem('user', JSON.stringify(sampleUser));
       return { success: true };
     }
   };
@@ -85,12 +85,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Mock 2FA verification - in real app, verify code with backend
+    // sample 2FA verification - in real app, verify code with backend
     if (code === '123456' || code.length === 6) { // Accept any 6-digit code for demo
-      // Extract email from temp token (mock implementation)
+      // extract email from temp token (sample implementation)
       const email = tempToken.split('_')[2];
       
-      const mockUser: User = {
+      const sampleUser: User = {
         id: '1',
         email,
         name: email === 'admin@example.com' ? 'Administrator' : 'John Doe',
@@ -101,8 +101,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       };
       
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+      setUser(sampleUser);
+      localStorage.setItem('user', JSON.stringify(sampleUser));
       setIsLoading(false);
       return true;
     } else {

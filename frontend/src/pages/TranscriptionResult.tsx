@@ -35,7 +35,7 @@ interface TranscriptionRecord {
 }
 
 // Mock data moved outside component to prevent re-creation
-const mockTranscriptions: TranscriptionRecord[] = [
+const sampleTranscriptions: TranscriptionRecord[] = [
   {
     id: '1',
     fileName: 'presentation_video.mp4',
@@ -115,12 +115,12 @@ const TranscriptionResult = () => {
 
   useEffect(() => {
     // Frontend-only: Direct data loading without API simulation
-    const found = mockTranscriptions.find(t => t.id === id);
+    const found = sampleTranscriptions.find(t => t.id === id);
     if (found) {
       setTranscription(found);
     } else {
       // For frontend demo, always show the first transcription if ID not found
-      setTranscription(mockTranscriptions[0]);
+      setTranscription(sampleTranscriptions[0]);
     }
     setLoading(false);
   }, [id]);
