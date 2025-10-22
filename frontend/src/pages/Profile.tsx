@@ -11,6 +11,9 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import { useFeedbackToast } from '@/components/ui/feedback-toast';
+import { useConfirmation } from '@/hooks/use-confirmation';
+import ConfirmationDialog from '@/components/ui/confirmation-dialog';
+import { getImageUrl } from '@/lib/constants';
 import SecuritySettings from '@/components/security/SecuritySettings';
 import AccessibilitySettings from '@/components/accessibility/AccessibilitySettings';
 import ProfileImageUpload from '@/components/auth/ProfileImageUpload';
@@ -32,6 +35,7 @@ import {
 const Profile = () => {
   const { user, updateProfile } = useAuth();
   const feedbackToast = useFeedbackToast();
+  const confirmation = useConfirmation();
   const [isEditing, setIsEditing] = useState(false);
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -40,11 +44,21 @@ const Profile = () => {
     newPassword: '',
     confirmNewPassword: ''
   });
+  const [passwordErrors, setPasswordErrors] = useState<{[key: string]: string}>({});
   
   // Password visibility toggles
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Debug logging for profile image
+  React.useEffect(() => {
+    console.log('🔍 DEBUG Profile Image:', {
+      user: user,
+      profilePicture: user?.profilePicture,
+      constructedUrl: user?.profilePicture ? getImageUrl(user.profilePicture) : undefined
+    });
+  }, [user?.profilePicture]);
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -102,49 +116,81 @@ const Profile = () => {
     feedbackToast.success("Profile Updated", "Your changes have been saved successfully.");
   };
 
-  // Password change handler
-  const handlePasswordChange = () => {
-    // Validation checks
+  // Password validation
+  const validatePassword = () => {
+    const errors: {[key: string]: string} = {};
+
     if (!passwordData.currentPassword) {
-      feedbackToast.error("Current Password Required", "Current password cannot be empty.");
-      return;
+      errors.currentPassword = "Current password is required";
     }
 
     if (!passwordData.newPassword) {
-      feedbackToast.error("New Password Required", "New password cannot be empty.");
-      return;
-    }
-
-    // Password complexity check
-    if (passwordData.newPassword.length < 8 || !/(?=.*[a-zA-Z])(?=.*\d)/.test(passwordData.newPassword)) {
-      feedbackToast.error(
-        "Weak Password", 
-        "Password must be at least 8 characters and include both letters and numbers."
-      );
-      return;
+      errors.newPassword = "New password is required";
+    } else if (passwordData.newPassword.length < 8) {
+      errors.newPassword = "Password must be at least 8 characters";
+    } else if (!/(?=.*[a-zA-Z])(?=.*\d)/.test(passwordData.newPassword)) {
+      errors.newPassword = "Password must include both letters and numbers";
     }
 
     if (!passwordData.confirmNewPassword) {
-      feedbackToast.error("Confirmation Required", "Please confirm your new password.");
+      errors.confirmNewPassword = "Please confirm your new password";
+    } else if (passwordData.newPassword !== passwordData.confirmNewPassword) {
+      errors.confirmNewPassword = "Passwords do not match";
+    }
+
+    setPasswordErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Password change handler with confirmation
+  const handlePasswordChange = async () => {
+    // Clear previous errors
+    setPasswordErrors({});
+
+    // Validate form
+    if (!validatePassword()) {
       return;
     }
 
-    if (passwordData.newPassword !== passwordData.confirmNewPassword) {
-      feedbackToast.error("Passwords Don't Match", "New passwords do not match.");
-      return;
-    }
+    // Show confirmation dialog
+    const confirmed = await confirmation.confirm({
+      title: "Change Password",
+      message: "Are you sure you want to change your password? You will need to log in again with your new password.",
+      type: "warning",
+      confirmText: "Change Password",
+      cancelText: "Cancel"
+    });
 
-    // Mock current password verification
-    const currentPasswordCorrect = true; // This would be a real API call
-    if (!currentPasswordCorrect) {
-      feedbackToast.error("Incorrect Password", "The current password you entered is incorrect.");
-      return;
-    }
+    if (!confirmed) return;
 
-    // Success
-    setPasswordData({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
-    setIsChangingPassword(false);
-    feedbackToast.success("Password Updated", "Your password has been changed successfully.");
+    try {
+      // Set loading state
+      confirmation.setLoading(true);
+
+      // Mock API call - replace with actual API call
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Mock current password verification
+      const currentPasswordCorrect = passwordData.currentPassword === '1234'; // Using seed password for demo
+      if (!currentPasswordCorrect) {
+        setPasswordErrors({ currentPassword: "Current password is incorrect" });
+        feedbackToast.error("Incorrect Password", "The current password you entered is incorrect.");
+        return;
+      }
+
+      // Success
+      setPasswordData({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
+      setIsChangingPassword(false);
+      feedbackToast.success("Password Updated", "Your password has been changed successfully. Please log in again.");
+      
+      // Close confirmation dialog
+      confirmation.close();
+      
+    } catch (error) {
+      feedbackToast.error("Password Change Failed", "An error occurred while changing your password. Please try again.");
+    } finally {
+      confirmation.setLoading(false);
+    }
   };
 
   return (
@@ -159,7 +205,7 @@ const Profile = () => {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-6 bg-primary/5 border border-primary/20">
+        <TabsList className={`grid w-full ${user?.role === 'admin' ? 'grid-cols-2' : 'grid-cols-6'} bg-primary/5 border border-primary/20`}>
           <TabsTrigger value="profile" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
             <User className="h-4 w-4" />
             Profile
@@ -168,22 +214,26 @@ const Profile = () => {
             <Key className="h-4 w-4" />
             Password
           </TabsTrigger>
-          <TabsTrigger value="preferences" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <Settings className="h-4 w-4" />
-            Preferences
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <Bell className="h-4 w-4" />
-            Notifications
-          </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <Shield className="h-4 w-4" />
-            Security
-          </TabsTrigger>
-          <TabsTrigger value="accessibility" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <Eye className="h-4 w-4" />
-            Accessibility
-          </TabsTrigger>
+          {user?.role !== 'admin' && (
+            <>
+              <TabsTrigger value="preferences" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
+                <Settings className="h-4 w-4" />
+                Preferences
+              </TabsTrigger>
+              <TabsTrigger value="notifications" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
+                <Bell className="h-4 w-4" />
+                Notifications
+              </TabsTrigger>
+              <TabsTrigger value="security" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
+                <Shield className="h-4 w-4" />
+                Security
+              </TabsTrigger>
+              <TabsTrigger value="accessibility" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
+                <Eye className="h-4 w-4" />
+                Accessibility
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6">
@@ -199,7 +249,7 @@ const Profile = () => {
               <div className="flex flex-col items-center space-y-4">
                 <ProfileImageUpload 
                   onImageSelect={setProfileImage}
-                  currentImage={user?.profilePicture || undefined}
+                  currentImage={user?.profilePicture ? getImageUrl(user.profilePicture) : undefined}
                   isEditing={isEditing}
                 />
               </div>
@@ -267,15 +317,21 @@ const Profile = () => {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-primary">47</div>
+                  <div className="text-2xl font-bold text-primary">
+                    {user?.totalSessions || "-"}
+                  </div>
                   <div className="text-sm text-gray-600">Total Sessions</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">12.5h</div>
+                  <div className="text-2xl font-bold text-green-600">
+                    {user?.practiceTime || "-"}
+                  </div>
                   <div className="text-sm text-gray-600">Practice Time</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-secondary">87%</div>
+                  <div className="text-2xl font-bold text-secondary">
+                    {user?.avgAccuracy || "-"}
+                  </div>
                   <div className="text-sm text-gray-600">Avg Accuracy</div>
                 </div>
               </div>
@@ -309,8 +365,13 @@ const Profile = () => {
                         type={showCurrentPassword ? "text" : "password"}
                         placeholder="Enter current password"
                         value={passwordData.currentPassword}
-                        onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                        className="border-primary/20 focus:border-primary pr-10"
+                        onChange={(e) => {
+                          setPasswordData({ ...passwordData, currentPassword: e.target.value });
+                          if (passwordErrors.currentPassword) {
+                            setPasswordErrors(prev => ({ ...prev, currentPassword: '' }));
+                          }
+                        }}
+                        className={`border-primary/20 focus:border-primary pr-10 ${passwordErrors.currentPassword ? 'border-red-500 focus:border-red-500' : ''}`}
                       />
                       <button
                         type="button"
@@ -320,6 +381,9 @@ const Profile = () => {
                         {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    {passwordErrors.currentPassword && (
+                      <p className="text-sm text-red-600">{passwordErrors.currentPassword}</p>
+                    )}
                   </div>
                   
                   <div className="space-y-2">
@@ -330,8 +394,13 @@ const Profile = () => {
                         type={showNewPassword ? "text" : "password"}
                         placeholder="Enter new password"
                         value={passwordData.newPassword}
-                        onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                        className="border-primary/20 focus:border-primary pr-10"
+                        onChange={(e) => {
+                          setPasswordData({ ...passwordData, newPassword: e.target.value });
+                          if (passwordErrors.newPassword) {
+                            setPasswordErrors(prev => ({ ...prev, newPassword: '' }));
+                          }
+                        }}
+                        className={`border-primary/20 focus:border-primary pr-10 ${passwordErrors.newPassword ? 'border-red-500 focus:border-red-500' : ''}`}
                       />
                       <button
                         type="button"
@@ -344,6 +413,9 @@ const Profile = () => {
                     <div className="text-xs text-gray-500">
                       Must be at least 8 characters with letters and numbers
                     </div>
+                    {passwordErrors.newPassword && (
+                      <p className="text-sm text-red-600">{passwordErrors.newPassword}</p>
+                    )}
                   </div>
                   
                   <div className="space-y-2">
@@ -354,8 +426,13 @@ const Profile = () => {
                         type={showConfirmPassword ? "text" : "password"}
                         placeholder="Confirm new password"
                         value={passwordData.confirmNewPassword}
-                        onChange={(e) => setPasswordData({ ...passwordData, confirmNewPassword: e.target.value })}
-                        className="border-primary/20 focus:border-primary pr-10"
+                        onChange={(e) => {
+                          setPasswordData({ ...passwordData, confirmNewPassword: e.target.value });
+                          if (passwordErrors.confirmNewPassword) {
+                            setPasswordErrors(prev => ({ ...prev, confirmNewPassword: '' }));
+                          }
+                        }}
+                        className={`border-primary/20 focus:border-primary pr-10 ${passwordErrors.confirmNewPassword ? 'border-red-500 focus:border-red-500' : ''}`}
                       />
                       <button
                         type="button"
@@ -365,6 +442,9 @@ const Profile = () => {
                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    {passwordErrors.confirmNewPassword && (
+                      <p className="text-sm text-red-600">{passwordErrors.confirmNewPassword}</p>
+                    )}
                   </div>
                   
                   <div className="flex gap-2">
@@ -605,6 +685,19 @@ const Profile = () => {
           <AccessibilitySettings />
         </TabsContent>
       </Tabs>
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={confirmation.isOpen}
+        onClose={confirmation.close}
+        onConfirm={confirmation.onConfirm || (() => {})}
+        title={confirmation.title}
+        message={confirmation.message}
+        type={confirmation.type}
+        confirmText={confirmation.confirmText}
+        cancelText={confirmation.cancelText}
+        isLoading={confirmation.isLoading}
+      />
     </div>
   );
 };

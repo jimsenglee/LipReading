@@ -1,50 +1,53 @@
-
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ChevronRight, Home } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface BreadcrumbItem {
   title: string;
   href?: string;
+  isActive?: boolean;
 }
 
 interface AnimatedBreadcrumbProps {
   items: BreadcrumbItem[];
+  className?: string;
 }
 
-const AnimatedBreadcrumb: React.FC<AnimatedBreadcrumbProps> = ({ items }) => {
+export const AnimatedBreadcrumb: React.FC<AnimatedBreadcrumbProps> = ({
+  items,
+  className,
+}) => {
   return (
-    <motion.nav 
-      className="flex items-center space-x-1 text-sm text-muted-foreground mb-6"
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
+    <nav
+      className={cn(
+        'flex items-center space-x-1 text-sm',
+        className
+      )}
     >
+      <Home className="h-4 w-4 text-muted-foreground" />
       {items.map((item, index) => (
-        <motion.div
-          key={index}
-          className="flex items-center"
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: index * 0.1, duration: 0.3 }}
-        >
-          {index > 0 && <ChevronRight className="h-4 w-4 mx-1" />}
-          {item.href && index < items.length - 1 ? (
-            <Link
-              to={item.href}
-              className="hover:text-primary transition-colors duration-200 hover:underline"
+        <React.Fragment key={index}>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          {item.href && !item.isActive ? (
+            <a
+              href={item.href}
+              className="text-muted-foreground hover:text-primary transition-colors"
             >
               {item.title}
-            </Link>
+            </a>
           ) : (
-            <span className={index === items.length - 1 ? 'text-primary font-medium' : ''}>
+            <span
+              className={cn(
+                'text-primary font-medium',
+                item.isActive && 'text-primary font-medium'
+              )}
+            >
               {item.title}
             </span>
           )}
-        </motion.div>
+        </React.Fragment>
       ))}
-    </motion.nav>
+    </nav>
   );
 };
 

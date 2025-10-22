@@ -77,7 +77,6 @@ const UserLearningAnalytics = () => {
   const [loading, setLoading] = useState(false);
 
   const breadcrumbItems = [
-    { title: 'Admin Dashboard', href: '/admin' },
     { title: 'User Learning Analytics' }
   ];
 

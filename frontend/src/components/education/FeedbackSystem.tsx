@@ -18,7 +18,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
 type TutorialSeries = { id: string; title: string };
 type Video = { id: string; title: string };
-import { progressAPI } from '@/services/progressAPI';
+import { useSubmitRating, useSubmitFeedback } from '@/services/queries';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -85,9 +85,11 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
   const [review, setReview] = useState('');
   const [isHelpful, setIsHelpful] = useState<boolean | null>(null);
   const [comments, setComments] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [step, setStep] = useState(1);
   const { toast } = useToast();
+  
+  const submitRatingMutation = useSubmitRating();
+  const submitFeedbackMutation = useSubmitFeedback();
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -100,21 +102,20 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
             title: "Rating Required",
             description: "Please provide a star rating for this series.",
           });
-          setIsSubmitting(false);
           return;
         }
 
-        const result = await progressAPI.submitRating(series.id, rating, review);
+        await submitRatingMutation.mutateAsync({
+          seriesId: parseInt(series.id),
+          rating,
+          review
+        });
         
-        if (result.success) {
-          toast({
-            title: "Thank You!",
-            description: result.message,
-          });
-          onClose();
-        } else {
-          throw new Error(result.message);
-        }
+        toast({
+          title: "Thank You!",
+          description: "Your rating has been submitted successfully.",
+        });
+        onClose();
       } else if (type === 'video' && video) {
         if (isHelpful === null) {
           toast({
@@ -122,25 +123,20 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
             title: "Feedback Required",
             description: "Please let us know if this video was helpful.",
           });
-          setIsSubmitting(false);
           return;
         }
 
-        const result = await progressAPI.submitVideoFeedback(
-          series.id, 
-          video.id, 
-          { helpful: isHelpful, comments }
-        );
+        await submitFeedbackMutation.mutateAsync({
+          videoId: parseInt(video.id),
+          isHelpful,
+          feedback: comments
+        });
         
-        if (result.success) {
-          toast({
-            title: "Thank You!",
-            description: result.message,
-          });
-          onClose();
-        } else {
-          throw new Error(result.message);
-        }
+        toast({
+          title: "Thank You!",
+          description: "Your feedback has been submitted successfully.",
+        });
+        onClose();
       }
     } catch (error) {
       toast({
@@ -148,8 +144,6 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
         title: "Submission Failed",
         description: "Please try again later.",
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -275,10 +269,10 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
                     </Button>
                     <Button 
                       onClick={handleSubmit}
-                      disabled={isSubmitting}
+                      disabled={submitRatingMutation.isPending}
                       className="bg-primary hover:bg-primary/90"
                     >
-                      {isSubmitting ? (
+                      {submitRatingMutation.isPending ? (
                         <>
                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                           Submitting...
@@ -342,10 +336,10 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
                 </Button>
                 <Button 
                   onClick={handleSubmit}
-                  disabled={isHelpful === null || isSubmitting}
+                  disabled={isHelpful === null || submitFeedbackMutation.isPending}
                   className="bg-primary hover:bg-primary/90"
                 >
-                  {isSubmitting ? (
+                  {submitFeedbackMutation.isPending ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                       Submitting...
@@ -424,10 +418,9 @@ export const QuickFeedback: React.FC<QuickFeedbackProps> = ({
 
   const handleQuickFeedback = async (helpful: boolean) => {
     try {
-      const result = await progressAPI.submitVideoFeedback(
-        series.id,
-        video.id,
-        { helpful }
+      const result = await apiClient.submitVideoFeedback(
+        parseInt(video.id),
+        helpful
       );
 
       if (result.success) {

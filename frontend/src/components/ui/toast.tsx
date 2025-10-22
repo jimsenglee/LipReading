@@ -1,7 +1,7 @@
 import * as React from "react"
 import * as ToastPrimitives from "@radix-ui/react-toast"
 import { cva, type VariantProps } from "class-variance-authority"
-import { X } from "lucide-react"
+import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -29,7 +29,13 @@ const toastVariants = cva(
       variant: {
         default: "border bg-background text-foreground",
         destructive:
-          "destructive group border-destructive bg-destructive text-destructive-foreground",
+          "destructive group border-red-500 bg-red-50 text-red-900 dark:border-red-400 dark:bg-red-950 dark:text-red-100",
+        success:
+          "border-green-500 bg-green-50 text-green-900 dark:border-green-400 dark:bg-green-950 dark:text-green-100",
+        warning:
+          "border-yellow-500 bg-yellow-50 text-yellow-900 dark:border-yellow-400 dark:bg-yellow-950 dark:text-yellow-100",
+        info:
+          "border-blue-500 bg-blue-50 text-blue-900 dark:border-blue-400 dark:bg-blue-950 dark:text-blue-100",
       },
     },
     defaultVariants: {
@@ -38,17 +44,83 @@ const toastVariants = cva(
   }
 )
 
+// Countdown bar component
+const ToastCountdownBar = React.forwardRef<
+  HTMLDivElement,
+  { duration: number; variant?: string; onComplete?: () => void }
+>(({ duration, variant, onComplete }, ref) => {
+  const [progress, setProgress] = React.useState(100)
+  const onCompleteRef = React.useRef(onComplete)
+
+  // Update ref when onComplete changes
+  React.useEffect(() => {
+    onCompleteRef.current = onComplete
+  }, [onComplete])
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        const newProgress = prev - (100 / (duration / 100))
+        if (newProgress <= 0) {
+          // Use setTimeout to avoid calling during render
+          setTimeout(() => {
+            onCompleteRef.current?.()
+          }, 0)
+          return 0
+        }
+        return newProgress
+      })
+    }, 100)
+
+    return () => clearInterval(interval)
+  }, [duration])
+
+  const getBarColor = () => {
+    switch (variant) {
+      case 'success':
+        return 'bg-green-500'
+      case 'destructive':
+        return 'bg-red-500'
+      case 'warning':
+        return 'bg-yellow-500'
+      case 'info':
+        return 'bg-blue-500'
+      default:
+        return 'bg-gray-500'
+    }
+  }
+
+  return (
+    <div
+      ref={ref}
+      className="absolute bottom-0 left-0 h-1 w-full bg-gray-200/50 dark:bg-gray-700/50 rounded-b-md"
+    >
+      <div
+        className={cn(
+          'h-full transition-all duration-100 ease-linear rounded-b-md',
+          getBarColor()
+        )}
+        style={{ width: `${progress}%` }}
+      />
+    </div>
+  )
+})
+ToastCountdownBar.displayName = 'ToastCountdownBar'
+
 const Toast = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Root>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Root> &
-    VariantProps<typeof toastVariants>
->(({ className, variant, ...props }, ref) => {
+    VariantProps<typeof toastVariants> & { duration?: number }
+>(({ className, variant, duration = 3000, children, ...props }, ref) => {
   return (
     <ToastPrimitives.Root
       ref={ref}
       className={cn(toastVariants({ variant }), className)}
       {...props}
-    />
+    >
+      {children}
+      <ToastCountdownBar duration={duration} variant={variant} />
+    </ToastPrimitives.Root>
   )
 })
 Toast.displayName = ToastPrimitives.Root.displayName
@@ -124,4 +196,5 @@ export {
   ToastDescription,
   ToastClose,
   ToastAction,
+  ToastCountdownBar,
 }

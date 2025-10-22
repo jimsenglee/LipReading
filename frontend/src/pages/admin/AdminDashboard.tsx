@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import BreadcrumbNav from '@/components/ui/breadcrumb-nav';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Users, 
   Activity, 
@@ -102,8 +102,7 @@ const AdminDashboard = () => {
   };
 
   const breadcrumbItems = [
-    { title: 'Admin', href: '/admin' },
-    { title: 'Dashboard' }
+    { title: 'Admin Dashboard' }
   ];
 
   return (

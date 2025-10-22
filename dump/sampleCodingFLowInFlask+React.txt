@@ -1,0 +1,159 @@
+You are right to feel that way. "Jumping around" is the most common problem for beginners. You are missing a disciplined, step-by-step workflow.
+
+The best way to stop "skipping stuff" is to build your application **one full feature at a time**.
+
+This is called a **"Vertical Slice"** 🍕. You build one feature (like "viewing tutorials") from the database *all the way* to the UI, get it 100% working, and *then* move on to the next feature (like "taking a quiz").
+
+Here is the proper, step-by-step coding flow for building **one new feature**.
+
+-----
+
+## The Feature: "Let's add a 'View Tutorials' page"
+
+Follow this exact order. **Do NOT** move to the next step until the current one is finished.
+
+### Phase 1: The Backend (The "Kitchen") 🍳
+
+**Step 1. The Database Model (The "Ingredients")**
+
+  * **Goal:** Tell your MySQL database what a "tutorial" looks like.
+  * **Action:** Go to your `backend/app/models/` folder.
+  * Create `tutorial.py` and define the Python class:
+    ```python
+    class Tutorial(db.Model):
+        id: so.Mapped[int] = so.mapped_column(primary_key=True)
+        title: so.Mapped[str] = so.mapped_column(sa.String(100))
+        description: so.Mapped[str] = so.mapped_column(sa.String(500))
+        # ... any other columns
+    ```
+
+**Step 2. The Database Migration (The "Kitchen Setup")**
+
+  * **Goal:** Create the *actual* `tutorial` table in your MySQL database.
+  * **Action:** Go to your terminal in the `backend/` folder.
+    1.  `flask db migrate -m "Add tutorial table"` (This *creates* the migration script)
+    2.  `flask db upgrade` (This *runs* the script and builds the table in MySQL)
+  * **Must-Do:** Never skip this\! If you skip this, your app will crash because the table doesn't exist.
+
+**Step 3. The API Endpoint (The "Recipe")**
+
+  * **Goal:** Create a URL that the frontend can call to *get* the tutorials.
+  * **Action:** Go to your `backend/app/api/` folder. Create `tutorial_routes.py`.
+    ```python
+    from flask import Blueprint, jsonify
+    from ..models import Tutorial
+    from ..extensions import db
+    from sqlalchemy import select
+
+    tutorial_bp = Blueprint('tutorial', __name__, url_prefix='/api/tutorials')
+
+    @tutorial_bp.route('/', methods=['GET'])
+    def get_all_tutorials():
+        # Query your database
+        tutorials = db.session.scalars(select(Tutorial)).all()
+        
+        # Convert them to JSON
+        return jsonify([
+            {
+                "id": t.id, 
+                "title": t.title, 
+                "description": t.description
+            } for t in tutorials
+        ])
+    ```
+  * Don't forget to register this blueprint in your `app/__init__.py`.
+
+**Step 4. TEST THE API (The "Taste Test")** 🧪
+
+  * **Goal:** Prove the kitchen works *before* you build the restaurant. **This is the step everyone skips.**
+  * **Action:**
+    1.  Run your Flask server (`python run.py`).
+    2.  Open your **browser** (or Postman).
+    3.  Go to `http://127.0.0.1:5000/api/tutorials`.
+  * **The Rule:** If you see your JSON data (even an empty list `[]`), you are **done with the backend**. If you see an error, **STOP** and fix it. Do not write a single line of React.
+
+-----
+
+### Phase 2: The Frontend (The "Restaurant") 🍽️
+
+Now that your "kitchen" is proven to work, you can build the "restaurant" that serves the food.
+
+**Step 5. The API Client (The "Waiter")**
+
+  * **Goal:** Teach your "waiter" (`api.ts`) how to order this new dish.
+  * **Action:** Open `frontend/src/lib/api.ts`. Add a new method to your `ApiClient` class:
+    ```typescript
+    // In api.ts, inside the ApiClient class
+
+    async getTutorials() {
+      // The '/tutorials' must match your Flask route
+      return this.request<ApiTutorial[]>('/tutorials'); 
+    }
+    ```
+
+**Step 6. The Data Hook (The "Menu")**
+
+  * **Goal:** Create an easy, reusable hook for any component to get tutorials (using React Query).
+  * **Action:** Open `frontend/src/lib/queries.ts`. Add a new hook:
+    ```typescript
+    // In queries.ts
+    import apiClient from '@/lib/api';
+
+    export const useTutorials = () => {
+      return useQuery({
+        queryKey: ['tutorials'], // A unique key
+        queryFn: () => apiClient.getTutorials(), // The function to run
+      });
+    };
+    ```
+
+**Step 7. The UI Component (The "Table")**
+
+  * **Goal:** Finally, show the data to the user.
+  * **Action:** Create your React page (`frontend/src/pages/Education.tsx`).
+    ```tsx
+    import React from 'react';
+    import { useTutorials } from '@/lib/queries'; // 1. Import your hook
+
+    const EducationPage = () => {
+      // 2. Call the hook to get data
+      const { data: tutorials, isLoading, error } = useTutorials();
+
+      // 3. Handle loading and error states
+      if (isLoading) return <div>Loading tutorials...</div>;
+      if (error) return <div>Error: {error.message}</div>;
+
+      // 4. Display your data
+      return (
+        <div>
+          <h1>All Tutorials</h1>
+          <ul>
+            {tutorials?.map((tutorial) => (
+              <li key={tutorial.id}>{tutorial.title}</li>
+            ))}
+          </ul>
+        </div>
+      );
+    };
+
+    export default EducationPage;
+    ```
+  * Don't forget to add this component to your `App.tsx` router.
+
+-----
+
+## Summary (The Proper Flow)
+
+That's it. You are now 100% done with this feature.
+
+To stop "jumping around," follow this loop for **every single feature**:
+
+1.  **Model** (Python)
+2.  **Migrate** (Terminal: `flask db migrate/upgrade`)
+3.  **API Route** (Python)
+4.  **Test API** (Browser/Postman)
+5.  **API Client** (React: `api.ts`)
+6.  **Query Hook** (React: `queries.ts`)
+7.  **UI Component** (React: `.tsx` page)
+
+This workflow is **consistent**, **reusable**, and has **no redundancy**. It makes sure you never build a React component for an API that doesn't exist.

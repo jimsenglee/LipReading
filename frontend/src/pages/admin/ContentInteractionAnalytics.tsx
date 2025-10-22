@@ -84,7 +84,6 @@ const ContentInteractionAnalytics = () => {
   const [loading, setLoading] = useState(false);
 
   const breadcrumbItems = [
-    { title: 'Admin Dashboard', href: '/admin' },
     { title: 'Content Interaction Analytics' }
   ];
 

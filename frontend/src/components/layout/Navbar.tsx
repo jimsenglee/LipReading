@@ -3,6 +3,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLogout } from '@/services/queries';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -21,11 +22,12 @@ interface NavbarProps {
 }
 
 const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false }) => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const logoutMutation = useLogout();
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    logout();
+    logoutMutation.mutate();
     navigate('/');
   };
 
@@ -35,20 +37,21 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false })
       <div className="flex justify-between items-center h-16 px-4">
         {/* Left side - Burger + Logo moved to far left */}
         <div className="flex items-center space-x-3">
-          {/* Enhanced Hamburger Menu Button */}
-          <motion.button
-            onClick={onToggleSidebar}
-            className={cn(
-              "p-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/30",
-              "border border-transparent",
-              sidebarOpen 
-                ? 'bg-gradient-to-br from-red-50 to-red-100 hover:from-red-100 hover:to-red-200 text-red-600 border-red-200/50 shadow-lg shadow-red-100/50 dark:from-red-900/20 dark:to-red-800/20 dark:hover:from-red-800/30 dark:hover:to-red-700/30 dark:text-red-400 dark:border-red-700/50 dark:shadow-red-900/20' 
-                : 'bg-gradient-to-br from-primary/5 to-primary/10 hover:from-primary/10 hover:to-primary/20 text-foreground hover:text-primary border-primary/10 shadow-lg shadow-primary/5'
-            )}
-            whileHover={{ scale: 1.05, y: -1 }}
-            whileTap={{ scale: 0.95 }}
-            aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
-          >
+          {/* Enhanced Hamburger Menu Button - Only show for logged in users */}
+          {user && (
+            <motion.button
+              onClick={onToggleSidebar}
+              className={cn(
+                "p-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/30",
+                "border border-transparent",
+                sidebarOpen 
+                  ? 'bg-gradient-to-br from-red-50 to-red-100 hover:from-red-100 hover:to-red-200 text-red-600 border-red-200/50 shadow-lg shadow-red-100/50 dark:from-red-900/20 dark:to-red-800/20 dark:hover:from-red-800/30 dark:hover:to-red-700/30 dark:text-red-400 dark:border-red-700/50 dark:shadow-red-900/20' 
+                  : 'bg-gradient-to-br from-primary/5 to-primary/10 hover:from-primary/10 hover:to-primary/20 text-foreground hover:text-primary border-primary/10 shadow-lg shadow-primary/5'
+              )}
+              whileHover={{ scale: 1.05, y: -1 }}
+              whileTap={{ scale: 0.95 }}
+              aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+            >
               <AnimatePresence mode="wait">
                 {sidebarOpen ? (
                   <motion.div
@@ -73,6 +76,7 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false })
                 )}
               </AnimatePresence>
             </motion.button>
+          )}
             
             {/* Brand Logo - closer to burger button */}
             <Link to="/" className="flex items-center space-x-2 group">

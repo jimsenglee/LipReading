@@ -1,229 +1,291 @@
-
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRegister } from '@/services/queries';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Video, Eye, EyeOff } from 'lucide-react';
-import { useFeedbackToast } from '@/components/ui/feedback-toast';
+import { Video, UserPlus, Eye, EyeOff, Upload, X, AlertCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import BackButton from '@/components/ui/back-button';
-import ProfileImageUpload from '@/components/auth/ProfileImageUpload';
+import FlashMessage from '@/components/ui/flash-message';
+import Navbar from '@/components/layout/Navbar';
 
 const Register = () => {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: ''
-  });
-  const [profileImage, setProfileImage] = useState<File | null>(null);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const { user, register, isLoading } = useAuth();
+  const [profileImage, setProfileImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; field?: string } | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({});
+  const { user, isLoading: authLoading } = useAuth();
+  const registerMutation = useRegister();
   const navigate = useNavigate();
-  const feedbackToast = useFeedbackToast();
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (user) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Validation functions
-  const validateName = (name: string): string => {
-    if (!name.trim()) return "Name field cannot be empty.";
-    if (!/^[a-zA-Z\s]+$/.test(name)) return "Name contains invalid characters.";
-    return "";
-  };
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Clear previous errors
+      setFieldErrors(prev => ({ ...prev, profile_image: '' }));
+      
+      // Validate file type more strictly
+      const allowedTypes = ['image/png', 'image/jpg', 'image/jpeg', 'image/gif', 'image/webp'];
+      const allowedExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+      const fileExtension = file.name.split('.').pop()?.toLowerCase();
+      
+      if (!allowedTypes.includes(file.type) || !allowedExtensions.includes(fileExtension || '')) {
+        setFieldErrors(prev => ({ 
+          ...prev, 
+          profile_image: 'Please upload a PNG, JPG, JPEG, GIF, or WEBP image.' 
+        }));
+        // Clear the file input
+        e.target.value = '';
+        return;
+      }
 
-  const validateEmail = (email: string): string => {
-    if (!email.trim()) return "Email field cannot be empty.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Please enter a valid email address.";
-    return "";
-  };
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        setFieldErrors(prev => ({ 
+          ...prev, 
+          profile_image: 'File size too large. Please upload an image smaller than 5MB.' 
+        }));
+        // Clear the file input
+        e.target.value = '';
+        return;
+      }
 
-  const validatePassword = (password: string): string => {
-    if (!password) return "Password cannot be empty.";
-    if (password.length < 8 || !/(?=.*[a-zA-Z])(?=.*\d)/.test(password)) {
-      return "Password must be at least 8 characters and include both letters and numbers.";
+      setProfileImage(file);
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
     }
-    return "";
   };
 
-  const validateConfirmPassword = (confirmPassword: string, password: string): string => {
-    if (!confirmPassword) return "Confirmation Password cannot be empty.";
-    if (confirmPassword !== password) return "Passwords do not match.";
-    return "";
-  };
-
-  // Real-time validation
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    
-    // Clear previous error for this field
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
-
-    // Validate on change
-    let error = '';
-    switch (field) {
-      case 'name':
-        error = validateName(value);
-        break;
-      case 'email':
-        error = validateEmail(value);
-        break;
-      case 'password':
-        error = validatePassword(value);
-        // Also revalidate confirm password if it exists
-        if (formData.confirmPassword) {
-          const confirmError = validateConfirmPassword(formData.confirmPassword, value);
-          setErrors(prev => ({ ...prev, confirmPassword: confirmError }));
-        }
-        break;
-      case 'confirmPassword':
-        error = validateConfirmPassword(value, formData.password);
-        break;
-    }
-    
-    if (error) {
-      setErrors(prev => ({ ...prev, [field]: error }));
+  const removeImage = () => {
+    setProfileImage(null);
+    setImagePreview(null);
+    setFieldErrors(prev => ({ ...prev, profile_image: '' }));
+    // Clear the file input to allow re-uploading the same file
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Comprehensive validation
-    const nameError = validateName(formData.name);
-    const emailError = validateEmail(formData.email);
-    const passwordError = validatePassword(formData.password);
-    const confirmPasswordError = validateConfirmPassword(formData.confirmPassword, formData.password);
+    // Only clear errors when actually submitting, not on every keystroke
+    setError(null);
+    setFieldErrors({});
 
-    const newErrors = {
-      name: nameError,
-      email: emailError,
-      password: passwordError,
-      confirmPassword: confirmPasswordError
-    };
-
-    setErrors(newErrors);
-
-    // Check if there are any errors
-    if (Object.values(newErrors).some(error => error !== '')) {
-      feedbackToast.error(
-        "Validation Error", 
-        "Please fix the errors below and try again."
-      );
+    // Client-side validation
+    if (password !== confirmPassword) {
+      setFieldErrors({ confirmPassword: 'Passwords do not match' });
       return;
     }
 
     try {
-      // check if email already exists (sample check)
-      const emailExists = false; // This would be a real API call
-      if (emailExists) {
-        feedbackToast.error(
-          "Email Already Exists",
-          "An account with this email address already exists. Please log in."
-        );
-        return;
+      await registerMutation.mutateAsync({ 
+        email, 
+        password, 
+        name, 
+        profileImage: profileImage || undefined 
+      });
+      
+      toast({
+        title: "Welcome to LipRead AI!",
+        description: "Your account has been created successfully.",
+        variant: "success",
+        duration: 3000,
+      });
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      
+      if (error.response?.data?.error) {
+        const errorData = error.response.data;
+        if (errorData.field && errorData.field !== 'general') {
+          setFieldErrors({ [errorData.field]: errorData.error });
+        } else {
+          setError({ message: errorData.error, field: errorData.field || 'general' });
+        }
+      } else {
+        setError({ 
+          message: "An unexpected error occurred. Please try again.",
+          field: 'general'
+        });
+        toast({
+          title: "Registration failed",
+          description: "An unexpected error occurred. Please try again.",
+          variant: "destructive",
+          duration: 4000,
+        });
       }
-
-      const success = await register(formData.email, formData.password, formData.name);
-      if (success) {
-        feedbackToast.success(
-          "Registration Successful",
-          "Welcome to LipRead AI Academy. You can now start your learning journey."
-        );
-        navigate('/dashboard');
-      }
-    } catch (error) {
-      feedbackToast.error(
-        "Registration Failed",
-        "An error occurred during registration. Please try again later."
-      );
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/10 px-4 animate-fade-in">
-      <div className="absolute top-6 left-6">
-        <BackButton to="/" />
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/10">
+      {/* Navigation Bar for Guest Users */}
+      <Navbar onToggleSidebar={() => {}} sidebarOpen={false} />
       
-      <Card className="w-full max-w-md border-primary/20 shadow-lg animate-scale-in">
-        <CardHeader className="text-center">
+      <div className="flex items-center justify-center px-4 pt-16 animate-fade-in">
+        <div className="absolute top-20 left-6">
+          <BackButton to="/" />
+        </div>
+      
+      <Card className="w-full max-w-md border-primary/20 shadow-lg animate-scale-in bg-white">
+        <CardHeader className="text-center pb-6">
           <div className="flex justify-center mb-4">
-            <Video className="h-12 w-12 text-primary" />
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+              <UserPlus className="h-8 w-8 text-primary" />
+            </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-primary">Create Account</CardTitle>
-          <CardDescription>
-            Join LipRead AI and start your journey
+          <CardTitle className="text-2xl font-bold text-primary">
+            Create Account
+          </CardTitle>
+          <CardDescription className="text-gray-600">
+            Join LipRead AI and start your lip reading journey
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Profile Image Upload */}
-            <div className="space-y-2">
-              <Label className="text-primary/80">Profile Image (Optional)</Label>
-              <ProfileImageUpload 
-                onImageSelect={setProfileImage}
-                isEditing={true}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* General Error Flash Message */}
+            {error && (
+              <FlashMessage
+                type="error"
+                message={error.message}
+                field={error.field}
+                onClose={() => setError(null)}
               />
+            )}
+
+            {/* Profile Image Upload */}
+            <div className="space-y-3">
+              <Label htmlFor="profile_image" className="text-sm font-medium text-gray-700">Profile Image (Optional)</Label>
+              <div className="flex flex-col items-center space-y-3">
+                <div className="relative">
+                  {imagePreview ? (
+                    <div className="relative">
+                      <img
+                        src={imagePreview}
+                        alt="Profile preview"
+                        className="w-20 h-20 rounded-full object-cover border-2 border-primary/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={removeImage}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center">
+                      <UserPlus className="h-8 w-8 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+                <div className="w-full">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+                    <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600 mb-1">Click or drag to upload profile image</p>
+                    <Input
+                      ref={fileInputRef}
+                      id="profile_image"
+                      type="file"
+                      accept="image/png,image/jpg,image/jpeg,image/gif,image/webp"
+                      onChange={handleImageChange}
+                      className="hidden"
+                    />
+                    <Label htmlFor="profile_image" className="cursor-pointer text-sm text-primary hover:text-primary/80">
+                      Choose File
+                    </Label>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 text-center">
+                    JPG, PNG, SVG up to 5MB
+                  </p>
+                </div>
+              </div>
+              {fieldErrors.profile_image && (
+                <div className="text-sm text-red-600 flex items-center gap-1">
+                  <AlertCircle className="h-4 w-4" />
+                  {fieldErrors.profile_image}
+                </div>
+              )}
             </div>
 
-            {/* Full Name */}
+            {/* Name Field */}
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-primary/80">Full Name *</Label>
+              <Label htmlFor="name" className="text-sm font-medium text-gray-700">Full Name*</Label>
               <Input
                 id="name"
                 type="text"
                 placeholder="Enter your full name"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                className={`border-primary/20 focus:border-primary focus:ring-primary/20 ${
-                  errors.name ? 'border-red-500 focus:border-red-500' : ''
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={`border-gray-300 focus:border-primary focus:ring-primary/20 ${
+                  fieldErrors.name ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''
                 }`}
                 required
               />
-              {errors.name && (
-                <p className="text-sm text-red-600 mt-1">{errors.name}</p>
+              {fieldErrors.name && (
+                <div className="text-sm text-red-600 flex items-center gap-1">
+                  <AlertCircle className="h-4 w-4" />
+                  {fieldErrors.name}
+                </div>
               )}
             </div>
 
-            {/* Email */}
+            {/* Email Field */}
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-primary/80">Email Address *</Label>
+              <Label htmlFor="email" className="text-sm font-medium text-gray-700">Email Address*</Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="Enter your email address"
-                value={formData.email}
-                onChange={(e) => handleInputChange('email', e.target.value)}
-                className={`border-primary/20 focus:border-primary focus:ring-primary/20 ${
-                  errors.email ? 'border-red-500 focus:border-red-500' : ''
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={`border-gray-300 focus:border-primary focus:ring-primary/20 ${
+                  fieldErrors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''
                 }`}
                 required
               />
-              {errors.email && (
-                <p className="text-sm text-red-600 mt-1">{errors.email}</p>
+              {fieldErrors.email && (
+                <div className="text-sm text-red-600 flex items-center gap-1">
+                  <AlertCircle className="h-4 w-4" />
+                  {fieldErrors.email}
+                </div>
               )}
             </div>
 
-            {/* Password */}
+            {/* Password Field */}
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-primary/80">Password *</Label>
+              <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password*</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Create a secure password"
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  className={`border-primary/20 focus:border-primary focus:ring-primary/20 pr-10 ${
-                    errors.password ? 'border-red-500 focus:border-red-500' : ''
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`border-gray-300 focus:border-primary focus:ring-primary/20 pr-10 ${
+                    fieldErrors.password ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''
                   }`}
                   required
                 />
@@ -235,26 +297,27 @@ const Register = () => {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              {errors.password && (
-                <p className="text-sm text-red-600 mt-1">{errors.password}</p>
+              <p className="text-xs text-gray-500">Must be at least 8 characters with letters and numbers</p>
+              {fieldErrors.password && (
+                <div className="text-sm text-red-600 flex items-center gap-1">
+                  <AlertCircle className="h-4 w-4" />
+                  {fieldErrors.password}
+                </div>
               )}
-              <div className="text-xs text-gray-500">
-                Must be at least 8 characters with letters and numbers
-              </div>
             </div>
 
-            {/* Confirm Password */}
+            {/* Confirm Password Field */}
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-primary/80">Confirm Password *</Label>
+              <Label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700">Confirm Password*</Label>
               <div className="relative">
                 <Input
                   id="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
                   placeholder="Confirm your password"
-                  value={formData.confirmPassword}
-                  onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                  className={`border-primary/20 focus:border-primary focus:ring-primary/20 pr-10 ${
-                    errors.confirmPassword ? 'border-red-500 focus:border-red-500' : ''
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className={`border-gray-300 focus:border-primary focus:ring-primary/20 pr-10 ${
+                    fieldErrors.confirmPassword ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''
                   }`}
                   required
                 />
@@ -266,21 +329,24 @@ const Register = () => {
                   {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              {errors.confirmPassword && (
-                <p className="text-sm text-red-600 mt-1">{errors.confirmPassword}</p>
+              {fieldErrors.confirmPassword && (
+                <div className="text-sm text-red-600 flex items-center gap-1">
+                  <AlertCircle className="h-4 w-4" />
+                  {fieldErrors.confirmPassword}
+                </div>
               )}
             </div>
 
-            {/* Submit Button */}
             <Button 
               type="submit" 
               className="w-full bg-primary hover:bg-primary/90 transition-all duration-200 hover:scale-105" 
-              disabled={isLoading || Object.values(errors).some(error => error !== '')}
+              disabled={authLoading || registerMutation.isPending}
             >
-              {isLoading ? 'Creating Account...' : 'Create Account'}
+              {(authLoading || registerMutation.isPending) ? 'Creating Account...' : 'Create Account'}
             </Button>
           </form>
-          <div className="mt-6 text-center">
+          
+          <div className="mt-6 text-center space-y-2">
             <div className="text-sm text-gray-600">
               Already have an account?{' '}
               <Link to="/login" className="text-primary hover:text-primary/80 hover:underline transition-colors">
@@ -290,6 +356,7 @@ const Register = () => {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 };

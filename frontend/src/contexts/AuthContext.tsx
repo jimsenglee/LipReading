@@ -1,5 +1,5 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 export interface User {
   id: string;
@@ -11,14 +11,15 @@ export interface User {
   preferences?: {
     transcriptionFormat: string;
   };
+  // Account Statistics
+  totalSessions?: number;
+  practiceTime?: string;
+  avgAccuracy?: string;
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<{ success: boolean; requires2FA?: boolean; tempToken?: string }>;
-  verify2FA: (code: string, tempToken: string) => Promise<boolean>;
-  logout: () => void;
-  register: (email: string, password: string, name: string) => Promise<boolean>;
+  setUser: (user: User | null) => void;
   isLoading: boolean;
   updateProfile: (updates: Partial<User>) => void;
 }
@@ -36,124 +37,102 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
-    // Simulate checking for existing session
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
-  }, []);
-
-  const login = async (email: string, password: string): Promise<{ success: boolean; requires2FA?: boolean; tempToken?: string }> => {
-    setIsLoading(true);
-    // sample authentication
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // sample user data with 2FA status
-    const sampleUser: User = {
-      id: '1',
-      email,
-      name: email === 'admin@example.com' ? 'Administrator' : 'John Doe',
-      role: email === 'admin@example.com' ? 'admin' : 'user',
-      twoFactorEnabled: email === 'demo2fa@example.com' || email === 'admin@example.com', // sample: some users have 2FA enabled
-      preferences: {
-        transcriptionFormat: 'plain'
-      }
-    };
-    
-    setIsLoading(false);
-    
-    // Check if 2FA is enabled for this user
-    if (sampleUser.twoFactorEnabled) {
-      // Return that 2FA is required, don't set user yet
-      return { 
-        success: false, 
-        requires2FA: true, 
-        tempToken: `temp_${Date.now()}_${email}` // sample temporary token
-      };
-    } else {
-      // No 2FA, login directly
-      setUser(sampleUser);
-      localStorage.setItem('user', JSON.stringify(sampleUser));
-      return { success: true };
-    }
-  };
-
-  const verify2FA = async (code: string, tempToken: string): Promise<boolean> => {
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // sample 2FA verification - in real app, verify code with backend
-    if (code === '123456' || code.length === 6) { // Accept any 6-digit code for demo
-      // extract email from temp token (sample implementation)
-      const email = tempToken.split('_')[2];
-      
-      const sampleUser: User = {
-        id: '1',
-        email,
-        name: email === 'admin@example.com' ? 'Administrator' : 'John Doe',
-        role: email === 'admin@example.com' ? 'admin' : 'user',
-        twoFactorEnabled: true,
-        preferences: {
-          transcriptionFormat: 'plain'
+    const restoreSession = () => {
+      try {
+        const storedUser = localStorage.getItem('user');
+        const token = localStorage.getItem('token');
+        
+        console.log('🔍 DEBUG AuthContext useEffect:', {
+          storedUser: storedUser ? 'exists' : 'null',
+          token: token ? 'exists' : 'null',
+          hasStoredUser: !!storedUser,
+          hasToken: !!token,
+          timestamp: new Date().toISOString()
+        });
+        
+        if (storedUser && token) {
+          try {
+            const parsedUser = JSON.parse(storedUser);
+            console.log('🔍 DEBUG AuthContext parsed user:', {
+              id: parsedUser.id,
+              email: parsedUser.email,
+              name: parsedUser.name,
+              profilePicture: parsedUser.profilePicture,
+              role: parsedUser.role
+            });
+            
+            // Validate that the user object has required fields
+            if (parsedUser.id && parsedUser.email && parsedUser.name) {
+              // Check if token is expired (basic check)
+              try {
+                const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+                const currentTime = Math.floor(Date.now() / 1000);
+                
+                if (tokenPayload.exp && tokenPayload.exp > currentTime) {
+                  setUser(parsedUser);
+                  // Set user data in React Query cache
+                  queryClient.setQueryData(['user'], parsedUser);
+                  console.log('🔍 DEBUG AuthContext: User session restored successfully');
+                } else {
+                  console.warn('🔍 DEBUG AuthContext: Token expired, clearing session');
+                  localStorage.removeItem('user');
+                  localStorage.removeItem('token');
+                }
+              } catch (tokenError) {
+                console.warn('🔍 DEBUG AuthContext: Invalid token format, clearing session');
+                localStorage.removeItem('user');
+                localStorage.removeItem('token');
+              }
+            } else {
+              console.warn('🔍 DEBUG AuthContext: Invalid user data, clearing session');
+              localStorage.removeItem('user');
+              localStorage.removeItem('token');
+            }
+          } catch (parseError) {
+            console.error('Error parsing stored user:', parseError);
+            localStorage.removeItem('user');
+            localStorage.removeItem('token');
+          }
+        } else {
+          console.log('🔍 DEBUG AuthContext: No stored session found');
         }
-      };
-      
-      setUser(sampleUser);
-      localStorage.setItem('user', JSON.stringify(sampleUser));
-      setIsLoading(false);
-      return true;
-    } else {
-      setIsLoading(false);
-      return false;
-    }
-  };
-
-  const register = async (email: string, password: string, name: string): Promise<boolean> => {
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newUser: User = {
-      id: Date.now().toString(),
-      email,
-      name,
-      role: 'user',
-      preferences: {
-        transcriptionFormat: 'plain'
+      } catch (error) {
+        console.error('Error in session restoration:', error);
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+      } finally {
+        setIsLoading(false);
+        setIsInitialized(true);
       }
     };
-    
-    setUser(newUser);
-    localStorage.setItem('user', JSON.stringify(newUser));
-    setIsLoading(false);
-    return true;
-  };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
-  };
+    // Restore session immediately, no delay needed
+    restoreSession();
+  }, [queryClient]);
 
   const updateProfile = (updates: Partial<User>) => {
     if (user) {
       const updatedUser = { ...user, ...updates };
       setUser(updatedUser);
       localStorage.setItem('user', JSON.stringify(updatedUser));
+      // Update React Query cache
+      queryClient.setQueryData(['user'], updatedUser);
     }
   };
 
+  const value: AuthContextType = {
+    user,
+    setUser,
+    isLoading: isLoading || !isInitialized,
+    updateProfile
+  };
+
   return (
-    <AuthContext.Provider value={{
-      user,
-      login,
-      verify2FA,
-      logout,
-      register,
-      isLoading,
-      updateProfile
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

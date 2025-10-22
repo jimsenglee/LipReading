@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useFeedbackToast } from '@/components/ui/feedback-toast';
 import { Upload, User, X } from 'lucide-react';
+import { DEFAULT_AVATAR_PATH, getImageUrl } from '@/lib/constants';
 
 interface ProfileImageUploadProps {
   onImageSelect: (file: File | null) => void;
@@ -15,7 +16,25 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
   currentImage,
   isEditing = true
 }) => {
-  const [preview, setPreview] = useState<string | null>(currentImage || null);
+  // Use currentImage if available, otherwise use default avatar
+  const [preview, setPreview] = useState<string | null>(null);
+
+  // Update preview when currentImage changes
+  React.useEffect(() => {
+    const imageUrl = currentImage && currentImage.trim() !== '' 
+      ? getImageUrl(currentImage) 
+      : DEFAULT_AVATAR_PATH;
+    
+    console.log('🔍 DEBUG ProfileImageUpload currentImage changed:', {
+      currentImage,
+      hasCurrentImage: !!currentImage,
+      currentImageLength: currentImage?.length,
+      constructedUrl: imageUrl,
+      defaultAvatarPath: DEFAULT_AVATAR_PATH
+    });
+    
+    setPreview(imageUrl);
+  }, [currentImage]);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const feedbackToast = useFeedbackToast();
@@ -103,12 +122,23 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
       <div className="flex flex-col items-center space-y-4">
         {/* Avatar Display */}
         <div className="relative">
-          <Avatar className="w-24 h-24 border-2 border-primary/20">
-            <AvatarImage src={preview || undefined} className="object-cover" />
-            <AvatarFallback className="bg-primary/10 text-primary text-lg">
-              <User className="h-8 w-8" />
-            </AvatarFallback>
-          </Avatar>
+          <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-primary/20">
+            {preview && (
+              <img 
+                src={preview} 
+                alt="Profile" 
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  console.log('🔍 DEBUG: Image failed to load:', preview);
+                  // Hide the image element completely when it fails
+                  e.currentTarget.style.display = 'none';
+                }}
+                onLoad={() => {
+                  console.log('🔍 DEBUG: Image loaded successfully:', preview);
+                }}
+              />
+            )}
+          </div>
           
           {preview && isEditing && (
             <Button

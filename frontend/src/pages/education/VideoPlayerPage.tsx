@@ -26,7 +26,6 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import { useToast } from '@/hooks/use-toast';
-import { api } from '@/services/api';
 type Video = { 
   id: string; 
   title: string; 

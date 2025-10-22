@@ -1,60 +1,54 @@
-
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { ChevronRight, ArrowLeft } from 'lucide-react';
-import { Button } from './button';
+import { ChevronRight, Home } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface BreadcrumbItem {
-  title: string;
+  // prefer title to match usage across app; keep label for backward compat
+  title?: string;
+  label?: string;
   href?: string;
+  isActive?: boolean;
 }
 
 interface BreadcrumbNavProps {
   items: BreadcrumbItem[];
-  showBackButton?: boolean;
+  className?: string;
 }
 
-const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({ items, showBackButton = true }) => {
-  const location = useLocation();
-
-  const handleBack = () => {
-    window.history.back();
-  };
-
+export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
+  items,
+  className,
+}) => {
   return (
-    <div className="flex items-center gap-4 mb-6 animate-fade-in">
-      {showBackButton && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleBack}
-          className="flex items-center gap-2 text-primary hover:bg-primary/10 border-primary/20"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Button>
+    <nav
+      className={cn(
+        'flex items-center space-x-1 text-sm text-muted-foreground',
+        className
       )}
-      
-      <nav className="flex items-center space-x-1 text-sm text-muted-foreground">
-        {items.map((item, index) => (
-          <React.Fragment key={index}>
-            {index > 0 && <ChevronRight className="h-4 w-4" />}
-            {item.href && index < items.length - 1 ? (
-              <Link
-                to={item.href}
-                className="hover:text-primary transition-colors"
-              >
-                {item.title}
-              </Link>
-            ) : (
-              <span className={index === items.length - 1 ? 'text-foreground font-medium' : ''}>
-                {item.title}
-              </span>
-            )}
-          </React.Fragment>
-        ))}
-      </nav>
-    </div>
+    >
+      <Home className="h-4 w-4" />
+      {items.map((item, index) => (
+        <React.Fragment key={index}>
+          <ChevronRight className="h-4 w-4" />
+          {item.href && !item.isActive ? (
+            <a
+              href={item.href}
+              className="hover:text-foreground transition-colors"
+            >
+              {item.title ?? item.label}
+            </a>
+          ) : (
+            <span
+              className={cn(
+                item.isActive && 'text-foreground font-medium'
+              )}
+            >
+              {item.title ?? item.label}
+            </span>
+          )}
+        </React.Fragment>
+      ))}
+    </nav>
   );
 };
 

@@ -23,6 +23,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
     return <Navigate to="/login" replace />;
   }
 
+  // Block admin users from accessing user dashboard
+  if (user.role === 'admin' && window.location.pathname === '/dashboard') {
+    return <Navigate to="/admin" replace />;
+  }
+
+  // Block regular users from accessing admin routes
+  if (user.role === 'user' && window.location.pathname.startsWith('/admin')) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   if (requiredRole && user.role !== requiredRole) {
     return <Navigate to="/dashboard" replace />;
   }

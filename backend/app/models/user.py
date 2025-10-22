@@ -29,6 +29,28 @@ class User(Account):
         'polymorphic_identity': 'User',
     }
 
+    # Flask-Login required methods
+    def is_authenticated(self) -> bool:
+        """return True if the user is authenticated, i.e. they have provided valid credentials"""
+        return True
+
+    def is_active(self) -> bool:
+        """return True if this is an active user - in addition to being authenticated, they also have activated their account"""
+        return True
+
+    def is_anonymous(self) -> bool:
+        """return True if this is an anonymous user"""
+        return False
+
+    def get_id(self) -> str:
+        """return a unique identifier for this user, in unicode format"""
+        return str(self.id)
+
+    def check_password(self, password: str) -> bool:
+        """check if the provided password matches the user's password hash"""
+        from werkzeug.security import check_password_hash
+        return check_password_hash(self.password_hash, password)
+
     def __repr__(self) -> str:
         return f"<User {self.email}>"
 

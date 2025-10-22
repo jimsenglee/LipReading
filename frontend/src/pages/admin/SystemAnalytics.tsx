@@ -17,7 +17,6 @@ import {
 
 const SystemAnalytics = () => {
   const breadcrumbItems = [
-    { title: 'Admin Dashboard', href: '/admin' },
     { title: 'System Analytics' }
   ];
 

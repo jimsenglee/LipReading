@@ -74,14 +74,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
 
   const adminNavigation = [
     { 
-      name: 'Admin Panel', 
-      href: '/admin', 
-      icon: Shield,
-      description: 'Administrator dashboard'
-    },
-    { 
       name: 'Admin Dashboard', 
-      href: '/admin/dashboard', 
+      href: '/admin', 
       icon: Home,
       description: 'System overview & metrics'
     },
