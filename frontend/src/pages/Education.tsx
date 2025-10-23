@@ -40,9 +40,8 @@ import TutorialCard from '@/components/education/TutorialCard';
 import TutorialSeriesCard from '@/components/education/TutorialSeriesCard';
 import QuizSeriesCard from '@/components/education/QuizSeriesCard';
 
-// Import tutorial series data
-// api client for real data
-import { useTutorials, useQuizzes } from '@/services/queries';
+// Import tutorial series data from organized services
+import { useTutorials, useQuizzes } from '@/services';
 
 interface Tutorial {
   id: number;
@@ -84,19 +83,20 @@ const Education = () => {
   useEffect(() => {
     setIsLoading(tutorialsQuery.isLoading);
     if (tutorialsQuery.data) {
-      const mapped: Tutorial[] = tutorialsQuery.data.map(t => ({
+      const mapped: Tutorial[] = tutorialsQuery.data.data.map(t => ({
         id: t.id,
         title: t.title,
         description: t.description ?? '',
-        duration: '0',
-        difficulty: 'Beginner',
+        // TODO: Implement these fields in backend API
+        duration: '0', // TODO: Add duration field to API
+        difficulty: 'Beginner', // TODO: Add difficulty field to API
         category: String(t.categoryId),
-        instructor: 'instructor',
-        rating: 0,
-        students: 0,
-        thumbnail: 'https://img.youtube.com/vi/LmvpCSvm1qY/maxresdefault.jpg',
-        isBookmarked: false,
-        tags: [],
+        instructor: 'System', // TODO: Add instructor field to API
+        rating: 0, // TODO: Add rating system to API
+        students: 0, // TODO: Add student count to API
+        thumbnail: '/placeholder-video.jpg', // TODO: Add thumbnail field to API
+        isBookmarked: false, // TODO: Implement bookmarking system
+        tags: [], // TODO: Add tags field to API
       }));
       setTutorials(mapped);
       setLoadingError(null);
@@ -243,11 +243,15 @@ const Education = () => {
     }
   };
 
-  // calculate stats from fetched tutorials (placeholder for now)
+  // TODO: Implement real stats from database
+  // calculate stats from fetched tutorials
   const totalSeries = tutorials.length;
-  const enrolledSeriesCount = 0;
-  const completedSeriesCount = 0;
-  const overallProgressRate = 0;
+  // const enrolledSeriesCount = 0; // TODO: Implement user enrollment tracking
+  // const completedSeriesCount = 0; // TODO: Implement completion tracking
+  // const overallProgressRate = 0; // TODO: Implement progress calculation
+  const enrolledSeriesCount = 0; // Commented out until backend implementation
+  const completedSeriesCount = 0; // Commented out until backend implementation
+  const overallProgressRate = 0; // Commented out until backend implementation
 
   // Enhanced filtering and sorting for tutorial series
   const filteredAndSortedSeries = useMemo(() => {
@@ -256,11 +260,11 @@ const Education = () => {
       id: String(t.id),
       title: t.title,
       description: t.description,
-      instructor: 'instructor',
-      tags: [],
-      totalDuration: parseInt(t.duration) || 0,
-      createdAt: new Date().toISOString(),
-      difficulty: t.difficulty,
+      instructor: 'System', // TODO: Add instructor field to API
+      tags: [], // TODO: Add tags field to API
+      totalDuration: parseInt(t.duration) || 0, // TODO: Add duration field to API
+      createdAt: new Date().toISOString(), // TODO: Add created_at field to API
+      difficulty: t.difficulty, // TODO: Add difficulty field to API
     }));
 
     // Search filter
@@ -346,7 +350,7 @@ const Education = () => {
   const quizzesQuery = useQuizzes();
   useEffect(() => {
     if (quizzesQuery.data) {
-      setApiQuizzes(quizzesQuery.data.map(q => ({ id: q.id, title: q.title, categoryId: q.categoryId })));
+      setApiQuizzes(quizzesQuery.data.data.map(q => ({ id: q.id, title: q.title, categoryId: q.categoryId })));
     }
   }, [quizzesQuery.data]);
 

@@ -1,6 +1,5 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 interface PaginationProps {
   currentPage: number;
@@ -9,6 +8,7 @@ interface PaginationProps {
   perPage: number;
   onPageChange: (page: number) => void;
   className?: string;
+  itemName?: string; // customizable item name (users, content, etc.)
 }
 
 const Pagination: React.FC<PaginationProps> = ({
@@ -17,94 +17,106 @@ const Pagination: React.FC<PaginationProps> = ({
   totalCount,
   perPage,
   onPageChange,
-  className = ''
+  className = '',
+  itemName = 'entries'
 }) => {
-  // Calculate the range of items currently displayed
+  // calculate the range of items currently displayed
   const startItem = (currentPage - 1) * perPage + 1;
   const endItem = Math.min(currentPage * perPage, totalCount);
+  const hasMultiplePages = totalPages > 1;
+  
+  // calculate page numbers to show (max 3)
+  let startPage = Math.max(1, currentPage - 1);
+  let endPage = Math.min(totalPages, currentPage + 1);
+  
+  // adjust if we're near the beginning or end
+  if (currentPage <= 2) {
+    endPage = Math.min(3, totalPages);
+  }
+  if (currentPage >= totalPages - 1) {
+    startPage = Math.max(1, totalPages - 2);
+  }
 
-  // Generate page numbers to display
-  const getPageNumbers = () => {
-    const pages: (number | string)[] = [];
-    const maxVisiblePages = 5;
-    
-    if (totalPages <= maxVisiblePages) {
-      // Show all pages if total is small
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
-      }
-    } else {
-      // Always show first page
-      pages.push(1);
-      
-      if (currentPage > 3) {
-        pages.push('...');
-      }
-      
-      // Show pages around current page
-      const start = Math.max(2, currentPage - 1);
-      const end = Math.min(totalPages - 1, currentPage + 1);
-      
-      for (let i = start; i <= end; i++) {
-        if (i !== 1 && i !== totalPages) {
-          pages.push(i);
-        }
-      }
-      
-      if (currentPage < totalPages - 2) {
-        pages.push('...');
-      }
-      
-      // Always show last page
-      if (totalPages > 1) {
-        pages.push(totalPages);
-      }
-    }
-    
-    return pages;
-  };
-
-  // Always show pagination, even with 1 page or no data
+  const pages = [];
+  for (let i = startPage; i <= endPage; i++) {
+    pages.push(i);
+  }
 
   return (
-    <div className={`flex items-center justify-between ${className}`}>
-      {/* Results info */}
-      <div className="text-sm text-gray-600">
-        Showing {totalCount > 0 ? startItem : 0} to {endItem} of {totalCount} users
-      </div>
+    <div className={`flex items-center space-x-1 ${className}`}>
+      {/* first page button */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onPageChange(1)}
+        disabled={!hasMultiplePages || currentPage <= 1}
+        className={`h-8 w-8 p-0 ${!hasMultiplePages ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        &laquo;
+      </Button>
 
-      {/* Pagination controls - Number-based design */}
-      <div className="flex items-center space-x-1">
-        {/* Page numbers */}
-        {getPageNumbers().map((page, index) => {
-          if (page === '...') {
-            return (
-              <span key={`ellipsis-${index}`} className="px-3 py-1 text-gray-500">
-                ...
-              </span>
-            );
-          }
+      {/* previous button */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={!hasMultiplePages || currentPage <= 1}
+        className={`h-8 w-8 p-0 ${!hasMultiplePages ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        &lsaquo;
+      </Button>
 
-          const pageNum = page as number;
-          const isCurrentPage = pageNum === currentPage;
+      {/* page numbers */}
+      {pages.map(page => (
+        <Button
+          key={page}
+          variant={page === currentPage ? "default" : "outline"}
+          size="sm"
+          onClick={() => onPageChange(page)}
+          className={`h-8 w-8 p-0 ${page === currentPage ? 'bg-primary text-white' : ''}`}
+        >
+          {page}
+        </Button>
+      ))}
 
-          return (
-            <Button
-              key={pageNum}
-              variant={isCurrentPage ? "default" : "outline"}
-              size="sm"
-              onClick={() => onPageChange(pageNum)}
-              className={`h-8 w-8 p-0 ${
-                isCurrentPage 
-                  ? 'bg-primary text-white hover:bg-primary/90' 
-                  : 'hover:bg-primary/10 border-primary/20'
-              }`}
-            >
-              {pageNum}
-            </Button>
-          );
-        })}
-      </div>
+      {/* show ellipsis if there are more pages */}
+      {endPage < totalPages && (
+        <span className="px-2 text-gray-500">...</span>
+      )}
+
+      {/* last page button */}
+      {endPage < totalPages && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(totalPages)}
+          className="h-8 w-8 p-0"
+        >
+          {totalPages}
+        </Button>
+      )}
+
+      {/* next button */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={!hasMultiplePages || currentPage >= totalPages}
+        className={`h-8 w-8 p-0 ${!hasMultiplePages ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        &rsaquo;
+      </Button>
+
+      {/* last page button */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onPageChange(totalPages)}
+        disabled={!hasMultiplePages || currentPage >= totalPages}
+        className={`h-8 w-8 p-0 ${!hasMultiplePages ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        &raquo;
+      </Button>
     </div>
   );
 };

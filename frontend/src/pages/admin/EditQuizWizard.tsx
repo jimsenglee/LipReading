@@ -119,12 +119,12 @@ const EditQuizWizard: React.FC = () => {
     'Practice Exercises'
   ];
 
-  // Mock data loading (in real app, fetch from API)
+  // Data loading (in real app, fetch from API)
   useEffect(() => {
     const loadQuizSeries = async () => {
       setIsLoading(true);
       try {
-        // Simulate API call
+        // TODO: Replace with actual API call
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Mock existing data

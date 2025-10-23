@@ -48,14 +48,8 @@ const Dashboard = () => {
       : 'bg-gray-50 text-gray-900';
   };
 
-  // Mock data for lip-reading focused metrics
-  const recentActivity = [
-    { date: '2024-01-20', title: 'Project Meeting Transcription', type: 'Transcription', accuracy: 92 },
-    { date: '2024-01-19', title: 'Common Phrases Quiz', type: 'Quiz', score: 87 },
-    { date: '2024-01-18', title: 'Client Call Transcription', type: 'Transcription', accuracy: 94 },
-    { date: '2024-01-17', title: 'Vowel Sounds Quiz', type: 'Quiz', score: 91 },
-    { date: '2024-01-16', title: 'Team Standup Transcription', type: 'Transcription', accuracy: 89 }
-  ];
+  // Recent activity will be fetched from API
+  const recentActivity: any[] = [];
 
   // Primary toolbox actions for lip-reading AI platform
   const quickActions = [

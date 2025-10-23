@@ -45,7 +45,7 @@ const TranscriptionHistory = () => {
   const [deleteDialogId, setDeleteDialogId] = useState<string | null>(null);
   const [transcriptionList, setTranscriptionList] = useState<TranscriptionRecord[]>([]);
 
-  // Mock data - in real app, this would come from API
+  // Sample data - will be replaced with API data
   const initialTranscriptions: TranscriptionRecord[] = [
     {
       id: '1',

@@ -18,7 +18,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
 type TutorialSeries = { id: string; title: string };
 type Video = { id: string; title: string };
-import { useSubmitRating, useSubmitFeedback } from '@/services/queries';
+import { useSubmitRating, useSubmitFeedback } from '@/services';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -92,8 +92,6 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
   const submitFeedbackMutation = useSubmitFeedback();
 
   const handleSubmit = async () => {
-    setIsSubmitting(true);
-    
     try {
       if (type === 'series') {
         if (rating === 0) {
@@ -127,9 +125,9 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
         }
 
         await submitFeedbackMutation.mutateAsync({
-          videoId: parseInt(video.id),
-          isHelpful,
-          feedback: comments
+          type: 'video',
+          content: comments,
+          rating: isHelpful ? 5 : 1
         });
         
         toast({
@@ -416,20 +414,21 @@ export const QuickFeedback: React.FC<QuickFeedbackProps> = ({
   const [showModal, setShowModal] = useState(false);
   const { toast } = useToast();
 
+  const submitFeedbackMutation = useSubmitFeedback();
+
   const handleQuickFeedback = async (helpful: boolean) => {
     try {
-      const result = await apiClient.submitVideoFeedback(
-        parseInt(video.id),
-        helpful
-      );
+      await submitFeedbackMutation.mutateAsync({
+        type: 'video',
+        content: helpful ? 'Helpful video' : 'Not helpful video',
+        rating: helpful ? 5 : 1
+      });
 
-      if (result.success) {
-        toast({
-          title: "Thank You!",
-          description: "Your feedback helps us improve our content.",
-        });
-        onFeedbackSubmitted?.();
-      }
+      toast({
+        title: "Thank You!",
+        description: "Your feedback helps us improve our content.",
+      });
+      onFeedbackSubmitted?.();
     } catch (error) {
       toast({
         variant: "destructive",

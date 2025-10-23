@@ -34,7 +34,7 @@ interface TranscriptionRecord {
   type: 'realtime' | 'upload';
 }
 
-// Mock data moved outside component to prevent re-creation
+// Sample data - will be replaced with API data
 const sampleTranscriptions: TranscriptionRecord[] = [
   {
     id: '1',

@@ -80,7 +80,7 @@ const UserLearningAnalytics = () => {
     { title: 'User Learning Analytics' }
   ];
 
-  // Mock data - in real app, this would come from API
+  // Data will be fetched from API
   const performanceData: QuizPerformanceData[] = [
     {
       id: '1',

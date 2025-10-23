@@ -107,7 +107,7 @@ const AdminDashboard = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <BreadcrumbNav items={breadcrumbItems} showBackButton={false} />
+      <BreadcrumbNav items={breadcrumbItems} />
       
       <div>
         <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">

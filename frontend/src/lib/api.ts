@@ -189,17 +189,50 @@ class ApiClient {
 
   // data endpoints
   async getCategories(): Promise<ApiCategory[]> {
-    return this.request<ApiCategory[]>('/categories');
+    console.log('🔍 API DEBUG: Fetching categories...');
+    const response = await this.request<ApiCategory[] | {pagination: any, categories: ApiCategory[]}>('/categories');
+    console.log('🔍 API DEBUG: Categories response:', response);
+    
+    // Handle both direct array response and nested response
+    if (Array.isArray(response)) {
+      console.log('🔍 API DEBUG: Categories returned as direct array');
+      return response;
+    } else {
+      console.log('🔍 API DEBUG: Categories returned as nested object');
+      return response.categories || [];
+    }
   }
 
   async getTutorials(categoryId?: number): Promise<ApiTutorial[]> {
     const endpoint = categoryId ? `/tutorials?categoryId=${categoryId}` : '/tutorials';
-    return this.request<ApiTutorial[]>(endpoint);
+    console.log('🔍 API DEBUG: Fetching tutorials from:', endpoint);
+    const response = await this.request<ApiTutorial[] | {pagination: any, tutorials: ApiTutorial[]}>(endpoint);
+    console.log('🔍 API DEBUG: Tutorials response:', response);
+    
+    // Handle both direct array response and nested response
+    if (Array.isArray(response)) {
+      console.log('🔍 API DEBUG: Tutorials returned as direct array');
+      return response;
+    } else {
+      console.log('🔍 API DEBUG: Tutorials returned as nested object');
+      return response.tutorials || [];
+    }
   }
 
   async getQuizzes(categoryId?: number): Promise<ApiQuiz[]> {
     const endpoint = categoryId ? `/quizzes?categoryId=${categoryId}` : '/quizzes';
-    return this.request<ApiQuiz[]>(endpoint);
+    console.log('🔍 API DEBUG: Fetching quizzes from:', endpoint);
+    const response = await this.request<ApiQuiz[] | {pagination: any, quizzes: ApiQuiz[]}>(endpoint);
+    console.log('🔍 API DEBUG: Quizzes response:', response);
+    
+    // Handle both direct array response and nested response
+    if (Array.isArray(response)) {
+      console.log('🔍 API DEBUG: Quizzes returned as direct array');
+      return response;
+    } else {
+      console.log('🔍 API DEBUG: Quizzes returned as nested object');
+      return response.quizzes || [];
+    }
   }
 
   async getTutorialById(id: number): Promise<ApiTutorial> {
@@ -242,6 +275,100 @@ class ApiClient {
     return this.request<{ success: boolean; message: string }>(`/progress/video/${videoId}/feedback`, {
       method: 'POST',
       body: JSON.stringify({ helpful, comments }),
+    });
+  }
+
+  // Additional auth methods
+  async logout(): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>('/auth/logout', {
+      method: 'POST',
+    });
+  }
+
+  async updateProfile(name?: string, email?: string, profileImage?: File): Promise<{ success: boolean; user: UserResponse }> {
+    if (profileImage) {
+      const formData = new FormData();
+      if (name) formData.append('name', name);
+      if (email) formData.append('email', email);
+      formData.append('profile_image', profileImage);
+
+      return this.request<{ success: boolean; user: UserResponse }>('/auth/profile', {
+        method: 'PUT',
+        body: formData,
+      });
+    } else {
+      return this.request<{ success: boolean; user: UserResponse }>('/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify({ name, email }),
+      });
+    }
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  }
+
+  // Content management methods
+  async createTutorial(tutorialData: Partial<ApiTutorial>): Promise<{ success: boolean; tutorial: ApiTutorial }> {
+    return this.request<{ success: boolean; tutorial: ApiTutorial }>('/tutorials', {
+      method: 'POST',
+      body: JSON.stringify(tutorialData),
+    });
+  }
+
+  async updateTutorial(id: number, tutorialData: Partial<ApiTutorial>): Promise<{ success: boolean; tutorial: ApiTutorial }> {
+    return this.request<{ success: boolean; tutorial: ApiTutorial }>(`/tutorials/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(tutorialData),
+    });
+  }
+
+  async deleteTutorial(id: number): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(`/tutorials/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async createQuiz(quizData: Partial<ApiQuiz>): Promise<{ success: boolean; quiz: ApiQuiz }> {
+    return this.request<{ success: boolean; quiz: ApiQuiz }>('/quizzes', {
+      method: 'POST',
+      body: JSON.stringify(quizData),
+    });
+  }
+
+  async updateQuiz(id: number, quizData: Partial<ApiQuiz>): Promise<{ success: boolean; quiz: ApiQuiz }> {
+    return this.request<{ success: boolean; quiz: ApiQuiz }>(`/quizzes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(quizData),
+    });
+  }
+
+  async deleteQuiz(id: number): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(`/quizzes/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async createCategory(categoryData: Partial<ApiCategory>): Promise<{ success: boolean; category: ApiCategory }> {
+    return this.request<{ success: boolean; category: ApiCategory }>('/categories', {
+      method: 'POST',
+      body: JSON.stringify(categoryData),
+    });
+  }
+
+  async updateCategory(id: number, categoryData: Partial<ApiCategory>): Promise<{ success: boolean; category: ApiCategory }> {
+    return this.request<{ success: boolean; category: ApiCategory }>(`/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(categoryData),
+    });
+  }
+
+  async deleteCategory(id: number): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(`/categories/${id}`, {
+      method: 'DELETE',
     });
   }
 }

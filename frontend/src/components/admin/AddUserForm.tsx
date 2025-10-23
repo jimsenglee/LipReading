@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useConfirmation } from '@/hooks/use-confirmation';
-import { useRegister } from '@/services/queries';
+import { useRegister } from '@/services';
 import { Upload, X, Eye, EyeOff, User, Mail, Shield, AlertCircle } from 'lucide-react';
 import { DEFAULT_AVATAR_PATH, getImageUrl } from '@/lib/constants';
 

@@ -15,7 +15,7 @@ import QuizSeriesCard from '@/components/education/QuizSeriesCard';
 import FilterPanel, { FilterState } from '@/components/education/FilterPanel';
 import SortDropdown, { SortOption } from '@/components/education/SortDropdown';
 import EducationPagination from '@/components/education/EducationPagination';
-import { useQuizzes } from '@/services/queries';
+import { useQuizzes } from '@/services';
 type QuizSeries = {
   id: string;
   title: string;
@@ -54,7 +54,7 @@ const InteractiveQuizzes = () => {
   const quizzesQuery = useQuizzes();
   useEffect(() => {
     if (quizzesQuery.data) {
-      const mapped: QuizSeries[] = quizzesQuery.data.map(q => ({
+      const mapped: QuizSeries[] = quizzesQuery.data.data.map(q => ({
         id: String(q.id),
         title: q.title,
         description: '',

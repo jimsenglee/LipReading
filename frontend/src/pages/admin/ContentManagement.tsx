@@ -1,60 +1,61 @@
-import React, { useState, useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
-import ContentPreviewModal from '@/components/admin/ContentPreviewModal';
-import EditCategoryModal from '@/components/admin/EditCategoryModal';
+import ConfirmationDialog from '@/components/ui/confirmation-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useConfirmation } from '@/hooks/use-confirmation';
 import { useNavigate } from 'react-router-dom';
-import { useCategories, useTutorials, useQuizzes } from '@/services/queries';
+import { 
+  useCategories, 
+  useTutorials, 
+  useQuizzes,
+  useDeleteTutorial,
+  useDeleteQuiz,
+  useDeleteCategory,
+  ContentParams 
+} from '@/services';
 import { 
   Plus, 
-  Search, 
-  Filter, 
-  MoreHorizontal, 
-  Edit, 
-  Eye, 
-  Trash2, 
-  Calendar, 
-  Users, 
-  BookOpen, 
-  Brain, 
+  BookOpen,
+  Brain,
   Tag,
-  TrendingUp,
-  Clock,
-  Star
+  Eye,
+  Edit,
+  Trash2,
+  Star,
+  Users,
+  Activity,
+  Shield,
+  User,
+  Search,
+  Download
 } from 'lucide-react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import DataTable, { Column, Action } from '@/components/admin/DataTable';
+import SearchFilterBar from '@/components/admin/SearchFilterBar';
+import BulkActions from '@/components/admin/BulkActions';
+import ActionDropdown, { ActionItem } from '@/components/admin/ActionDropdown';
+import { StatusBadge, DifficultyBadge } from '@/components/admin/BadgeUtils';
+import { exportToCSV, exportToExcel, exportToPDF, formatDateForExport } from '@/lib/export-utils';
 
-// Types
+// ============================================================================
+// INTERFACES
+// ============================================================================
+
 interface TutorialSeries {
   id: string;
   title: string;
   description: string;
   category: string;
-  difficulty: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
   totalVideos: number;
   totalDuration: string;
   estimatedTime: string;
-  status: 'published' | 'draft' | 'archived';
+  status: 'draft' | 'published' | 'archived';
   createdDate: string;
   updatedDate: string;
   views: number;
@@ -69,15 +70,18 @@ interface QuizSeries {
   title: string;
   description: string;
   category: string;
-  difficulty: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
   totalQuestions: number;
   estimatedTime: string;
-  status: 'published' | 'draft' | 'archived';
+  status: 'draft' | 'published' | 'archived';
   createdDate: string;
   updatedDate: string;
   attempts: number;
-  completions: number;
-  averageScore?: number;
+  averageScore: number;
+  passingScore: number;
+  timeLimit: number;
+  thumbnailUrl: string;
+  author: string;
 }
 
 interface Category {
@@ -88,599 +92,1153 @@ interface Category {
   status: 'active' | 'inactive';
 }
 
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 const ContentManagement: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const confirmation = useConfirmation();
+
+  // ============================================================================
+  // STATE MANAGEMENT (Following UserManagement Pattern)
+  // ============================================================================
   
-  // API data
-  const { data: categories = [], isLoading: categoriesLoading } = useCategories();
-  const { data: tutorials = [], isLoading: tutorialsLoading } = useTutorials();
-  const { data: quizzes = [], isLoading: quizzesLoading } = useQuizzes();
+  // Active tab state
+  const [activeTab, setActiveTab] = useState<'tutorials' | 'quizzes' | 'categories'>('tutorials');
   
-  // State
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedItems, setSelectedItems] = useState<string[]>([]);
-  const [previewItem, setPreviewItem] = useState<any>(null);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [isEditCategoryOpen, setIsEditCategoryOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  // Tutorial state
+  const [tutorialSearchTerm, setTutorialSearchTerm] = useState('');
+  const [tutorialCategory, setTutorialCategory] = useState('all');
+  const [tutorialStatus, setTutorialStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [tutorialSortBy, setTutorialSortBy] = useState<'title' | 'category' | 'created_at' | 'updated_at'>('title');
+  const [tutorialSortOrder, setTutorialSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [tutorialPage, setTutorialPage] = useState(1);
+  const [tutorialItemsPerPage, setTutorialItemsPerPage] = useState(10);
+  const [selectedTutorials, setSelectedTutorials] = useState<Set<string>>(new Set());
+  
+  // Quiz state
+  const [quizSearchTerm, setQuizSearchTerm] = useState('');
+  const [quizCategory, setQuizCategory] = useState('all');
+  const [quizStatus, setQuizStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [quizSortBy, setQuizSortBy] = useState<'title' | 'category' | 'created_at' | 'updated_at'>('title');
+  const [quizSortOrder, setQuizSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [quizPage, setQuizPage] = useState(1);
+  const [quizItemsPerPage, setQuizItemsPerPage] = useState(10);
+  const [selectedQuizzes, setSelectedQuizzes] = useState<Set<string>>(new Set());
+  
+  // Category state
+  const [categorySearchTerm, setCategorySearchTerm] = useState('');
+  const [categoryStatus, setCategoryStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [categorySortBy, setCategorySortBy] = useState<'title' | 'category' | 'created_at' | 'updated_at'>('title');
+  const [categorySortOrder, setCategorySortOrder] = useState<'asc' | 'desc'>('asc');
+  const [categoryPage, setCategoryPage] = useState(1);
+  const [categoryItemsPerPage, setCategoryItemsPerPage] = useState(10);
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  
+  // Modal states
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteType, setDeleteType] = useState<'tutorial' | 'quiz' | 'category'>('tutorial');
+  const [deleteId, setDeleteId] = useState<string>('');
+  const [isMultiDeleteModalOpen, setIsMultiDeleteModalOpen] = useState(false);
+  const [multiDeleteType, setMultiDeleteType] = useState<'tutorial' | 'quiz' | 'category'>('tutorial');
 
-  // Convert API data to local types
-  const tutorialSeries: TutorialSeries[] = tutorials.map(tutorial => ({
-    id: tutorial.publicId,
-    title: tutorial.title,
-    description: tutorial.description || '',
-    category: 'General', // You might want to get this from the category relationship
-    difficulty: 'beginner',
-    totalVideos: 1, // This would come from related videos
-    totalDuration: '10:00',
-    estimatedTime: '10 minutes',
-    status: 'published' as const,
-    createdDate: new Date().toISOString().split('T')[0],
-    updatedDate: new Date().toISOString().split('T')[0],
-    views: 0,
-    completions: 0,
-    rating: 0,
-    thumbnailUrl: 'https://via.placeholder.com/300x200',
-    author: 'System'
-  }));
-
-  const quizSeries: QuizSeries[] = quizzes.map(quiz => ({
-    id: quiz.publicId,
-    title: quiz.title,
-    description: 'Quiz description',
-    category: 'General',
-    difficulty: 'beginner',
-    totalQuestions: 10,
-    estimatedTime: '15 minutes',
-    status: 'published' as const,
-    createdDate: new Date().toISOString().split('T')[0],
-    updatedDate: new Date().toISOString().split('T')[0],
-    attempts: 0,
-    completions: 0,
-    averageScore: 0
-  }));
-
-  const categoryList: Category[] = categories.map(category => ({
-    id: category.publicId,
-    name: category.name,
-    description: 'Category description',
-    contentCount: 0,
-    status: 'active' as const
-  }));
-
-  // Filter functions
-  const filteredTutorialSeries = useMemo(() => {
-    return tutorialSeries.filter(series => {
-      const matchesSearch = series.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           series.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = selectedCategory === 'all' || series.category === selectedCategory;
-      const matchesStatus = statusFilter === 'all' || series.status === statusFilter;
-      
-      return matchesSearch && matchesCategory && matchesStatus;
-    });
-  }, [tutorialSeries, searchTerm, selectedCategory, statusFilter]);
-
-  const filteredQuizSeries = useMemo(() => {
-    return quizSeries.filter(series => {
-      const matchesSearch = series.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           series.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = selectedCategory === 'all' || series.category === selectedCategory;
-      const matchesStatus = statusFilter === 'all' || series.status === statusFilter;
-      
-      return matchesSearch && matchesCategory && matchesStatus;
-    });
-  }, [quizSeries, searchTerm, selectedCategory, statusFilter]);
-
-  const filteredCategories = useMemo(() => {
-    return categoryList.filter(category => {
-      const matchesSearch = category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           category.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = statusFilter === 'all' || category.status === statusFilter;
-      
-      return matchesSearch && matchesStatus;
-    });
-  }, [categoryList, searchTerm, statusFilter]);
-
-  // Event handlers
-  const handleSelectItem = (itemId: string) => {
-    setSelectedItems(prev => 
-      prev.includes(itemId) 
-        ? prev.filter(id => id !== itemId)
-        : [...prev, itemId]
-    );
+  // ============================================================================
+  // API QUERIES (Following UserManagement Pattern)
+  // ============================================================================
+  
+  // Tutorial query parameters
+  const tutorialParams: ContentParams = {
+    page: tutorialPage,
+    per_page: tutorialItemsPerPage,
+    search: tutorialSearchTerm || undefined,
+    category: tutorialCategory !== 'all' ? tutorialCategory : undefined,
+    status: tutorialStatus !== 'all' ? tutorialStatus : undefined,
+    sort_by: tutorialSortBy,
+    sort_order: tutorialSortOrder
   };
 
-  const handleSelectAll = (items: any[]) => {
-    if (selectedItems.length === items.length) {
-      setSelectedItems([]);
+  // Quiz query parameters
+  const quizParams: ContentParams = {
+    page: quizPage,
+    per_page: quizItemsPerPage,
+    search: quizSearchTerm || undefined,
+    category: quizCategory !== 'all' ? quizCategory : undefined,
+    status: quizStatus !== 'all' ? quizStatus : undefined,
+    sort_by: quizSortBy,
+    sort_order: quizSortOrder
+  };
+
+  // Category query parameters
+  const categoryParams: ContentParams = {
+    page: categoryPage,
+    per_page: categoryItemsPerPage,
+    search: categorySearchTerm || undefined,
+    status: categoryStatus !== 'all' ? categoryStatus : undefined,
+    sort_by: categorySortBy,
+    sort_order: categorySortOrder
+  };
+
+  // API queries
+  const { data: tutorialsResponse, error: tutorialsError, refetch: refetchTutorials } = useTutorials(tutorialParams);
+  const { data: quizzesResponse, error: quizzesError, refetch: refetchQuizzes } = useQuizzes(quizParams);
+  const { data: categoriesResponse, error: categoriesError, refetch: refetchCategories } = useCategories();
+  
+  // Mutations
+  const deleteTutorialMutation = useDeleteTutorial();
+  const deleteQuizMutation = useDeleteQuiz();
+  const deleteCategoryMutation = useDeleteCategory();
+
+  // ============================================================================
+  // DATA MAPPING (Fix API Response Structure)
+  // ============================================================================
+  
+  // Map API data to local interfaces
+  const tutorialData = Array.isArray(tutorialsResponse?.data) ? tutorialsResponse.data : [];
+  console.log('🔍 DEBUG ContentManagement: Tutorial API Response:', tutorialsResponse);
+  console.log('🔍 DEBUG ContentManagement: Tutorial Data Array:', tutorialData);
+  console.log('🔍 DEBUG ContentManagement: Tutorial Data Length:', tutorialData.length);
+  
+  const tutorialSeries: TutorialSeries[] = tutorialData.map((tutorial, index) => {
+    console.log(`🔍 DEBUG ContentManagement: Tutorial ${index}:`, tutorial);
+    const tutorialId = tutorial.id?.toString() || `tutorial-${index}`;
+    console.log(`🔍 DEBUG ContentManagement: Tutorial ${index} ID:`, tutorialId);
+    return {
+      id: tutorialId,
+      title: tutorial.title || 'Untitled Tutorial',
+      description: tutorial.description || '',
+      category: 'General', // TODO: Get from category relationship
+      difficulty: 'beginner', // TODO: Get from API
+      totalVideos: 1, // TODO: Get from API
+      totalDuration: '10:00', // TODO: Get from API
+      estimatedTime: '10 minutes', // TODO: Get from API
+      status: 'published' as const, // TODO: Get from API
+      createdDate: new Date().toISOString().split('T')[0], // TODO: Get from API
+      updatedDate: new Date().toISOString().split('T')[0], // TODO: Get from API
+      views: 0, // TODO: Get from API
+      completions: 0, // TODO: Get from API
+      rating: 0, // TODO: Get from API
+      thumbnailUrl: 'https://via.placeholder.com/300x200', // TODO: Get from API
+      author: 'System' // TODO: Get from API
+    };
+  });
+  
+  console.log('🔍 DEBUG ContentManagement: Final Tutorial Series:', tutorialSeries);
+
+  const quizData = Array.isArray(quizzesResponse?.data) ? quizzesResponse.data : [];
+  console.log('🔍 DEBUG ContentManagement: Quiz API Response:', quizzesResponse);
+  console.log('🔍 DEBUG ContentManagement: Quiz Data Array:', quizData);
+  console.log('🔍 DEBUG ContentManagement: Quiz Data Length:', quizData.length);
+  
+  const quizSeries: QuizSeries[] = quizData.map((quiz, index) => {
+    console.log(`🔍 DEBUG ContentManagement: Quiz ${index}:`, quiz);
+    const quizId = quiz.id?.toString() || `quiz-${index}`;
+    console.log(`🔍 DEBUG ContentManagement: Quiz ${index} ID:`, quizId);
+    return {
+      id: quizId,
+      title: quiz.title || 'Untitled Quiz',
+      description: '', // TODO: Get from API
+      category: 'General', // TODO: Get from category relationship
+      difficulty: 'beginner', // TODO: Get from API
+      totalQuestions: 5, // TODO: Get from API
+      estimatedTime: '15 minutes', // TODO: Get from API
+      status: 'published' as const, // TODO: Get from API
+      createdDate: new Date().toISOString().split('T')[0], // TODO: Get from API
+      updatedDate: new Date().toISOString().split('T')[0], // TODO: Get from API
+      attempts: 0, // TODO: Get from API
+      averageScore: 0, // TODO: Get from API
+      passingScore: 70, // TODO: Get from API
+      timeLimit: 15, // TODO: Get from API
+      thumbnailUrl: 'https://via.placeholder.com/300x200', // TODO: Get from API
+      author: 'System' // TODO: Get from API
+    };
+  });
+  
+  console.log('🔍 DEBUG ContentManagement: Final Quiz Series:', quizSeries);
+
+  const categoryData = Array.isArray(categoriesResponse) ? categoriesResponse : [];
+  console.log('🔍 DEBUG ContentManagement: Category API Response:', categoriesResponse);
+  console.log('🔍 DEBUG ContentManagement: Category Data Array:', categoryData);
+  console.log('🔍 DEBUG ContentManagement: Category Data Length:', categoryData.length);
+  
+  const categoryList: Category[] = categoryData.map((category, index) => {
+    console.log(`🔍 DEBUG ContentManagement: Category ${index}:`, category);
+    const categoryId = category.id?.toString() || `category-${index}`;
+    console.log(`🔍 DEBUG ContentManagement: Category ${index} ID:`, categoryId);
+    return {
+      id: categoryId,
+      name: category.name || 'Untitled Category',
+      description: '', // TODO: Get from API
+      contentCount: 0, // TODO: Get from API
+      status: 'active' as const // TODO: Get from API
+    };
+  });
+  
+  console.log('🔍 DEBUG ContentManagement: Final Category List:', categoryList);
+
+  // ============================================================================
+  // EVENT HANDLERS (Following UserManagement Pattern)
+  // ============================================================================
+  
+  // Tutorial handlers
+  const handleTutorialSearch = (value: string) => {
+    setTutorialSearchTerm(value);
+  };
+
+  const handleTutorialFilter = (category: string, status: string) => {
+    setTutorialCategory(category);
+    setTutorialStatus(status as any);
+  };
+
+  const handleTutorialSort = (field: 'title' | 'category' | 'created_at' | 'updated_at') => {
+    if (tutorialSortBy === field) {
+      setTutorialSortOrder(tutorialSortOrder === 'asc' ? 'desc' : 'asc');
     } else {
-      setSelectedItems(items.map(item => item.id));
+      setTutorialSortBy(field);
+      setTutorialSortOrder('asc');
     }
   };
 
-  const handlePreview = (item: any) => {
-    setPreviewItem(item);
-    setIsPreviewOpen(true);
+  // Quiz handlers
+  const handleQuizSearch = (value: string) => {
+    setQuizSearchTerm(value);
   };
 
-  const handleEdit = (item: any) => {
-    // Navigate to edit page
-    navigate(`/admin/edit/${item.id}`);
+  const handleQuizFilter = (category: string, status: string) => {
+    setQuizCategory(category);
+    setQuizStatus(status as any);
   };
 
-  const handleDelete = (itemId: string) => {
+  const handleQuizSort = (field: 'title' | 'category' | 'created_at' | 'updated_at') => {
+    if (quizSortBy === field) {
+      setQuizSortOrder(quizSortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setQuizSortBy(field);
+      setQuizSortOrder('asc');
+    }
+  };
+
+  // Category handlers
+  const handleCategorySearch = (value: string) => {
+    setCategorySearchTerm(value);
+  };
+
+  const handleCategoryFilter = (status: string) => {
+    setCategoryStatus(status as any);
+  };
+
+  const handleCategorySort = (field: 'title' | 'category' | 'created_at' | 'updated_at') => {
+    if (categorySortBy === field) {
+      setCategorySortOrder(categorySortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setCategorySortBy(field);
+      setCategorySortOrder('asc');
+    }
+  };
+
+  // ============================================================================
+  // SELECTION HANDLERS
+  // ============================================================================
+  
+  const handleTutorialSelect = (tutorialId: string, checked: boolean) => {
+    const newSelected = new Set(selectedTutorials);
+    if (checked) {
+      newSelected.add(tutorialId);
+    } else {
+      newSelected.delete(tutorialId);
+    }
+    setSelectedTutorials(newSelected);
+  };
+
+  const handleTutorialSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedTutorials(new Set(tutorialSeries.map(tutorial => tutorial.id)));
+    } else {
+      setSelectedTutorials(new Set());
+    }
+  };
+
+  const handleQuizSelect = (quizId: string, checked: boolean) => {
+    const newSelected = new Set(selectedQuizzes);
+    if (checked) {
+      newSelected.add(quizId);
+    } else {
+      newSelected.delete(quizId);
+    }
+    setSelectedQuizzes(newSelected);
+  };
+
+  const handleQuizSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedQuizzes(new Set(quizSeries.map(quiz => quiz.id)));
+    } else {
+      setSelectedQuizzes(new Set());
+    }
+  };
+
+  const handleCategorySelect = (categoryId: string, checked: boolean) => {
+    const newSelected = new Set(selectedCategories);
+    if (checked) {
+      newSelected.add(categoryId);
+    } else {
+      newSelected.delete(categoryId);
+    }
+    setSelectedCategories(newSelected);
+  };
+
+  const handleCategorySelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedCategories(new Set(categoryList.map(category => category.id)));
+    } else {
+      setSelectedCategories(new Set());
+    }
+  };
+
+  // ============================================================================
+  // EXPORT HANDLERS
+  // ============================================================================
+  
+  const handleTutorialExport = () => {
+    if (tutorialSeries.length === 0) {
+      toast({
+        title: "No Data to Export",
+        description: "There are no tutorials to export.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const headers = ['Title', 'Description', 'Category', 'Difficulty', 'Status', 'Created'];
+    const data = tutorialSeries.map(tutorial => [
+      tutorial.title,
+      tutorial.description,
+      tutorial.category,
+      tutorial.difficulty,
+      tutorial.status,
+      tutorial.createdDate
+    ]);
+
+    const exportData = { headers, data, filename: 'tutorials' };
+    exportToCSV(exportData);
+    
     toast({
-      title: "Delete Confirmation",
-      description: "Are you sure you want to delete this item?",
+      title: "Export Successful",
+      description: "Tutorials data has been exported to CSV.",
     });
   };
 
-  const handleEditCategory = (category: Category) => {
-    setEditingCategory(category);
-    setIsEditCategoryOpen(true);
+  const handleQuizExport = () => {
+    if (quizSeries.length === 0) {
+      toast({
+        title: "No Data to Export",
+        description: "There are no quizzes to export.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const headers = ['Title', 'Description', 'Category', 'Difficulty', 'Status', 'Created'];
+    const data = quizSeries.map(quiz => [
+      quiz.title,
+      quiz.description,
+      quiz.category,
+      quiz.difficulty,
+      quiz.status,
+      quiz.createdDate
+    ]);
+
+    const exportData = { headers, data, filename: 'quizzes' };
+    exportToCSV(exportData);
+    
+    toast({
+      title: "Export Successful",
+      description: "Quizzes data has been exported to CSV.",
+    });
   };
 
-  const getStatusBadge = (status: string) => {
-    const variants = {
-      published: 'default',
-      draft: 'secondary',
-      archived: 'destructive',
-      active: 'default',
-      inactive: 'secondary'
-    } as const;
+  const handleCategoryExport = () => {
+    if (categoryList.length === 0) {
+      toast({
+        title: "No Data to Export",
+        description: "There are no categories to export.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    return (
-      <Badge variant={variants[status as keyof typeof variants] || 'default'}>
-        {status}
-      </Badge>
-    );
+    const headers = ['Name', 'Description', 'Content Count', 'Status'];
+    const data = categoryList.map(category => [
+      category.name,
+      category.description,
+      category.contentCount,
+      category.status
+    ]);
+
+    const exportData = { headers, data, filename: 'categories' };
+    exportToCSV(exportData);
+    
+    toast({
+      title: "Export Successful",
+      description: "Categories data has been exported to CSV.",
+    });
   };
 
-  const getDifficultyBadge = (difficulty: string) => {
-    const colors = {
-      beginner: 'bg-green-100 text-green-800',
-      intermediate: 'bg-yellow-100 text-yellow-800',
-      advanced: 'bg-red-100 text-red-800'
-    };
+  // ============================================================================
+  // DELETE HANDLERS
+  // ============================================================================
+  
+  const handleTutorialBulkDelete = async () => {
+    if (selectedTutorials.size === 0) {
+      toast({
+        title: "No Tutorials Selected",
+        description: "Please select tutorials to delete.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    return (
-      <Badge className={colors[difficulty as keyof typeof colors] || 'bg-gray-100 text-gray-800'}>
-        {difficulty}
-      </Badge>
-    );
+    const confirmed = await confirmation.confirm({
+      title: "Delete Multiple Tutorials",
+      message: `Are you sure you want to delete ${selectedTutorials.size} tutorial(s)? This action cannot be undone.`,
+      type: "warning",
+      confirmText: "Delete All",
+      cancelText: "Cancel"
+    });
+
+    if (!confirmed) return;
+
+    try {
+      confirmation.setLoading(true);
+      
+      for (const tutorialId of selectedTutorials) {
+        await deleteTutorialMutation.mutateAsync(parseInt(tutorialId));
+      }
+      
+      setSelectedTutorials(new Set());
+      
+      toast({
+        title: "Tutorials Deleted",
+        description: `${selectedTutorials.size} tutorial(s) have been deleted successfully.`,
+      });
+      
+      refetchTutorials();
+    } catch (error) {
+      toast({
+        title: "Delete Failed",
+        description: "Some tutorials could not be deleted. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      confirmation.setLoading(false);
+    }
   };
 
-  if (categoriesLoading || tutorialsLoading || quizzesLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading content...</p>
+  const handleQuizBulkDelete = async () => {
+    if (selectedQuizzes.size === 0) {
+      toast({
+        title: "No Quizzes Selected",
+        description: "Please select quizzes to delete.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const confirmed = await confirmation.confirm({
+      title: "Delete Multiple Quizzes",
+      message: `Are you sure you want to delete ${selectedQuizzes.size} quiz(es)? This action cannot be undone.`,
+      type: "warning",
+      confirmText: "Delete All",
+      cancelText: "Cancel"
+    });
+
+    if (!confirmed) return;
+
+    try {
+      confirmation.setLoading(true);
+      
+      for (const quizId of selectedQuizzes) {
+        await deleteQuizMutation.mutateAsync(parseInt(quizId));
+      }
+      
+      setSelectedQuizzes(new Set());
+      
+      toast({
+        title: "Quizzes Deleted",
+        description: `${selectedQuizzes.size} quiz(es) have been deleted successfully.`,
+      });
+      
+      refetchQuizzes();
+    } catch (error) {
+      toast({
+        title: "Delete Failed",
+        description: "Some quizzes could not be deleted. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      confirmation.setLoading(false);
+    }
+  };
+
+  const handleCategoryBulkDelete = async () => {
+    if (selectedCategories.size === 0) {
+      toast({
+        title: "No Categories Selected",
+        description: "Please select categories to delete.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const confirmed = await confirmation.confirm({
+      title: "Delete Multiple Categories",
+      message: `Are you sure you want to delete ${selectedCategories.size} categor(ies)? This action cannot be undone.`,
+      type: "warning",
+      confirmText: "Delete All",
+      cancelText: "Cancel"
+    });
+
+    if (!confirmed) return;
+
+    try {
+      confirmation.setLoading(true);
+      
+      for (const categoryId of selectedCategories) {
+        await deleteCategoryMutation.mutateAsync(parseInt(categoryId));
+      }
+      
+      setSelectedCategories(new Set());
+      
+      toast({
+        title: "Categories Deleted",
+        description: `${selectedCategories.size} categor(ies) have been deleted successfully.`,
+      });
+      
+      refetchCategories();
+    } catch (error) {
+      toast({
+        title: "Delete Failed",
+        description: "Some categories could not be deleted. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      confirmation.setLoading(false);
+    }
+  };
+
+  // ============================================================================
+  // TABLE COLUMNS (Following UserManagement Pattern)
+  // ============================================================================
+  
+  const tutorialColumns: Column<TutorialSeries>[] = [
+    {
+      key: 'title',
+      label: 'Title',
+      sortable: true,
+      render: (tutorial) => (
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-8 bg-primary/10 rounded flex items-center justify-center">
+            <BookOpen className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <div className="font-medium">{tutorial.title}</div>
+            <div className="text-sm text-muted-foreground">{tutorial.description}</div>
+          </div>
         </div>
-      </div>
-    );
-  }
+      )
+    },
+    {
+      key: 'category',
+      label: 'Category',
+      sortable: true,
+      render: (tutorial) => <Badge variant="secondary">{tutorial.category}</Badge>
+    },
+    {
+      key: 'difficulty',
+      label: 'Difficulty',
+      render: (tutorial) => <DifficultyBadge difficulty={tutorial.difficulty} />
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      sortable: true,
+      render: (tutorial) => <StatusBadge status={tutorial.status} />
+    },
+    {
+      key: 'createdDate',
+      label: 'Created',
+      sortable: true,
+      render: (tutorial) => formatDateForExport(tutorial.createdDate)
+    }
+  ];
 
+  const quizColumns: Column<QuizSeries>[] = [
+    {
+      key: 'title',
+      label: 'Title',
+      sortable: true,
+      render: (quiz) => (
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-8 bg-primary/10 rounded flex items-center justify-center">
+            <Brain className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <div className="font-medium">{quiz.title}</div>
+            <div className="text-sm text-muted-foreground">{quiz.description}</div>
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'category',
+      label: 'Category',
+      sortable: true,
+      render: (quiz) => <Badge variant="secondary">{quiz.category}</Badge>
+    },
+    {
+      key: 'difficulty',
+      label: 'Difficulty',
+      render: (quiz) => <DifficultyBadge difficulty={quiz.difficulty} />
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      sortable: true,
+      render: (quiz) => <StatusBadge status={quiz.status} />
+    },
+    {
+      key: 'createdDate',
+      label: 'Created',
+      sortable: true,
+      render: (quiz) => formatDateForExport(quiz.createdDate)
+    }
+  ];
+
+  const categoryColumns: Column<Category>[] = [
+    {
+      key: 'name',
+      label: 'Name',
+      sortable: true,
+      render: (category) => (
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-8 bg-primary/10 rounded flex items-center justify-center">
+            <Tag className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <div className="font-medium">{category.name}</div>
+            <div className="text-sm text-muted-foreground">{category.description}</div>
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'contentCount',
+      label: 'Content Count',
+      render: (category) => <span className="text-gray-600">{category.contentCount}</span>
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      sortable: true,
+      render: (category) => <StatusBadge status={category.status} />
+    }
+  ];
+
+  // ============================================================================
+  // TABLE ACTIONS
+  // ============================================================================
+  
+  const tutorialActions: Action<TutorialSeries>[] = [
+    {
+      key: 'view',
+      label: 'View',
+      icon: <Eye className="h-4 w-4" />,
+      onClick: (tutorial) => {
+        // TODO: Implement view tutorial
+        console.log('View tutorial:', tutorial.id);
+      }
+    },
+    {
+      key: 'edit',
+      label: 'Edit',
+      icon: <Edit className="h-4 w-4" />,
+      onClick: (tutorial) => {
+        // TODO: Implement edit tutorial
+        console.log('Edit tutorial:', tutorial.id);
+      }
+    },
+    {
+      key: 'delete',
+      label: 'Delete',
+      icon: <Trash2 className="h-4 w-4" />,
+      onClick: (tutorial) => {
+        setDeleteType('tutorial');
+        setDeleteId(tutorial.id);
+        setIsDeleteModalOpen(true);
+      },
+      variant: 'ghost',
+      className: "text-red-600 hover:text-red-700 hover:bg-red-50"
+    }
+  ];
+
+  const quizActions: Action<QuizSeries>[] = [
+    {
+      key: 'view',
+      label: 'View',
+      icon: <Eye className="h-4 w-4" />,
+      onClick: (quiz) => {
+        // TODO: Implement view quiz
+        console.log('View quiz:', quiz.id);
+      }
+    },
+    {
+      key: 'edit',
+      label: 'Edit',
+      icon: <Edit className="h-4 w-4" />,
+      onClick: (quiz) => {
+        // TODO: Implement edit quiz
+        console.log('Edit quiz:', quiz.id);
+      }
+    },
+    {
+      key: 'delete',
+      label: 'Delete',
+      icon: <Trash2 className="h-4 w-4" />,
+      onClick: (quiz) => {
+        setDeleteType('quiz');
+        setDeleteId(quiz.id);
+        setIsDeleteModalOpen(true);
+      },
+      variant: 'ghost',
+      className: "text-red-600 hover:text-red-700 hover:bg-red-50"
+    }
+  ];
+
+  const categoryActions: Action<Category>[] = [
+    {
+      key: 'edit',
+      label: 'Edit',
+      icon: <Edit className="h-4 w-4" />,
+      onClick: (category) => {
+        // TODO: Implement edit category
+        console.log('Edit category:', category.id);
+      }
+    },
+    {
+      key: 'delete',
+      label: 'Delete',
+      icon: <Trash2 className="h-4 w-4" />,
+      onClick: (category) => {
+        setDeleteType('category');
+        setDeleteId(category.id);
+        setIsDeleteModalOpen(true);
+      },
+      variant: 'ghost',
+      className: "text-red-600 hover:text-red-700 hover:bg-red-50"
+    }
+  ];
+
+  // ============================================================================
+  // BREADCRUMB
+  // ============================================================================
+  
+  const breadcrumbItems = [
+    { title: 'Admin Dashboard', href: '/admin' },
+    { title: 'Content Management', href: '/admin/content' }
+  ];
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
+  
   return (
     <div className="space-y-6">
-      <AnimatedBreadcrumb
-        items={[
-          { title: 'Content Management' }
-        ]}
-      />
-
-      {/* Header */}
-      <div className="flex justify-between items-center">
+      <AnimatedBreadcrumb items={breadcrumbItems} />
+      
+      {/* Header - Following UserManagement Pattern */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Content Management</h1>
-          <p className="text-gray-600 mt-1">Manage your tutorial series, quizzes, and categories</p>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            Content Management
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Manage tutorials, quizzes, and educational content
+          </p>
         </div>
-        <div className="flex gap-3">
-          <Button onClick={() => navigate('/admin/content/new')}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Content
-          </Button>
+        
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Bulk Actions - Following UserManagement Pattern */}
+          {activeTab === 'tutorials' && (
+            <BulkActions
+              selectedCount={selectedTutorials.size}
+              onBulkDelete={() => {
+                setMultiDeleteType('tutorial');
+                setIsMultiDeleteModalOpen(true);
+              }}
+              onExport={handleTutorialExport}
+              deleteLabel="Delete"
+              exportLabel="Export"
+            />
+          )}
+          
+          {activeTab === 'quizzes' && (
+            <BulkActions
+              selectedCount={selectedQuizzes.size}
+              onBulkDelete={() => {
+                setMultiDeleteType('quiz');
+                setIsMultiDeleteModalOpen(true);
+              }}
+              onExport={handleQuizExport}
+              deleteLabel="Delete"
+              exportLabel="Export"
+            />
+          )}
+          
+          {activeTab === 'categories' && (
+            <BulkActions
+              selectedCount={selectedCategories.size}
+              onBulkDelete={() => {
+                setMultiDeleteType('category');
+                setIsMultiDeleteModalOpen(true);
+              }}
+              onExport={handleCategoryExport}
+              deleteLabel="Delete"
+              exportLabel="Export"
+            />
+          )}
+
+          {/* Create Content Dropdown - Following Your Design */}
+          <ActionDropdown
+            primaryButton={{
+              label: "Create Content",
+              icon: <Plus className="h-4 w-4" />
+            }}
+            items={[
+              {
+                key: "tutorial",
+                label: "Tutorial Series",
+                icon: <BookOpen className="h-4 w-4" />,
+                onClick: () => navigate('/admin/content/create-tutorial')
+              },
+              {
+                key: "quiz",
+                label: "Quiz Series",
+                icon: <Brain className="h-4 w-4" />,
+                onClick: () => navigate('/admin/content/create-quiz')
+              },
+              {
+                key: "category",
+                label: "Category",
+                icon: <Tag className="h-4 w-4" />,
+                onClick: () => navigate('/admin/content/create-category')
+              }
+            ]}
+            variant="default"
+            className="bg-primary hover:bg-primary/90 text-white"
+          />
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <BookOpen className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-blue-600">Tutorial Series</p>
-                <p className="text-2xl font-bold text-blue-700">{tutorialSeries.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Brain className="h-6 w-6 text-purple-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-purple-600">Quiz Series</p>
-                <p className="text-2xl font-bold text-purple-700">{quizSeries.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Tag className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-green-600">Categories</p>
-                <p className="text-2xl font-bold text-green-700">{categoryList.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search content..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="All Categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categoryList.map(category => (
-                    <SelectItem key={category.id} value={category.name}>
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-32">
-                  <SelectValue placeholder="All Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="published">Published</SelectItem>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="archived">Archived</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Content Tabs */}
-      <Tabs defaultValue="tutorials" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="tutorials">Tutorial Series ({filteredTutorialSeries.length})</TabsTrigger>
-          <TabsTrigger value="quizzes">Quiz Series ({filteredQuizSeries.length})</TabsTrigger>
-          <TabsTrigger value="categories">Categories ({filteredCategories.length})</TabsTrigger>
+      {/* Tabs - Following UserManagement Pattern */}
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
+        <TabsList className="grid w-full grid-cols-3 bg-primary/5 border border-primary/20">
+          <TabsTrigger 
+            value="tutorials" 
+            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
+          >
+            <BookOpen className="h-4 w-4" />
+            Tutorial Series ({tutorialSeries.length})
+          </TabsTrigger>
+          <TabsTrigger 
+            value="quizzes" 
+            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
+          >
+            <Brain className="h-4 w-4" />
+            Quiz Series ({quizSeries.length})
+          </TabsTrigger>
+          <TabsTrigger 
+            value="categories" 
+            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
+          >
+            <Tag className="h-4 w-4" />
+            Categories ({categoryList.length})
+          </TabsTrigger>
         </TabsList>
 
         {/* Tutorial Series Tab */}
-        <TabsContent value="tutorials">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>Tutorial Series</CardTitle>
-                  <CardDescription>
-                    Manage your tutorial series and video content
-                  </CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  {selectedItems.length > 0 && (
-                    <Button variant="outline" size="sm">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete Selected
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">
-                      <Checkbox
-                        checked={selectedItems.length === filteredTutorialSeries.length && filteredTutorialSeries.length > 0}
-                        onCheckedChange={() => handleSelectAll(filteredTutorialSeries)}
-                      />
-                    </TableHead>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Difficulty</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Views</TableHead>
-                    <TableHead>Rating</TableHead>
-                    <TableHead>Updated</TableHead>
-                    <TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTutorialSeries.map((series) => (
-                    <TableRow key={series.id} className="hover:bg-gray-50">
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedItems.includes(series.id)}
-                          onCheckedChange={() => handleSelectItem(series.id)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
-                          <img
-                            src={series.thumbnailUrl}
-                            alt={series.title}
-                            className="w-12 h-8 rounded object-cover"
-                          />
-                          <div>
-                            <div className="font-medium">{series.title}</div>
-                            <div className="text-sm text-gray-500">{series.author}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{series.category}</TableCell>
-                      <TableCell>{getDifficultyBadge(series.difficulty)}</TableCell>
-                      <TableCell>{getStatusBadge(series.status)}</TableCell>
-                      <TableCell>{series.views.toLocaleString()}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center">
-                          <Star className="h-4 w-4 text-yellow-400 mr-1" />
-                          {series.rating.toFixed(1)}
-                        </div>
-                      </TableCell>
-                      <TableCell>{series.updatedDate}</TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handlePreview(series)}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              Preview
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleEdit(series)}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleDelete(series.id)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+        <TabsContent value="tutorials" className="space-y-6">
+          {/* Search and Filters - Separate Section */}
+          <Card className="border-primary/20">
+            <CardContent className="p-6">
+              <SearchFilterBar
+                searchTerm={tutorialSearchTerm}
+                onSearchChange={handleTutorialSearch}
+                searchPlaceholder="Search tutorials..."
+                filterValue={tutorialCategory}
+                onFilterChange={(category) => handleTutorialFilter(category, tutorialStatus)}
+                filterOptions={[
+                  { value: 'all', label: 'All Categories' },
+                  { value: 'general', label: 'General' },
+                  { value: 'advanced', label: 'Advanced' }
+                ]}
+                filterLabel="Category:"
+              />
             </CardContent>
           </Card>
+
+          {/* Tutorial Table */}
+          <DataTable
+            data={tutorialSeries}
+            columns={tutorialColumns}
+            actions={tutorialActions}
+            pagination={{
+              current_page: tutorialPage,
+              total_pages: Math.ceil(tutorialSeries.length / tutorialItemsPerPage),
+              total_count: tutorialSeries.length,
+              per_page: tutorialItemsPerPage
+            }}
+            selectedItems={new Set(Array.from(selectedTutorials).map(id => parseInt(id)))}
+            onItemSelect={(id, checked) => {
+              const stringId = id.toString();
+              setSelectedTutorials(prev => {
+                const newSet = new Set(prev);
+                if (checked) {
+                  newSet.add(stringId);
+                } else {
+                  newSet.delete(stringId);
+                }
+                return newSet;
+              });
+            }}
+            onSelectAll={handleTutorialSelectAll}
+            onPageChange={setTutorialPage}
+            onItemsPerPageChange={(value) => setTutorialItemsPerPage(parseInt(value))}
+            sortBy={tutorialSortBy}
+            sortOrder={tutorialSortOrder}
+            onSort={handleTutorialSort}
+            error={tutorialsError}
+            onRetry={() => refetchTutorials()}
+            emptyStateIcon={<BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />}
+            emptyStateTitle={tutorialSearchTerm || tutorialCategory !== 'all' ? 'No Tutorials Found' : 'No Tutorials Yet'}
+            emptyStateDescription={tutorialSearchTerm || tutorialCategory !== 'all' 
+              ? 'Try adjusting your search or filter criteria.'
+              : 'Get started by creating your first tutorial.'
+            }
+            emptyStateAction={!tutorialSearchTerm && tutorialCategory === 'all' ? (
+              <Button onClick={() => navigate('/admin/content/create-tutorial')} className="bg-primary hover:bg-primary/90">
+                <Plus className="h-4 w-4 mr-2" />
+                Create First Tutorial
+              </Button>
+            ) : undefined}
+            title="Tutorial Series"
+            description={`${tutorialSeries.length} total tutorials`}
+            getItemId={(tutorial) => {
+              console.log('🔍 DEBUG ContentManagement: Tutorial getItemId called with:', tutorial);
+              console.log('🔍 DEBUG ContentManagement: Tutorial ID string:', tutorial.id);
+              const parsedId = parseInt(tutorial.id);
+              console.log('🔍 DEBUG ContentManagement: Tutorial parsed ID:', parsedId);
+              return parsedId;
+            }}
+          />
         </TabsContent>
 
         {/* Quiz Series Tab */}
-        <TabsContent value="quizzes">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>Quiz Series</CardTitle>
-                  <CardDescription>
-                    Manage your quiz series and assessments
-                  </CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  {selectedItems.length > 0 && (
-                    <Button variant="outline" size="sm">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete Selected
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">
-                      <Checkbox
-                        checked={selectedItems.length === filteredQuizSeries.length && filteredQuizSeries.length > 0}
-                        onCheckedChange={() => handleSelectAll(filteredQuizSeries)}
-                      />
-                    </TableHead>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Difficulty</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Questions</TableHead>
-                    <TableHead>Attempts</TableHead>
-                    <TableHead>Avg Score</TableHead>
-                    <TableHead>Updated</TableHead>
-                    <TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredQuizSeries.map((quiz) => (
-                    <TableRow key={quiz.id} className="hover:bg-gray-50">
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedItems.includes(quiz.id)}
-                          onCheckedChange={() => handleSelectItem(quiz.id)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{quiz.title}</div>
-                          <div className="text-sm text-gray-500">{quiz.description}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{quiz.category}</TableCell>
-                      <TableCell>{getDifficultyBadge(quiz.difficulty)}</TableCell>
-                      <TableCell>{getStatusBadge(quiz.status)}</TableCell>
-                      <TableCell>{quiz.totalQuestions}</TableCell>
-                      <TableCell>{quiz.attempts.toLocaleString()}</TableCell>
-                      <TableCell>{quiz.averageScore?.toFixed(1) || 'N/A'}%</TableCell>
-                      <TableCell>{quiz.updatedDate}</TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handlePreview(quiz)}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              Preview
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleEdit(quiz)}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleDelete(quiz.id)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+        <TabsContent value="quizzes" className="space-y-6">
+          {/* Search and Filters - Separate Section */}
+          <Card className="border-primary/20">
+            <CardContent className="p-6">
+              <SearchFilterBar
+                searchTerm={quizSearchTerm}
+                onSearchChange={handleQuizSearch}
+                searchPlaceholder="Search quizzes..."
+                filterValue={quizCategory}
+                onFilterChange={(category) => handleQuizFilter(category, quizStatus)}
+                filterOptions={[
+                  { value: 'all', label: 'All Categories' },
+                  { value: 'general', label: 'General' },
+                  { value: 'advanced', label: 'Advanced' }
+                ]}
+                filterLabel="Category:"
+              />
             </CardContent>
           </Card>
+
+          {/* Quiz Table */}
+          <DataTable
+            data={quizSeries}
+            columns={quizColumns}
+            actions={quizActions}
+            pagination={{
+              current_page: quizPage,
+              total_pages: Math.ceil(quizSeries.length / quizItemsPerPage),
+              total_count: quizSeries.length,
+              per_page: quizItemsPerPage
+            }}
+            selectedItems={new Set(Array.from(selectedQuizzes).map(id => parseInt(id)))}
+            onItemSelect={(id, checked) => {
+              const stringId = id.toString();
+              setSelectedQuizzes(prev => {
+                const newSet = new Set(prev);
+                if (checked) {
+                  newSet.add(stringId);
+                } else {
+                  newSet.delete(stringId);
+                }
+                return newSet;
+              });
+            }}
+            onSelectAll={handleQuizSelectAll}
+            onPageChange={setQuizPage}
+            onItemsPerPageChange={(value) => setQuizItemsPerPage(parseInt(value))}
+            sortBy={quizSortBy}
+            sortOrder={quizSortOrder}
+            onSort={handleQuizSort}
+            error={quizzesError}
+            onRetry={() => refetchQuizzes()}
+            emptyStateIcon={<Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />}
+            emptyStateTitle={quizSearchTerm || quizCategory !== 'all' ? 'No Quizzes Found' : 'No Quizzes Yet'}
+            emptyStateDescription={quizSearchTerm || quizCategory !== 'all' 
+              ? 'Try adjusting your search or filter criteria.'
+              : 'Get started by creating your first quiz.'
+            }
+            emptyStateAction={!quizSearchTerm && quizCategory === 'all' ? (
+              <Button onClick={() => navigate('/admin/content/create-quiz')} className="bg-primary hover:bg-primary/90">
+                <Plus className="h-4 w-4 mr-2" />
+                Create First Quiz
+              </Button>
+            ) : undefined}
+            title="Quiz Series"
+            description={`${quizSeries.length} total quizzes`}
+            getItemId={(quiz) => {
+              console.log('🔍 DEBUG ContentManagement: Quiz getItemId called with:', quiz);
+              console.log('🔍 DEBUG ContentManagement: Quiz ID string:', quiz.id);
+              const parsedId = parseInt(quiz.id);
+              console.log('🔍 DEBUG ContentManagement: Quiz parsed ID:', parsedId);
+              return parsedId;
+            }}
+          />
         </TabsContent>
 
         {/* Categories Tab */}
-        <TabsContent value="categories">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>Categories</CardTitle>
-                  <CardDescription>
-                    Organize your content with categories
-                  </CardDescription>
-                </div>
-                <Button onClick={() => handleEditCategory({ id: '', name: '', description: '', contentCount: 0, status: 'active' })}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Category
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Content Count</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Updated</TableHead>
-                    <TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredCategories.map((category) => (
-                    <TableRow key={category.id} className="hover:bg-gray-50">
-                      <TableCell>
-                        <div className="font-medium">{category.name}</div>
-                      </TableCell>
-                      <TableCell>{category.description}</TableCell>
-                      <TableCell>{category.contentCount}</TableCell>
-                      <TableCell>{getStatusBadge(category.status)}</TableCell>
-                      <TableCell>{new Date().toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEditCategory(category)}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleDelete(category.id)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+        <TabsContent value="categories" className="space-y-6">
+          {/* Search and Filters - Separate Section */}
+          <Card className="border-primary/20">
+            <CardContent className="p-6">
+              <SearchFilterBar
+                searchTerm={categorySearchTerm}
+                onSearchChange={handleCategorySearch}
+                searchPlaceholder="Search categories..."
+                filterValue={categoryStatus}
+                onFilterChange={handleCategoryFilter}
+                filterOptions={[
+                  { value: 'all', label: 'All Status' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'inactive', label: 'Inactive' }
+                ]}
+                filterLabel="Status:"
+              />
             </CardContent>
           </Card>
+
+          {/* Category Table */}
+          <DataTable
+            data={categoryList}
+            columns={categoryColumns}
+            actions={categoryActions}
+            pagination={{
+              current_page: categoryPage,
+              total_pages: Math.ceil(categoryList.length / categoryItemsPerPage),
+              total_count: categoryList.length,
+              per_page: categoryItemsPerPage
+            }}
+            selectedItems={new Set(Array.from(selectedCategories).map(id => parseInt(id)))}
+            onItemSelect={(id, checked) => {
+              const stringId = id.toString();
+              setSelectedCategories(prev => {
+                const newSet = new Set(prev);
+                if (checked) {
+                  newSet.add(stringId);
+                } else {
+                  newSet.delete(stringId);
+                }
+                return newSet;
+              });
+            }}
+            onSelectAll={handleCategorySelectAll}
+            onPageChange={setCategoryPage}
+            onItemsPerPageChange={(value) => setCategoryItemsPerPage(parseInt(value))}
+            sortBy={categorySortBy}
+            sortOrder={categorySortOrder}
+            onSort={handleCategorySort}
+            error={categoriesError}
+            onRetry={() => refetchCategories()}
+            emptyStateIcon={<Tag className="h-12 w-12 text-gray-400 mx-auto mb-4" />}
+            emptyStateTitle={categorySearchTerm || categoryStatus !== 'all' ? 'No Categories Found' : 'No Categories Yet'}
+            emptyStateDescription={categorySearchTerm || categoryStatus !== 'all' 
+              ? 'Try adjusting your search or filter criteria.'
+              : 'Get started by creating your first category.'
+            }
+            emptyStateAction={!categorySearchTerm && categoryStatus === 'all' ? (
+              <Button onClick={() => navigate('/admin/content/create-category')} className="bg-primary hover:bg-primary/90">
+                <Plus className="h-4 w-4 mr-2" />
+                Create First Category
+              </Button>
+            ) : undefined}
+            title="Categories"
+            description={`${categoryList.length} total categories`}
+            getItemId={(category) => {
+              console.log('🔍 DEBUG ContentManagement: Category getItemId called with:', category);
+              console.log('🔍 DEBUG ContentManagement: Category ID string:', category.id);
+              const parsedId = parseInt(category.id);
+              console.log('🔍 DEBUG ContentManagement: Category parsed ID:', parsedId);
+              return parsedId;
+            }}
+          />
         </TabsContent>
       </Tabs>
 
-      {/* Modals */}
-      {isPreviewOpen && previewItem && (
-        <ContentPreviewModal
-          isOpen={isPreviewOpen}
-          onClose={() => setIsPreviewOpen(false)}
-          content={previewItem}
-        />
-      )}
 
-      {isEditCategoryOpen && (
-        <EditCategoryModal
-          isOpen={isEditCategoryOpen}
-          onClose={() => setIsEditCategoryOpen(false)}
-          category={editingCategory}
-          onSave={(category) => {
-            // Handle save
-            setIsEditCategoryOpen(false);
-            setEditingCategory(null);
-          }}
-        />
-      )}
+      {/* Delete Confirmation Modal */}
+      <AlertDialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteType === 'tutorial' ? 'Tutorial' : deleteType === 'quiz' ? 'Quiz' : 'Category'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this {deleteType}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                // TODO: Implement delete logic
+                console.log('Delete', deleteType, deleteId);
+                setIsDeleteModalOpen(false);
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete {deleteType === 'tutorial' ? 'Tutorial' : deleteType === 'quiz' ? 'Quiz' : 'Category'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Multiple Delete Confirmation */}
+      <ConfirmationDialog
+        isOpen={isMultiDeleteModalOpen}
+        onClose={() => setIsMultiDeleteModalOpen(false)}
+        onConfirm={() => {
+          if (multiDeleteType === 'tutorial') handleTutorialBulkDelete();
+          if (multiDeleteType === 'quiz') handleQuizBulkDelete();
+          if (multiDeleteType === 'category') handleCategoryBulkDelete();
+        }}
+        title={`Delete Multiple ${multiDeleteType === 'tutorial' ? 'Tutorials' : multiDeleteType === 'quiz' ? 'Quizzes' : 'Categories'}`}
+        message={`Are you sure you want to delete ${multiDeleteType === 'tutorial' ? selectedTutorials.size : multiDeleteType === 'quiz' ? selectedQuizzes.size : selectedCategories.size} ${multiDeleteType}(s)? This action cannot be undone.`}
+        type="warning"
+        confirmText="Delete All"
+        cancelText="Cancel"
+        isLoading={confirmation.isLoading}
+      />
     </div>
   );
 };

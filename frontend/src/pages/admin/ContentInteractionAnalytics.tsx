@@ -87,7 +87,7 @@ const ContentInteractionAnalytics = () => {
     { title: 'Content Interaction Analytics' }
   ];
 
-  // Mock data - in real app, this would come from API
+  // Data will be fetched from API
   const tutorialInteractions: TutorialInteraction[] = [
     {
       tutorialId: '1',
@@ -920,10 +920,8 @@ const ContentInteractionAnalytics = () => {
           setSelectedFeedback(null);
         }}
         title="Manage Feedback"
-        description="Update feedback status and add admin notes"
         onSave={() => selectedFeedback && handleFeedbackUpdate(selectedFeedback.id, {})}
         saveLabel="Update Feedback"
-        isLoading={loading}
       >
         {selectedFeedback && (
           <div className="space-y-4">

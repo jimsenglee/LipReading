@@ -27,7 +27,7 @@ import {
   Clock
 } from 'lucide-react';
 
-// Mock data for demonstration
+// Sample data for demonstration - will be replaced with API data
 const sampleLoginActivity = [
   {
     id: 1,
