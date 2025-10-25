@@ -144,7 +144,7 @@ class AuthService:
             # determine role
             role = "admin" if user.account_type == "Administrator" else "user"
             
-            return ResponseService.success_response({
+            return jsonify({
                 "message": "Login successful!",
                 "token": token,
                 "user": {
@@ -246,7 +246,7 @@ class AuthService:
                 expires_delta=timedelta(days=7)
             )
             
-            return ResponseService.success_response({
+            return jsonify({
                 "message": "Registration successful! Welcome!",
                 "token": token,
                 "user": {
@@ -268,11 +268,15 @@ class AuthService:
     def get_user_info(user):
         """get user information for authenticated user"""
         try:
-            return ResponseService.success_response({
+            # determine role based on account type
+            role = "admin" if user.account_type == "Administrator" else "user"
+            
+            return jsonify({
                 "id": user.id,
                 "email": user.email,
-                "name": user.email.split("@")[0],
-                "role": "user",
+                "name": user.name,
+                "role": role,
+                "profile_picture": user.profile_image_path,
             })
         except Exception as e:
             current_app.logger.error(f"get user info error: {str(e)}")

@@ -5,32 +5,26 @@ const API_URL = `${API_BASE_URL}/api`;
 
 // API response types
 export interface LoginResponse {
-  success: boolean;
-  data: {
-    message: string;
-    token: string;
-    user: {
-      id: number;
-      email: string;
-      name: string;
-      role: string;
-      profile_picture?: string;
-    };
+  message: string;
+  token: string;
+  user: {
+    id: number;
+    email: string;
+    name: string;
+    role: string;
+    profile_picture?: string;
   };
 }
 
 export interface RegisterResponse {
-  success: boolean;
-  data: {
-    message: string;
-    token: string;
-    user: {
-      id: number;
-      email: string;
-      name: string;
-      role: string;
-      profile_picture?: string;
-    };
+  message: string;
+  token: string;
+  user: {
+    id: number;
+    email: string;
+    name: string;
+    role: string;
+    profile_picture?: string;
   };
 }
 

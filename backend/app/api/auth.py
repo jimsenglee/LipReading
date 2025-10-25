@@ -2,7 +2,7 @@
 Auth API endpoints - Thin layer delegating to services
 Following README.txt separation of concerns
 """
-from flask import request
+from flask import request, jsonify
 from flask_jwt_extended import jwt_required
 import functools
 
@@ -104,3 +104,18 @@ def get_current_user():
         return handle_api_error(e)
     except Exception as e:
         return ResponseService.error_response(f"Failed to get user info: {str(e)}", 500)
+
+
+@auth_bp.route("/logout", methods=["POST"])
+@jwt_required()
+def logout():
+    """logout endpoint for user authentication"""
+    try:
+        # for jwt tokens, logout is handled on frontend by removing token
+        # backend doesn't need to do anything special for jwt logout
+        return jsonify({
+            "success": True,
+            "message": "Logout successful"
+        })
+    except Exception as e:
+        return ResponseService.error_response(f"Failed to logout: {str(e)}", 500)
