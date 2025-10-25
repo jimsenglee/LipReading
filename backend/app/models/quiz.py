@@ -11,9 +11,10 @@ class Quiz(db.Model):
     public_id: so.Mapped[str] = so.mapped_column(sa.String(20), unique=True, index=True)
     category_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey('categories.id'), nullable=False, index=True)
     title: so.Mapped[str] = so.mapped_column(sa.String(255), nullable=False)
+    status: so.Mapped[str] = so.mapped_column(sa.String(20), nullable=False, default='active', index=True)
 
     category: so.Mapped['Category'] = so.relationship(back_populates='quizzes')
-    questions: so.WriteOnlyMapped['QuizQuestion'] = so.relationship(back_populates='quiz', cascade='all, delete-orphan')
+    questions: so.WriteOnlyMapped['QuizQuestion'] = so.relationship(back_populates='quiz', cascade='all, delete-orphan', passive_deletes=True)
 
     def __repr__(self) -> str:
         return f"<Quiz {self.title}>"

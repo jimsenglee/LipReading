@@ -28,7 +28,7 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false })
 
   const handleLogout = () => {
     logoutMutation.mutate();
-    navigate('/');
+    // Don't navigate here - let the mutation handle it
   };
 
   return (

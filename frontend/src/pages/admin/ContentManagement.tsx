@@ -10,37 +10,37 @@ import ConfirmationDialog from '@/components/ui/confirmation-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useConfirmation } from '@/hooks/use-confirmation';
 import { useNavigate } from 'react-router-dom';
-import { 
-  useCategories, 
-  useTutorials, 
+import {
+  useCategories,
+  useTutorials,
   useQuizzes,
-  useDeleteTutorial,
-  useDeleteQuiz,
-  useDeleteCategory,
-  ContentParams 
+  ContentParams
 } from '@/services';
-import { 
-  Plus, 
+import {
+  Plus,
   BookOpen,
   Brain,
   Tag,
   Eye,
   Edit,
   Trash2,
-  Star,
-  Users,
-  Activity,
-  Shield,
-  User,
-  Search,
-  Download
+  FileText
 } from 'lucide-react';
 import DataTable, { Column, Action } from '@/components/admin/DataTable';
 import SearchFilterBar from '@/components/admin/SearchFilterBar';
 import BulkActions from '@/components/admin/BulkActions';
-import ActionDropdown, { ActionItem } from '@/components/admin/ActionDropdown';
+import ActionDropdown from '@/components/admin/ActionDropdown';
 import { StatusBadge, DifficultyBadge } from '@/components/admin/BadgeUtils';
-import { exportToCSV, exportToExcel, exportToPDF, formatDateForExport } from '@/lib/export-utils';
+import { formatDateForExport } from '@/lib/export-utils';
+import { useContentState } from '@/hooks/use-content-state';
+import { useContentOperations } from '@/hooks/use-content-operations';
+import {
+  mapTutorialData,
+  mapQuizData,
+  mapCategoryData,
+  buildContentParams,
+  getTableConfig
+} from '@/lib/content-utils';
 
 // ============================================================================
 // INTERFACES
@@ -102,41 +102,32 @@ const ContentManagement: React.FC = () => {
   const confirmation = useConfirmation();
 
   // ============================================================================
-  // STATE MANAGEMENT (Following UserManagement Pattern)
+  // SHARED STATE MANAGEMENT (DRY PRINCIPLE)
   // ============================================================================
-  
+
   // Active tab state
-  const [activeTab, setActiveTab] = useState<'tutorials' | 'quizzes' | 'categories'>('tutorials');
-  
-  // Tutorial state
-  const [tutorialSearchTerm, setTutorialSearchTerm] = useState('');
-  const [tutorialCategory, setTutorialCategory] = useState('all');
-  const [tutorialStatus, setTutorialStatus] = useState<'all' | 'active' | 'inactive'>('all');
-  const [tutorialSortBy, setTutorialSortBy] = useState<'title' | 'category' | 'created_at' | 'updated_at'>('title');
-  const [tutorialSortOrder, setTutorialSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [tutorialPage, setTutorialPage] = useState(1);
-  const [tutorialItemsPerPage, setTutorialItemsPerPage] = useState(10);
-  const [selectedTutorials, setSelectedTutorials] = useState<Set<string>>(new Set());
-  
-  // Quiz state
-  const [quizSearchTerm, setQuizSearchTerm] = useState('');
-  const [quizCategory, setQuizCategory] = useState('all');
-  const [quizStatus, setQuizStatus] = useState<'all' | 'active' | 'inactive'>('all');
-  const [quizSortBy, setQuizSortBy] = useState<'title' | 'category' | 'created_at' | 'updated_at'>('title');
-  const [quizSortOrder, setQuizSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [quizPage, setQuizPage] = useState(1);
-  const [quizItemsPerPage, setQuizItemsPerPage] = useState(10);
-  const [selectedQuizzes, setSelectedQuizzes] = useState<Set<string>>(new Set());
-  
-  // Category state
-  const [categorySearchTerm, setCategorySearchTerm] = useState('');
-  const [categoryStatus, setCategoryStatus] = useState<'all' | 'active' | 'inactive'>('all');
-  const [categorySortBy, setCategorySortBy] = useState<'title' | 'category' | 'created_at' | 'updated_at'>('title');
-  const [categorySortOrder, setCategorySortOrder] = useState<'asc' | 'desc'>('asc');
-  const [categoryPage, setCategoryPage] = useState(1);
-  const [categoryItemsPerPage, setCategoryItemsPerPage] = useState(10);
-  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
-  
+  const [activeTab, setActiveTab] = useState<'tutorials' | 'quizzes' | 'categories' | 'drafts'>('tutorials');
+
+  // Shared state for all content types with default sorting by ID
+  const [tutorialState, tutorialStateActions] = useContentState({
+    sortBy: 'id',
+    sortOrder: 'asc',
+    itemsPerPage: 10
+  });
+  const [quizState, quizStateActions] = useContentState({
+    sortBy: 'id',
+    sortOrder: 'asc',
+    itemsPerPage: 10
+  });
+  const [categoryState, categoryStateActions] = useContentState({
+    sortBy: 'id',
+    sortOrder: 'asc',
+    itemsPerPage: 10
+  });
+
+  // Shared operations
+  const contentOperations = useContentOperations();
+
   // Modal states
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteType, setDeleteType] = useState<'tutorial' | 'quiz' | 'category'>('tutorial');
@@ -144,492 +135,266 @@ const ContentManagement: React.FC = () => {
   const [isMultiDeleteModalOpen, setIsMultiDeleteModalOpen] = useState(false);
   const [multiDeleteType, setMultiDeleteType] = useState<'tutorial' | 'quiz' | 'category'>('tutorial');
 
-  // ============================================================================
-  // API QUERIES (Following UserManagement Pattern)
-  // ============================================================================
-  
-  // Tutorial query parameters
-  const tutorialParams: ContentParams = {
-    page: tutorialPage,
-    per_page: tutorialItemsPerPage,
-    search: tutorialSearchTerm || undefined,
-    category: tutorialCategory !== 'all' ? tutorialCategory : undefined,
-    status: tutorialStatus !== 'all' ? tutorialStatus : undefined,
-    sort_by: tutorialSortBy,
-    sort_order: tutorialSortOrder
-  };
+  // Preview modal states
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewItem, setPreviewItem] = useState<TutorialSeries | QuizSeries | Category | null>(null);
+  const [previewType, setPreviewType] = useState<'tutorial' | 'quiz' | 'category'>('tutorial');
 
-  // Quiz query parameters
-  const quizParams: ContentParams = {
-    page: quizPage,
-    per_page: quizItemsPerPage,
-    search: quizSearchTerm || undefined,
-    category: quizCategory !== 'all' ? quizCategory : undefined,
-    status: quizStatus !== 'all' ? quizStatus : undefined,
-    sort_by: quizSortBy,
-    sort_order: quizSortOrder
-  };
+  // Draft state
+  const [draftSearchValue, setDraftSearchValue] = useState('');
+  const [draftSortField, setDraftSortField] = useState<string>('created_at');
+  const [draftSortOrder, setDraftSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [draftPage, setDraftPage] = useState(1);
+  const [draftPerPage, setDraftPerPage] = useState(10);
+  const [selectedDraftItems, setSelectedDraftItems] = useState<Set<number>>(new Set());
 
-  // Category query parameters
-  const categoryParams: ContentParams = {
-    page: categoryPage,
-    per_page: categoryItemsPerPage,
-    search: categorySearchTerm || undefined,
-    status: categoryStatus !== 'all' ? categoryStatus : undefined,
-    sort_by: categorySortBy,
-    sort_order: categorySortOrder
-  };
+  // ============================================================================
+  // API QUERIES (Using Shared Utilities)
+  // ============================================================================
+
+  // Build query parameters using shared utility
+  const tutorialParams: ContentParams = buildContentParams(
+    tutorialState.currentPage,
+    tutorialState.itemsPerPage,
+    tutorialState.searchTerm,
+    tutorialState.category,
+    'published', // Only show published tutorials, not drafts
+    tutorialState.sortBy,
+    tutorialState.sortOrder
+  );
+
+  const quizParams: ContentParams = buildContentParams(
+    quizState.currentPage,
+    quizState.itemsPerPage,
+    quizState.searchTerm,
+    quizState.category,
+    quizState.status,
+    quizState.sortBy,
+    quizState.sortOrder
+  );
+
+  const categoryParams: ContentParams = buildContentParams(
+    categoryState.currentPage,
+    categoryState.itemsPerPage,
+    categoryState.searchTerm,
+    'all', // Categories don't have category filter
+    categoryState.status,
+    categoryState.sortBy,
+    categoryState.sortOrder
+  );
 
   // API queries
   const { data: tutorialsResponse, error: tutorialsError, refetch: refetchTutorials } = useTutorials(tutorialParams);
   const { data: quizzesResponse, error: quizzesError, refetch: refetchQuizzes } = useQuizzes(quizParams);
-  const { data: categoriesResponse, error: categoriesError, refetch: refetchCategories } = useCategories();
-  
-  // Mutations
-  const deleteTutorialMutation = useDeleteTutorial();
-  const deleteQuizMutation = useDeleteQuiz();
-  const deleteCategoryMutation = useDeleteCategory();
+  const { data: categoriesResponse, error: categoriesError, refetch: refetchCategories } = useCategories(categoryParams);
 
   // ============================================================================
-  // DATA MAPPING (Fix API Response Structure)
+  // DATA MAPPING (Using Shared Utilities)
   // ============================================================================
-  
-  // Map API data to local interfaces
-  const tutorialData = Array.isArray(tutorialsResponse?.data) ? tutorialsResponse.data : [];
-  console.log('🔍 DEBUG ContentManagement: Tutorial API Response:', tutorialsResponse);
-  console.log('🔍 DEBUG ContentManagement: Tutorial Data Array:', tutorialData);
-  console.log('🔍 DEBUG ContentManagement: Tutorial Data Length:', tutorialData.length);
-  
+
+  // Map API data using shared utilities
+  const tutorialData = Array.isArray(tutorialsResponse?.tutorials) ? tutorialsResponse.tutorials : (Array.isArray(tutorialsResponse?.data) ? tutorialsResponse.data : (Array.isArray(tutorialsResponse) ? tutorialsResponse : []));
   const tutorialSeries: TutorialSeries[] = tutorialData.map((tutorial, index) => {
-    console.log(`🔍 DEBUG ContentManagement: Tutorial ${index}:`, tutorial);
-    const tutorialId = tutorial.id?.toString() || `tutorial-${index}`;
-    console.log(`🔍 DEBUG ContentManagement: Tutorial ${index} ID:`, tutorialId);
+    const mapped = mapTutorialData(tutorial, index);
     return {
-      id: tutorialId,
-      title: tutorial.title || 'Untitled Tutorial',
-      description: tutorial.description || '',
-      category: 'General', // TODO: Get from category relationship
-      difficulty: 'beginner', // TODO: Get from API
-      totalVideos: 1, // TODO: Get from API
-      totalDuration: '10:00', // TODO: Get from API
-      estimatedTime: '10 minutes', // TODO: Get from API
-      status: 'published' as const, // TODO: Get from API
-      createdDate: new Date().toISOString().split('T')[0], // TODO: Get from API
-      updatedDate: new Date().toISOString().split('T')[0], // TODO: Get from API
-      views: 0, // TODO: Get from API
-      completions: 0, // TODO: Get from API
-      rating: 0, // TODO: Get from API
-      thumbnailUrl: 'https://via.placeholder.com/300x200', // TODO: Get from API
-      author: 'System' // TODO: Get from API
+      ...mapped,
+      difficulty: tutorial.difficulty || 'beginner',
+      totalVideos: tutorial.video_data ? JSON.parse(tutorial.video_data).length : 1,
+      totalDuration: tutorial.video_data ? `${JSON.parse(tutorial.video_data).length * 10}:00` : '10:00',
+      estimatedTime: `${tutorial.video_data ? JSON.parse(tutorial.video_data).length * 10 : 10} minutes`,
+      status: tutorial.status || 'published',
+      updatedDate: tutorial.updated_at ? new Date(tutorial.updated_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      views: tutorial.views || 0,
+      completions: 0, // This field doesn't exist in database yet
+      rating: tutorial.rating || 0,
+      thumbnailUrl: tutorial.thumbnail_path || 'https://via.placeholder.com/300x200',
+      author: tutorial.author || 'System'
     };
   });
-  
-  console.log('🔍 DEBUG ContentManagement: Final Tutorial Series:', tutorialSeries);
 
-  const quizData = Array.isArray(quizzesResponse?.data) ? quizzesResponse.data : [];
-  console.log('🔍 DEBUG ContentManagement: Quiz API Response:', quizzesResponse);
-  console.log('🔍 DEBUG ContentManagement: Quiz Data Array:', quizData);
-  console.log('🔍 DEBUG ContentManagement: Quiz Data Length:', quizData.length);
-  
+  const quizData = Array.isArray(quizzesResponse) ? quizzesResponse : (Array.isArray(quizzesResponse?.data) ? quizzesResponse.data : []);
   const quizSeries: QuizSeries[] = quizData.map((quiz, index) => {
-    console.log(`🔍 DEBUG ContentManagement: Quiz ${index}:`, quiz);
-    const quizId = quiz.id?.toString() || `quiz-${index}`;
-    console.log(`🔍 DEBUG ContentManagement: Quiz ${index} ID:`, quizId);
+    const mapped = mapQuizData(quiz, index);
     return {
-      id: quizId,
-      title: quiz.title || 'Untitled Quiz',
-      description: '', // TODO: Get from API
-      category: 'General', // TODO: Get from category relationship
-      difficulty: 'beginner', // TODO: Get from API
-      totalQuestions: 5, // TODO: Get from API
-      estimatedTime: '15 minutes', // TODO: Get from API
-      status: 'published' as const, // TODO: Get from API
-      createdDate: new Date().toISOString().split('T')[0], // TODO: Get from API
-      updatedDate: new Date().toISOString().split('T')[0], // TODO: Get from API
-      attempts: 0, // TODO: Get from API
-      averageScore: 0, // TODO: Get from API
-      passingScore: 70, // TODO: Get from API
-      timeLimit: 15, // TODO: Get from API
-      thumbnailUrl: 'https://via.placeholder.com/300x200', // TODO: Get from API
-      author: 'System' // TODO: Get from API
+      ...mapped,
+      difficulty: 'beginner' as const,
+      totalQuestions: 5,
+      estimatedTime: '15 minutes',
+      status: 'published' as const,
+      updatedDate: new Date().toISOString().split('T')[0],
+      attempts: 0,
+      averageScore: 0,
+      passingScore: 70,
+      timeLimit: 15,
+      thumbnailUrl: 'https://via.placeholder.com/300x200',
+      author: 'System'
     };
   });
-  
-  console.log('🔍 DEBUG ContentManagement: Final Quiz Series:', quizSeries);
 
-  const categoryData = Array.isArray(categoriesResponse) ? categoriesResponse : [];
-  console.log('🔍 DEBUG ContentManagement: Category API Response:', categoriesResponse);
-  console.log('🔍 DEBUG ContentManagement: Category Data Array:', categoryData);
-  console.log('🔍 DEBUG ContentManagement: Category Data Length:', categoryData.length);
-  
+  const categoryData = Array.isArray(categoriesResponse) ? categoriesResponse : (Array.isArray(categoriesResponse?.data) ? categoriesResponse.data : []);
   const categoryList: Category[] = categoryData.map((category, index) => {
-    console.log(`🔍 DEBUG ContentManagement: Category ${index}:`, category);
-    const categoryId = category.id?.toString() || `category-${index}`;
-    console.log(`🔍 DEBUG ContentManagement: Category ${index} ID:`, categoryId);
+    const mapped = mapCategoryData(category, index);
     return {
-      id: categoryId,
-      name: category.name || 'Untitled Category',
-      description: '', // TODO: Get from API
-      contentCount: 0, // TODO: Get from API
-      status: 'active' as const // TODO: Get from API
+      id: mapped.id,
+      name: mapped.title,
+      description: mapped.description,
+      contentCount: 0,
+      status: mapped.status as 'active' | 'inactive'
     };
   });
-  
-  console.log('🔍 DEBUG ContentManagement: Final Category List:', categoryList);
 
   // ============================================================================
-  // EVENT HANDLERS (Following UserManagement Pattern)
+  // SHARED EVENT HANDLERS (DRY PRINCIPLE)
   // ============================================================================
-  
-  // Tutorial handlers
-  const handleTutorialSearch = (value: string) => {
-    setTutorialSearchTerm(value);
-  };
 
-  const handleTutorialFilter = (category: string, status: string) => {
-    setTutorialCategory(category);
-    setTutorialStatus(status as any);
-  };
+  // Tutorial handlers using shared state
+  const handleTutorialSearch = (value: string) => tutorialStateActions.handleSearch(value);
+  const handleTutorialFilter = (category: string, status: string) => tutorialStateActions.handleFilter(category, status);
+  const handleTutorialSort = (field: 'title' | 'category' | 'created_at' | 'updated_at') => tutorialStateActions.handleSort(field);
+  const handleTutorialSelect = (tutorialId: string, checked: boolean) => tutorialStateActions.handleItemSelect(tutorialId, checked);
+  const handleTutorialSelectAll = (checked: boolean) => tutorialStateActions.handleSelectAll(checked, tutorialSeries.map(t => t.id));
 
-  const handleTutorialSort = (field: 'title' | 'category' | 'created_at' | 'updated_at') => {
-    if (tutorialSortBy === field) {
-      setTutorialSortOrder(tutorialSortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setTutorialSortBy(field);
-      setTutorialSortOrder('asc');
-    }
-  };
+  // Quiz handlers using shared state
+  const handleQuizSearch = (value: string) => quizStateActions.handleSearch(value);
+  const handleQuizFilter = (category: string, status: string) => quizStateActions.handleFilter(category, status);
+  const handleQuizSort = (field: 'title' | 'category' | 'created_at' | 'updated_at') => quizStateActions.handleSort(field);
+  const handleQuizSelect = (quizId: string, checked: boolean) => quizStateActions.handleItemSelect(quizId, checked);
+  const handleQuizSelectAll = (checked: boolean) => quizStateActions.handleSelectAll(checked, quizSeries.map(q => q.id));
 
-  // Quiz handlers
-  const handleQuizSearch = (value: string) => {
-    setQuizSearchTerm(value);
-  };
-
-  const handleQuizFilter = (category: string, status: string) => {
-    setQuizCategory(category);
-    setQuizStatus(status as any);
-  };
-
-  const handleQuizSort = (field: 'title' | 'category' | 'created_at' | 'updated_at') => {
-    if (quizSortBy === field) {
-      setQuizSortOrder(quizSortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setQuizSortBy(field);
-      setQuizSortOrder('asc');
-    }
-  };
-
-  // Category handlers
-  const handleCategorySearch = (value: string) => {
-    setCategorySearchTerm(value);
-  };
-
-  const handleCategoryFilter = (status: string) => {
-    setCategoryStatus(status as any);
-  };
-
-  const handleCategorySort = (field: 'title' | 'category' | 'created_at' | 'updated_at') => {
-    if (categorySortBy === field) {
-      setCategorySortOrder(categorySortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setCategorySortBy(field);
-      setCategorySortOrder('asc');
-    }
-  };
+  // Category handlers using shared state
+  const handleCategorySearch = (value: string) => categoryStateActions.handleSearch(value);
+  const handleCategoryFilter = (status: string) => categoryStateActions.handleFilter('all', status);
+  const handleCategorySort = (field: 'title' | 'category' | 'created_at' | 'updated_at') => categoryStateActions.handleSort(field);
+  const handleCategorySelect = (categoryId: string, checked: boolean) => categoryStateActions.handleItemSelect(categoryId, checked);
+  const handleCategorySelectAll = (checked: boolean) => categoryStateActions.handleSelectAll(checked, categoryList.map(c => c.id));
 
   // ============================================================================
-  // SELECTION HANDLERS
+  // SHARED EXPORT HANDLERS (DRY PRINCIPLE)
   // ============================================================================
-  
-  const handleTutorialSelect = (tutorialId: string, checked: boolean) => {
-    const newSelected = new Set(selectedTutorials);
-    if (checked) {
-      newSelected.add(tutorialId);
-    } else {
-      newSelected.delete(tutorialId);
-    }
-    setSelectedTutorials(newSelected);
-  };
 
-  const handleTutorialSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedTutorials(new Set(tutorialSeries.map(tutorial => tutorial.id)));
-    } else {
-      setSelectedTutorials(new Set());
-    }
-  };
-
-  const handleQuizSelect = (quizId: string, checked: boolean) => {
-    const newSelected = new Set(selectedQuizzes);
-    if (checked) {
-      newSelected.add(quizId);
-    } else {
-      newSelected.delete(quizId);
-    }
-    setSelectedQuizzes(newSelected);
-  };
-
-  const handleQuizSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedQuizzes(new Set(quizSeries.map(quiz => quiz.id)));
-    } else {
-      setSelectedQuizzes(new Set());
-    }
-  };
-
-  const handleCategorySelect = (categoryId: string, checked: boolean) => {
-    const newSelected = new Set(selectedCategories);
-    if (checked) {
-      newSelected.add(categoryId);
-    } else {
-      newSelected.delete(categoryId);
-    }
-    setSelectedCategories(newSelected);
-  };
-
-  const handleCategorySelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedCategories(new Set(categoryList.map(category => category.id)));
-    } else {
-      setSelectedCategories(new Set());
-    }
-  };
-
-  // ============================================================================
-  // EXPORT HANDLERS
-  // ============================================================================
-  
   const handleTutorialExport = () => {
-    if (tutorialSeries.length === 0) {
-      toast({
-        title: "No Data to Export",
-        description: "There are no tutorials to export.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const headers = ['Title', 'Description', 'Category', 'Difficulty', 'Status', 'Created'];
-    const data = tutorialSeries.map(tutorial => [
-      tutorial.title,
-      tutorial.description,
-      tutorial.category,
-      tutorial.difficulty,
-      tutorial.status,
-      tutorial.createdDate
-    ]);
-
-    const exportData = { headers, data, filename: 'tutorials' };
-    exportToCSV(exportData);
-    
-    toast({
-      title: "Export Successful",
-      description: "Tutorials data has been exported to CSV.",
-    });
+    const exportData = tutorialSeries.map(tutorial => ({
+      id: tutorial.id,
+      title: tutorial.title,
+      description: tutorial.description,
+      category: tutorial.category,
+      status: tutorial.status,
+      createdDate: tutorial.createdDate
+    }));
+    contentOperations.handleExport(exportData, 'tutorials');
   };
 
   const handleQuizExport = () => {
-    if (quizSeries.length === 0) {
-      toast({
-        title: "No Data to Export",
-        description: "There are no quizzes to export.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const headers = ['Title', 'Description', 'Category', 'Difficulty', 'Status', 'Created'];
-    const data = quizSeries.map(quiz => [
-      quiz.title,
-      quiz.description,
-      quiz.category,
-      quiz.difficulty,
-      quiz.status,
-      quiz.createdDate
-    ]);
-
-    const exportData = { headers, data, filename: 'quizzes' };
-    exportToCSV(exportData);
-    
-    toast({
-      title: "Export Successful",
-      description: "Quizzes data has been exported to CSV.",
-    });
+    const exportData = quizSeries.map(quiz => ({
+      id: quiz.id,
+      title: quiz.title,
+      description: quiz.description,
+      category: quiz.category,
+      status: quiz.status,
+      createdDate: quiz.createdDate
+    }));
+    contentOperations.handleExport(exportData, 'quizzes');
   };
 
   const handleCategoryExport = () => {
-    if (categoryList.length === 0) {
-      toast({
-        title: "No Data to Export",
-        description: "There are no categories to export.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const headers = ['Name', 'Description', 'Content Count', 'Status'];
-    const data = categoryList.map(category => [
-      category.name,
-      category.description,
-      category.contentCount,
-      category.status
-    ]);
-
-    const exportData = { headers, data, filename: 'categories' };
-    exportToCSV(exportData);
-    
-    toast({
-      title: "Export Successful",
-      description: "Categories data has been exported to CSV.",
-    });
+    const exportData = categoryList.map(category => ({
+      id: category.id,
+      title: category.name,
+      description: category.description,
+      category: 'General',
+      status: category.status,
+      createdDate: new Date().toISOString().split('T')[0]
+    }));
+    contentOperations.handleExport(exportData, 'categories');
   };
 
   // ============================================================================
-  // DELETE HANDLERS
+  // SHARED DELETE HANDLERS (DRY PRINCIPLE)
   // ============================================================================
-  
+
   const handleTutorialBulkDelete = async () => {
-    if (selectedTutorials.size === 0) {
-      toast({
-        title: "No Tutorials Selected",
-        description: "Please select tutorials to delete.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const confirmed = await confirmation.confirm({
-      title: "Delete Multiple Tutorials",
-      message: `Are you sure you want to delete ${selectedTutorials.size} tutorial(s)? This action cannot be undone.`,
-      type: "warning",
-      confirmText: "Delete All",
-      cancelText: "Cancel"
-    });
-
-    if (!confirmed) return;
-
-    try {
-      confirmation.setLoading(true);
-      
-      for (const tutorialId of selectedTutorials) {
-        await deleteTutorialMutation.mutateAsync(parseInt(tutorialId));
+    await contentOperations.handleBulkDelete(
+      tutorialState.selectedItems,
+      'tutorial',
+      () => {
+        tutorialStateActions.resetSelection();
+        refetchTutorials();
       }
-      
-      setSelectedTutorials(new Set());
-      
-      toast({
-        title: "Tutorials Deleted",
-        description: `${selectedTutorials.size} tutorial(s) have been deleted successfully.`,
-      });
-      
-      refetchTutorials();
-    } catch (error) {
-      toast({
-        title: "Delete Failed",
-        description: "Some tutorials could not be deleted. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      confirmation.setLoading(false);
-    }
+    );
   };
 
   const handleQuizBulkDelete = async () => {
-    if (selectedQuizzes.size === 0) {
-      toast({
-        title: "No Quizzes Selected",
-        description: "Please select quizzes to delete.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const confirmed = await confirmation.confirm({
-      title: "Delete Multiple Quizzes",
-      message: `Are you sure you want to delete ${selectedQuizzes.size} quiz(es)? This action cannot be undone.`,
-      type: "warning",
-      confirmText: "Delete All",
-      cancelText: "Cancel"
-    });
-
-    if (!confirmed) return;
-
-    try {
-      confirmation.setLoading(true);
-      
-      for (const quizId of selectedQuizzes) {
-        await deleteQuizMutation.mutateAsync(parseInt(quizId));
+    await contentOperations.handleBulkDelete(
+      quizState.selectedItems,
+      'quiz',
+      () => {
+        quizStateActions.resetSelection();
+        refetchQuizzes();
       }
-      
-      setSelectedQuizzes(new Set());
-      
-      toast({
-        title: "Quizzes Deleted",
-        description: `${selectedQuizzes.size} quiz(es) have been deleted successfully.`,
-      });
-      
-      refetchQuizzes();
-    } catch (error) {
-      toast({
-        title: "Delete Failed",
-        description: "Some quizzes could not be deleted. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      confirmation.setLoading(false);
-    }
+    );
   };
 
   const handleCategoryBulkDelete = async () => {
-    if (selectedCategories.size === 0) {
-      toast({
-        title: "No Categories Selected",
-        description: "Please select categories to delete.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const confirmed = await confirmation.confirm({
-      title: "Delete Multiple Categories",
-      message: `Are you sure you want to delete ${selectedCategories.size} categor(ies)? This action cannot be undone.`,
-      type: "warning",
-      confirmText: "Delete All",
-      cancelText: "Cancel"
-    });
-
-    if (!confirmed) return;
-
-    try {
-      confirmation.setLoading(true);
-      
-      for (const categoryId of selectedCategories) {
-        await deleteCategoryMutation.mutateAsync(parseInt(categoryId));
+    await contentOperations.handleBulkDelete(
+      categoryState.selectedItems,
+      'category',
+      () => {
+        categoryStateActions.resetSelection();
+        refetchCategories();
       }
-      
-      setSelectedCategories(new Set());
-      
-      toast({
-        title: "Categories Deleted",
-        description: `${selectedCategories.size} categor(ies) have been deleted successfully.`,
+    );
+  };
+
+  // Draft handlers
+  const handleDraftPageChange = (page: number) => setDraftPage(page);
+  const handleDraftPerPageChange = (perPage: number) => {
+    setDraftPerPage(perPage);
+    setDraftPage(1);
+  };
+  const handleDraftSort = (field: string) => {
+    if (draftSortField === field) {
+      setDraftSortOrder(draftSortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setDraftSortField(field);
+      setDraftSortOrder('asc');
+    }
+    setDraftPage(1);
+  };
+  const handleDraftItemSelect = (itemId: number | string, checked: boolean) => {
+    const newSelected = new Set(selectedDraftItems);
+    const id = typeof itemId === 'number' ? itemId : parseInt(itemId);
+    if (checked) {
+      newSelected.add(id);
+    } else {
+      newSelected.delete(id);
+    }
+    setSelectedDraftItems(newSelected);
+  };
+  const handleDraftSelectAll = (checked: boolean) => {
+    if (checked && draftsResponse?.data) {
+      setSelectedDraftItems(new Set(draftsResponse.data.map((item: any) => parseInt(item.id))));
+    } else {
+      setSelectedDraftItems(new Set());
+    }
+  };
+  const handleDraftSearch = () => {
+    setDraftPage(1);
+    refetchDrafts();
+  };
+  const handleDraftBulkAction = (action: string) => {
+    if (action === 'delete') {
+      const selectedIds = new Set(Array.from(selectedDraftItems).map(id => id.toString()));
+      contentOperations.handleBulkDelete(selectedIds, 'tutorial', () => {
+        setSelectedDraftItems(new Set());
+        refetchDrafts();
       });
-      
-      refetchCategories();
-    } catch (error) {
-      toast({
-        title: "Delete Failed",
-        description: "Some categories could not be deleted. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      confirmation.setLoading(false);
     }
   };
 
   // ============================================================================
   // TABLE COLUMNS (Following UserManagement Pattern)
   // ============================================================================
-  
+
   const tutorialColumns: Column<TutorialSeries>[] = [
     {
       key: 'title',
@@ -744,18 +509,67 @@ const ContentManagement: React.FC = () => {
     }
   ];
 
+  // Draft columns
+  const draftColumns: Column<any>[] = [
+    {
+      key: 'title',
+      label: 'Title',
+      sortable: true,
+      render: (draft: any) => (
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-primary/10 rounded flex items-center justify-center">
+            <BookOpen className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <div className="font-medium text-gray-900">{draft.title || 'Untitled Tutorial'}</div>
+            <div className="text-sm text-gray-500">{draft.description || 'No description'}</div>
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'category',
+      label: 'Category',
+      sortable: true,
+      render: (draft: any) => draft.category?.category_name || 'Not selected'
+    },
+    {
+      key: 'difficulty',
+      label: 'Difficulty',
+      sortable: true,
+      render: (draft: any) => (
+        <Badge variant={draft.difficulty === 'beginner' ? 'default' : draft.difficulty === 'intermediate' ? 'secondary' : 'destructive'}>
+          {draft.difficulty || 'Not set'}
+        </Badge>
+      )
+    },
+    {
+      key: 'videos',
+      label: 'Videos',
+      render: (draft: any) => draft.videos?.length || 0
+    },
+    {
+      key: 'created_at',
+      label: 'Created',
+      sortable: true,
+      render: (draft: any) => new Date(draft.created_at).toLocaleDateString()
+    }
+  ];
+
   // ============================================================================
   // TABLE ACTIONS
   // ============================================================================
-  
+
   const tutorialActions: Action<TutorialSeries>[] = [
     {
       key: 'view',
       label: 'View',
       icon: <Eye className="h-4 w-4" />,
       onClick: (tutorial) => {
-        // TODO: Implement view tutorial
-        console.log('View tutorial:', tutorial.id);
+        // Show preview modal
+        setPreviewItem(tutorial);
+        setPreviewType('tutorial');
+        setIsPreviewModalOpen(true);
       }
     },
     {
@@ -763,8 +577,10 @@ const ContentManagement: React.FC = () => {
       label: 'Edit',
       icon: <Edit className="h-4 w-4" />,
       onClick: (tutorial) => {
-        // TODO: Implement edit tutorial
-        console.log('Edit tutorial:', tutorial.id);
+        // Navigate to tutorial creation wizard with edit mode
+        navigate('/admin/content/create-tutorial', {
+          state: { editMode: true, tutorialId: tutorial.id }
+        });
       }
     },
     {
@@ -787,8 +603,8 @@ const ContentManagement: React.FC = () => {
       label: 'View',
       icon: <Eye className="h-4 w-4" />,
       onClick: (quiz) => {
-        // TODO: Implement view quiz
-        console.log('View quiz:', quiz.id);
+        // Navigate to quiz detail page
+        navigate(`/admin/content/quizzes/${quiz.id}`);
       }
     },
     {
@@ -796,8 +612,10 @@ const ContentManagement: React.FC = () => {
       label: 'Edit',
       icon: <Edit className="h-4 w-4" />,
       onClick: (quiz) => {
-        // TODO: Implement edit quiz
-        console.log('Edit quiz:', quiz.id);
+        // Navigate to quiz creation wizard with edit mode
+        navigate('/admin/content/create-quiz', {
+          state: { editMode: true, quizId: quiz.id }
+        });
       }
     },
     {
@@ -820,8 +638,10 @@ const ContentManagement: React.FC = () => {
       label: 'Edit',
       icon: <Edit className="h-4 w-4" />,
       onClick: (category) => {
-        // TODO: Implement edit category
-        console.log('Edit category:', category.id);
+        // Navigate to category creation wizard with edit mode
+        navigate('/admin/content/create-category', {
+          state: { editMode: true, categoryId: category.id }
+        });
       }
     },
     {
@@ -838,10 +658,100 @@ const ContentManagement: React.FC = () => {
     }
   ];
 
+  // Draft actions
+  const draftActions: Action<any>[] = [
+    {
+      key: 'edit',
+      label: 'Continue Editing',
+      icon: <Edit className="h-4 w-4" />,
+      onClick: (draft: any) => continueDraft(draft),
+      className: 'text-primary hover:text-primary/80'
+    },
+    {
+      key: 'delete',
+      label: 'Delete Draft',
+      icon: <Trash2 className="h-4 w-4" />,
+      onClick: (draft: any) => {
+        setDeleteType('tutorial');
+        setDeleteId(draft.id);
+        setIsDeleteModalOpen(true);
+      },
+      variant: 'ghost',
+      className: 'text-red-600 hover:text-red-700 hover:bg-red-50'
+    }
+  ];
+
+  const draftBulkActions = [
+    {
+      key: 'delete',
+      label: 'Delete Selected',
+      icon: <Trash2 className="h-4 w-4" />,
+      variant: 'destructive' as const,
+      onClick: () => handleDraftBulkAction('delete')
+    }
+  ];
+
+  // ============================================================================
+  // DRAFTS MANAGEMENT
+  // ============================================================================
+
+  // Fetch drafts from server - only get draft status records
+  const { data: draftsResponse, refetch: refetchDrafts, isLoading: isDraftsLoading, error: draftsError } = useTutorials({
+    status: 'draft' as any, // Only fetch draft status records
+    per_page: draftPerPage,
+    page: draftPage
+  });
+
+  const getDraftsCount = () => {
+    return draftsResponse?.data?.length || 0;
+  };
+
+  const getTutorialDrafts = () => {
+    return draftsResponse?.data || [];
+  };
+
+  const getQuizDrafts = () => {
+    return []; // No quiz drafts for now
+  };
+
+  const getCategoryDrafts = () => {
+    return []; // No category drafts for now
+  };
+
+  const deleteDraft = async (draftId: string) => {
+    try {
+      const apiClient = (await import('@/lib/api')).default;
+      const result = await apiClient.deleteTutorial(parseInt(draftId));
+
+      if (result.success) {
+        toast({
+          title: "Draft Deleted",
+          description: "The draft has been permanently deleted."
+        });
+        refetchDrafts();
+      } else {
+        throw new Error(result.message || 'Failed to delete draft');
+      }
+    } catch (error) {
+      toast({
+        title: "Delete Failed",
+        description: "Failed to delete the draft. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const continueDraft = (draft: any) => {
+    // Navigate to tutorial creation with draft data
+    navigate('/admin/content/create-tutorial', {
+      state: { editMode: true, tutorialId: draft.id }
+    });
+  };
+
   // ============================================================================
   // BREADCRUMB
   // ============================================================================
-  
+
   const breadcrumbItems = [
     { title: 'Admin Dashboard', href: '/admin' },
     { title: 'Content Management', href: '/admin/content' }
@@ -850,11 +760,11 @@ const ContentManagement: React.FC = () => {
   // ============================================================================
   // RENDER
   // ============================================================================
-  
+
   return (
     <div className="space-y-6">
       <AnimatedBreadcrumb items={breadcrumbItems} />
-      
+
       {/* Header - Following UserManagement Pattern */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
@@ -865,12 +775,12 @@ const ContentManagement: React.FC = () => {
             Manage tutorials, quizzes, and educational content
           </p>
         </div>
-        
+
         <div className="flex flex-col sm:flex-row gap-3">
-          {/* Bulk Actions - Following UserManagement Pattern */}
+          {/* Bulk Actions - Using Shared State */}
           {activeTab === 'tutorials' && (
             <BulkActions
-              selectedCount={selectedTutorials.size}
+              selectedCount={tutorialState.selectedItems.size}
               onBulkDelete={() => {
                 setMultiDeleteType('tutorial');
                 setIsMultiDeleteModalOpen(true);
@@ -880,10 +790,10 @@ const ContentManagement: React.FC = () => {
               exportLabel="Export"
             />
           )}
-          
+
           {activeTab === 'quizzes' && (
             <BulkActions
-              selectedCount={selectedQuizzes.size}
+              selectedCount={quizState.selectedItems.size}
               onBulkDelete={() => {
                 setMultiDeleteType('quiz');
                 setIsMultiDeleteModalOpen(true);
@@ -893,10 +803,10 @@ const ContentManagement: React.FC = () => {
               exportLabel="Export"
             />
           )}
-          
+
           {activeTab === 'categories' && (
             <BulkActions
-              selectedCount={selectedCategories.size}
+              selectedCount={categoryState.selectedItems.size}
               onBulkDelete={() => {
                 setMultiDeleteType('category');
                 setIsMultiDeleteModalOpen(true);
@@ -918,19 +828,19 @@ const ContentManagement: React.FC = () => {
                 key: "tutorial",
                 label: "Tutorial Series",
                 icon: <BookOpen className="h-4 w-4" />,
-                onClick: () => navigate('/admin/content/create-tutorial')
+                onClick: () => contentOperations.handleCreate('tutorial')
               },
               {
                 key: "quiz",
                 label: "Quiz Series",
                 icon: <Brain className="h-4 w-4" />,
-                onClick: () => navigate('/admin/content/create-quiz')
+                onClick: () => contentOperations.handleCreate('quiz')
               },
               {
                 key: "category",
                 label: "Category",
                 icon: <Tag className="h-4 w-4" />,
-                onClick: () => navigate('/admin/content/create-category')
+                onClick: () => contentOperations.handleCreate('category')
               }
             ]}
             variant="default"
@@ -941,28 +851,37 @@ const ContentManagement: React.FC = () => {
 
       {/* Tabs - Following UserManagement Pattern */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 bg-primary/5 border border-primary/20">
-          <TabsTrigger 
-            value="tutorials" 
+        <TabsList className={`grid w-full ${getDraftsCount() > 0 ? 'grid-cols-4' : 'grid-cols-3'} bg-primary/5 border border-primary/20`}>
+          <TabsTrigger
+            value="tutorials"
             className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
           >
             <BookOpen className="h-4 w-4" />
             Tutorial Series ({tutorialSeries.length})
           </TabsTrigger>
-          <TabsTrigger 
-            value="quizzes" 
+          <TabsTrigger
+            value="quizzes"
             className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
           >
             <Brain className="h-4 w-4" />
             Quiz Series ({quizSeries.length})
           </TabsTrigger>
-          <TabsTrigger 
-            value="categories" 
+          <TabsTrigger
+            value="categories"
             className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
           >
             <Tag className="h-4 w-4" />
             Categories ({categoryList.length})
           </TabsTrigger>
+          {getDraftsCount() > 0 && (
+            <TabsTrigger
+              value="drafts"
+              className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
+            >
+              <Edit className="h-4 w-4" />
+              Drafts ({getDraftsCount()})
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Tutorial Series Tab */}
@@ -971,11 +890,11 @@ const ContentManagement: React.FC = () => {
           <Card className="border-primary/20">
             <CardContent className="p-6">
               <SearchFilterBar
-                searchTerm={tutorialSearchTerm}
+                searchTerm={tutorialState.searchTerm}
                 onSearchChange={handleTutorialSearch}
                 searchPlaceholder="Search tutorials..."
-                filterValue={tutorialCategory}
-                onFilterChange={(category) => handleTutorialFilter(category, tutorialStatus)}
+                filterValue={tutorialState.category}
+                onFilterChange={(category) => handleTutorialFilter(category, tutorialState.status)}
                 filterOptions={[
                   { value: 'all', label: 'All Categories' },
                   { value: 'general', label: 'General' },
@@ -991,54 +910,40 @@ const ContentManagement: React.FC = () => {
             data={tutorialSeries}
             columns={tutorialColumns}
             actions={tutorialActions}
-            pagination={{
-              current_page: tutorialPage,
-              total_pages: Math.ceil(tutorialSeries.length / tutorialItemsPerPage),
-              total_count: tutorialSeries.length,
-              per_page: tutorialItemsPerPage
-            }}
-            selectedItems={new Set(Array.from(selectedTutorials).map(id => parseInt(id)))}
+            pagination={tutorialsResponse?.pagination ? {
+              current_page: tutorialsResponse.pagination.current_page,
+              total_pages: tutorialsResponse.pagination.total_pages,
+              total_count: tutorialsResponse.pagination.total_count,
+              per_page: tutorialsResponse.pagination.per_page
+            } : undefined}
+            selectedItems={new Set(Array.from(tutorialState.selectedItems).map(id => parseInt(id)))}
             onItemSelect={(id, checked) => {
               const stringId = id.toString();
-              setSelectedTutorials(prev => {
-                const newSet = new Set(prev);
-                if (checked) {
-                  newSet.add(stringId);
-                } else {
-                  newSet.delete(stringId);
-                }
-                return newSet;
-              });
+              tutorialStateActions.handleItemSelect(stringId, checked);
             }}
             onSelectAll={handleTutorialSelectAll}
-            onPageChange={setTutorialPage}
-            onItemsPerPageChange={(value) => setTutorialItemsPerPage(parseInt(value))}
-            sortBy={tutorialSortBy}
-            sortOrder={tutorialSortOrder}
+            onPageChange={tutorialStateActions.setCurrentPage}
+            onItemsPerPageChange={(value) => tutorialStateActions.setItemsPerPage(parseInt(value))}
+            sortBy={tutorialState.sortBy}
+            sortOrder={tutorialState.sortOrder}
             onSort={handleTutorialSort}
             error={tutorialsError}
             onRetry={() => refetchTutorials()}
             emptyStateIcon={<BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />}
-            emptyStateTitle={tutorialSearchTerm || tutorialCategory !== 'all' ? 'No Tutorials Found' : 'No Tutorials Yet'}
-            emptyStateDescription={tutorialSearchTerm || tutorialCategory !== 'all' 
+            emptyStateTitle={tutorialState.searchTerm || tutorialState.category !== 'all' ? 'No Tutorials Found' : 'No Tutorials Yet'}
+            emptyStateDescription={tutorialState.searchTerm || tutorialState.category !== 'all'
               ? 'Try adjusting your search or filter criteria.'
               : 'Get started by creating your first tutorial.'
             }
-            emptyStateAction={!tutorialSearchTerm && tutorialCategory === 'all' ? (
-              <Button onClick={() => navigate('/admin/content/create-tutorial')} className="bg-primary hover:bg-primary/90">
+            emptyStateAction={!tutorialState.searchTerm && tutorialState.category === 'all' ? (
+              <Button onClick={() => contentOperations.handleCreate('tutorial')} className="bg-primary hover:bg-primary/90">
                 <Plus className="h-4 w-4 mr-2" />
                 Create First Tutorial
               </Button>
             ) : undefined}
             title="Tutorial Series"
-            description={`${tutorialSeries.length} total tutorials`}
-            getItemId={(tutorial) => {
-              console.log('🔍 DEBUG ContentManagement: Tutorial getItemId called with:', tutorial);
-              console.log('🔍 DEBUG ContentManagement: Tutorial ID string:', tutorial.id);
-              const parsedId = parseInt(tutorial.id);
-              console.log('🔍 DEBUG ContentManagement: Tutorial parsed ID:', parsedId);
-              return parsedId;
-            }}
+            description={`${tutorialsResponse?.pagination?.total_count || 0} total tutorials`}
+            getItemId={(tutorial) => parseInt(tutorial.id)}
           />
         </TabsContent>
 
@@ -1048,11 +953,11 @@ const ContentManagement: React.FC = () => {
           <Card className="border-primary/20">
             <CardContent className="p-6">
               <SearchFilterBar
-                searchTerm={quizSearchTerm}
+                searchTerm={quizState.searchTerm}
                 onSearchChange={handleQuizSearch}
                 searchPlaceholder="Search quizzes..."
-                filterValue={quizCategory}
-                onFilterChange={(category) => handleQuizFilter(category, quizStatus)}
+                filterValue={quizState.category}
+                onFilterChange={(category) => handleQuizFilter(category, quizState.status)}
                 filterOptions={[
                   { value: 'all', label: 'All Categories' },
                   { value: 'general', label: 'General' },
@@ -1068,54 +973,40 @@ const ContentManagement: React.FC = () => {
             data={quizSeries}
             columns={quizColumns}
             actions={quizActions}
-            pagination={{
-              current_page: quizPage,
-              total_pages: Math.ceil(quizSeries.length / quizItemsPerPage),
-              total_count: quizSeries.length,
-              per_page: quizItemsPerPage
-            }}
-            selectedItems={new Set(Array.from(selectedQuizzes).map(id => parseInt(id)))}
+            pagination={quizzesResponse?.pagination ? {
+              current_page: quizzesResponse.pagination.current_page,
+              total_pages: quizzesResponse.pagination.total_pages,
+              total_count: quizzesResponse.pagination.total_count,
+              per_page: quizzesResponse.pagination.per_page
+            } : undefined}
+            selectedItems={new Set(Array.from(quizState.selectedItems).map(id => parseInt(id)))}
             onItemSelect={(id, checked) => {
               const stringId = id.toString();
-              setSelectedQuizzes(prev => {
-                const newSet = new Set(prev);
-                if (checked) {
-                  newSet.add(stringId);
-                } else {
-                  newSet.delete(stringId);
-                }
-                return newSet;
-              });
+              quizStateActions.handleItemSelect(stringId, checked);
             }}
             onSelectAll={handleQuizSelectAll}
-            onPageChange={setQuizPage}
-            onItemsPerPageChange={(value) => setQuizItemsPerPage(parseInt(value))}
-            sortBy={quizSortBy}
-            sortOrder={quizSortOrder}
+            onPageChange={quizStateActions.setCurrentPage}
+            onItemsPerPageChange={(value) => quizStateActions.setItemsPerPage(parseInt(value))}
+            sortBy={quizState.sortBy}
+            sortOrder={quizState.sortOrder}
             onSort={handleQuizSort}
             error={quizzesError}
             onRetry={() => refetchQuizzes()}
             emptyStateIcon={<Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />}
-            emptyStateTitle={quizSearchTerm || quizCategory !== 'all' ? 'No Quizzes Found' : 'No Quizzes Yet'}
-            emptyStateDescription={quizSearchTerm || quizCategory !== 'all' 
+            emptyStateTitle={quizState.searchTerm || quizState.category !== 'all' ? 'No Quizzes Found' : 'No Quizzes Yet'}
+            emptyStateDescription={quizState.searchTerm || quizState.category !== 'all'
               ? 'Try adjusting your search or filter criteria.'
               : 'Get started by creating your first quiz.'
             }
-            emptyStateAction={!quizSearchTerm && quizCategory === 'all' ? (
-              <Button onClick={() => navigate('/admin/content/create-quiz')} className="bg-primary hover:bg-primary/90">
+            emptyStateAction={!quizState.searchTerm && quizState.category === 'all' ? (
+              <Button onClick={() => contentOperations.handleCreate('quiz')} className="bg-primary hover:bg-primary/90">
                 <Plus className="h-4 w-4 mr-2" />
                 Create First Quiz
               </Button>
             ) : undefined}
             title="Quiz Series"
             description={`${quizSeries.length} total quizzes`}
-            getItemId={(quiz) => {
-              console.log('🔍 DEBUG ContentManagement: Quiz getItemId called with:', quiz);
-              console.log('🔍 DEBUG ContentManagement: Quiz ID string:', quiz.id);
-              const parsedId = parseInt(quiz.id);
-              console.log('🔍 DEBUG ContentManagement: Quiz parsed ID:', parsedId);
-              return parsedId;
-            }}
+            getItemId={(quiz) => parseInt(quiz.id)}
           />
         </TabsContent>
 
@@ -1125,10 +1016,10 @@ const ContentManagement: React.FC = () => {
           <Card className="border-primary/20">
             <CardContent className="p-6">
               <SearchFilterBar
-                searchTerm={categorySearchTerm}
+                searchTerm={categoryState.searchTerm}
                 onSearchChange={handleCategorySearch}
                 searchPlaceholder="Search categories..."
-                filterValue={categoryStatus}
+                filterValue={categoryState.status}
                 onFilterChange={handleCategoryFilter}
                 filterOptions={[
                   { value: 'all', label: 'All Status' },
@@ -1145,55 +1036,95 @@ const ContentManagement: React.FC = () => {
             data={categoryList}
             columns={categoryColumns}
             actions={categoryActions}
-            pagination={{
-              current_page: categoryPage,
-              total_pages: Math.ceil(categoryList.length / categoryItemsPerPage),
-              total_count: categoryList.length,
-              per_page: categoryItemsPerPage
-            }}
-            selectedItems={new Set(Array.from(selectedCategories).map(id => parseInt(id)))}
+            pagination={categoriesResponse?.pagination ? {
+              current_page: categoriesResponse.pagination.current_page,
+              total_pages: categoriesResponse.pagination.total_pages,
+              total_count: categoriesResponse.pagination.total_count,
+              per_page: categoriesResponse.pagination.per_page
+            } : undefined}
+            selectedItems={new Set(Array.from(categoryState.selectedItems).map(id => parseInt(id)))}
             onItemSelect={(id, checked) => {
               const stringId = id.toString();
-              setSelectedCategories(prev => {
-                const newSet = new Set(prev);
-                if (checked) {
-                  newSet.add(stringId);
-                } else {
-                  newSet.delete(stringId);
-                }
-                return newSet;
-              });
+              categoryStateActions.handleItemSelect(stringId, checked);
             }}
             onSelectAll={handleCategorySelectAll}
-            onPageChange={setCategoryPage}
-            onItemsPerPageChange={(value) => setCategoryItemsPerPage(parseInt(value))}
-            sortBy={categorySortBy}
-            sortOrder={categorySortOrder}
+            onPageChange={categoryStateActions.setCurrentPage}
+            onItemsPerPageChange={(value) => categoryStateActions.setItemsPerPage(parseInt(value))}
+            sortBy={categoryState.sortBy}
+            sortOrder={categoryState.sortOrder}
             onSort={handleCategorySort}
             error={categoriesError}
             onRetry={() => refetchCategories()}
             emptyStateIcon={<Tag className="h-12 w-12 text-gray-400 mx-auto mb-4" />}
-            emptyStateTitle={categorySearchTerm || categoryStatus !== 'all' ? 'No Categories Found' : 'No Categories Yet'}
-            emptyStateDescription={categorySearchTerm || categoryStatus !== 'all' 
+            emptyStateTitle={categoryState.searchTerm || categoryState.status !== 'all' ? 'No Categories Found' : 'No Categories Yet'}
+            emptyStateDescription={categoryState.searchTerm || categoryState.status !== 'all'
               ? 'Try adjusting your search or filter criteria.'
               : 'Get started by creating your first category.'
             }
-            emptyStateAction={!categorySearchTerm && categoryStatus === 'all' ? (
-              <Button onClick={() => navigate('/admin/content/create-category')} className="bg-primary hover:bg-primary/90">
+            emptyStateAction={!categoryState.searchTerm && categoryState.status === 'all' ? (
+              <Button onClick={() => contentOperations.handleCreate('category')} className="bg-primary hover:bg-primary/90">
                 <Plus className="h-4 w-4 mr-2" />
                 Create First Category
               </Button>
             ) : undefined}
             title="Categories"
             description={`${categoryList.length} total categories`}
-            getItemId={(category) => {
-              console.log('🔍 DEBUG ContentManagement: Category getItemId called with:', category);
-              console.log('🔍 DEBUG ContentManagement: Category ID string:', category.id);
-              const parsedId = parseInt(category.id);
-              console.log('🔍 DEBUG ContentManagement: Category parsed ID:', parsedId);
-              return parsedId;
-            }}
+            getItemId={(category) => parseInt(category.id)}
           />
+        </TabsContent>
+
+        {/* Drafts Tab */}
+        <TabsContent value="drafts" className="space-y-6">
+          <Card className="border-primary/20">
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                {draftsResponse?.data && draftsResponse.data.length > 0 ? (
+                  <DataTable
+                    data={draftsResponse.data}
+                    columns={draftColumns}
+                    actions={draftActions}
+                    pagination={draftsResponse.pagination}
+                    onPageChange={handleDraftPageChange}
+                    onItemsPerPageChange={(value) => {
+                      setDraftPerPage(parseInt(value));
+                      setDraftPage(1);
+                    }}
+                    onSort={handleDraftSort}
+                    onItemSelect={handleDraftItemSelect}
+                    onSelectAll={handleDraftSelectAll}
+                    selectedItems={selectedDraftItems}
+                    sortBy={draftSortField}
+                    sortOrder={draftSortOrder}
+                    error={draftsError}
+                    onRetry={refetchDrafts}
+                    emptyStateTitle="No Drafts Found"
+                    emptyStateDescription="You haven't saved any drafts yet. Start creating content to see your drafts here."
+                    emptyStateAction={
+                      <Button onClick={() => navigate('/admin/content/create-tutorial')} className="bg-primary hover:bg-primary/90">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create New Tutorial
+                      </Button>
+                    }
+                    title="Saved Drafts"
+                    description={`${draftsResponse?.pagination?.total_count || 0} total drafts`}
+                    getItemId={(draft) => parseInt(draft.id)}
+                  />
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <FileText className="h-8 w-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Drafts Found</h3>
+                    <p className="text-gray-600 mb-6">You haven't saved any drafts yet. Start creating content to see your drafts here.</p>
+                    <Button onClick={() => navigate('/admin/content/create-tutorial')} className="bg-primary hover:bg-primary/90">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create New Tutorial
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
@@ -1209,11 +1140,81 @@ const ContentManagement: React.FC = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => {
-                // TODO: Implement delete logic
-                console.log('Delete', deleteType, deleteId);
-                setIsDeleteModalOpen(false);
+            <AlertDialogAction
+              onClick={async () => {
+                console.log('DEBUG: Individual delete clicked', { deleteType, deleteId });
+                try {
+                  if (deleteType === 'tutorial') {
+                    console.log('DEBUG: Deleting tutorial with ID:', deleteId);
+                    // Use API client for tutorial delete
+                    const apiClient = (await import('@/lib/api')).default;
+                    console.log('DEBUG: Calling apiClient.deleteTutorial');
+                    const result = await apiClient.deleteTutorial(parseInt(deleteId));
+                    console.log('DEBUG: Tutorial delete result:', result);
+
+                    if (result.success) {
+                      console.log('DEBUG: Tutorial delete successful');
+                      toast({
+                        title: "Tutorial Deleted",
+                        description: "The tutorial has been successfully deleted."
+                      });
+                      // Refresh the data
+                      refetchTutorials();
+                    } else {
+                      console.log('DEBUG: Tutorial delete failed:', result.message);
+                      throw new Error(result.message || 'Failed to delete tutorial');
+                    }
+                  } else if (deleteType === 'quiz') {
+                    console.log('DEBUG: Deleting quiz with ID:', deleteId);
+                    // Use API client for quiz delete
+                    const apiClient = (await import('@/lib/api')).default;
+                    console.log('DEBUG: Calling apiClient.deleteQuiz');
+                    const result = await apiClient.deleteQuiz(parseInt(deleteId));
+                    console.log('DEBUG: Quiz delete result:', result);
+
+                    if (result.success) {
+                      console.log('DEBUG: Quiz delete successful');
+                      toast({
+                        title: "Quiz Deleted",
+                        description: "The quiz has been successfully deleted."
+                      });
+                      // Refresh the data
+                      refetchQuizzes();
+                    } else {
+                      console.log('DEBUG: Quiz delete failed:', result.message);
+                      throw new Error(result.message || 'Failed to delete quiz');
+                    }
+                  } else if (deleteType === 'category') {
+                    console.log('DEBUG: Deleting category with ID:', deleteId);
+                    // Use API client for category delete
+                    const apiClient = (await import('@/lib/api')).default;
+                    console.log('DEBUG: Calling apiClient.deleteCategory');
+                    const result = await apiClient.deleteCategory(parseInt(deleteId));
+                    console.log('DEBUG: Category delete result:', result);
+
+                    if (result.success) {
+                      console.log('DEBUG: Category delete successful');
+                      toast({
+                        title: "Category Deleted",
+                        description: "The category has been successfully deleted."
+                      });
+                      // Refresh the data
+                      refetchCategories();
+                    } else {
+                      console.log('DEBUG: Category delete failed:', result.message);
+                      throw new Error(result.message || 'Failed to delete category');
+                    }
+                  }
+                } catch (error) {
+                  console.error('DEBUG: Individual delete error:', error);
+                  toast({
+                    variant: "destructive",
+                    title: "Delete Failed",
+                    description: "Failed to delete the item. Please try again."
+                  });
+                } finally {
+                  setIsDeleteModalOpen(false);
+                }
               }}
               className="bg-red-600 hover:bg-red-700"
             >
@@ -1223,22 +1224,225 @@ const ContentManagement: React.FC = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Multi-Delete Confirmation Modal */}
+      <AlertDialog open={isMultiDeleteModalOpen} onOpenChange={setIsMultiDeleteModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Multiple {multiDeleteType === 'tutorial' ? 'Tutorials' : multiDeleteType === 'quiz' ? 'Quizzes' : 'Categories'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the selected {multiDeleteType}s? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                console.log('DEBUG: Multi-delete confirmed', { multiDeleteType });
+                try {
+                  if (multiDeleteType === 'tutorial') {
+                    await handleTutorialBulkDelete();
+                  } else if (multiDeleteType === 'quiz') {
+                    await handleQuizBulkDelete();
+                  } else if (multiDeleteType === 'category') {
+                    await handleCategoryBulkDelete();
+                  }
+
+                  toast({
+                    title: "Items Deleted",
+                    description: `Selected ${multiDeleteType}s have been deleted successfully.`,
+                  });
+
+                  setIsMultiDeleteModalOpen(false);
+                } catch (error) {
+                  console.error('DEBUG: Multi-delete error:', error);
+                  toast({
+                    title: "Delete Failed",
+                    description: `Failed to delete ${multiDeleteType}s. Please try again.`,
+                    variant: "destructive",
+                  });
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete {multiDeleteType === 'tutorial' ? 'Tutorials' : multiDeleteType === 'quiz' ? 'Quizzes' : 'Categories'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Multiple Delete Confirmation */}
       <ConfirmationDialog
-        isOpen={isMultiDeleteModalOpen}
-        onClose={() => setIsMultiDeleteModalOpen(false)}
-        onConfirm={() => {
-          if (multiDeleteType === 'tutorial') handleTutorialBulkDelete();
-          if (multiDeleteType === 'quiz') handleQuizBulkDelete();
-          if (multiDeleteType === 'category') handleCategoryBulkDelete();
-        }}
-        title={`Delete Multiple ${multiDeleteType === 'tutorial' ? 'Tutorials' : multiDeleteType === 'quiz' ? 'Quizzes' : 'Categories'}`}
-        message={`Are you sure you want to delete ${multiDeleteType === 'tutorial' ? selectedTutorials.size : multiDeleteType === 'quiz' ? selectedQuizzes.size : selectedCategories.size} ${multiDeleteType}(s)? This action cannot be undone.`}
-        type="warning"
-        confirmText="Delete All"
-        cancelText="Cancel"
+        isOpen={confirmation.isOpen}
+        onClose={confirmation.close}
+        onConfirm={confirmation.onConfirm}
+        title={confirmation.title}
+        message={confirmation.message}
+        type={confirmation.type}
+        confirmText={confirmation.confirmText}
+        cancelText={confirmation.cancelText}
         isLoading={confirmation.isLoading}
       />
+
+      {/* Content Preview Modal */}
+      <Dialog open={isPreviewModalOpen} onOpenChange={setIsPreviewModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {previewType === 'tutorial' ? 'Tutorial Preview' :
+                previewType === 'quiz' ? 'Quiz Preview' : 'Category Preview'}
+            </DialogTitle>
+            <DialogDescription>
+              {previewType === 'tutorial' ? 'Preview tutorial details and content' :
+                previewType === 'quiz' ? 'Preview quiz details and questions' :
+                  'Preview category information'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {previewItem && (
+            <div className="space-y-6">
+              {previewType === 'tutorial' && (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-16 h-12 bg-primary/10 rounded flex items-center justify-center">
+                      <BookOpen className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold">{(previewItem as TutorialSeries).title}</h3>
+                      <p className="text-gray-600 mt-1">{(previewItem as TutorialSeries).description}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Category</div>
+                      <div className="font-medium">{(previewItem as TutorialSeries).category}</div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Difficulty</div>
+                      <DifficultyBadge difficulty={(previewItem as TutorialSeries).difficulty} />
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Videos</div>
+                      <div className="font-medium">{(previewItem as TutorialSeries).totalVideos}</div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Duration</div>
+                      <div className="font-medium">{(previewItem as TutorialSeries).totalDuration}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Status</div>
+                      <StatusBadge status={(previewItem as TutorialSeries).status} />
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Views</div>
+                      <div className="font-medium">{(previewItem as TutorialSeries).views}</div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Completions</div>
+                      <div className="font-medium">{(previewItem as TutorialSeries).completions}</div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Rating</div>
+                      <div className="font-medium">{(previewItem as TutorialSeries).rating}/5</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Created</div>
+                      <div className="font-medium">{(previewItem as TutorialSeries).createdDate}</div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Author</div>
+                      <div className="font-medium">{(previewItem as TutorialSeries).author}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {previewType === 'quiz' && (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-16 h-12 bg-primary/10 rounded flex items-center justify-center">
+                      <Brain className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold">{(previewItem as QuizSeries).title}</h3>
+                      <p className="text-gray-600 mt-1">{(previewItem as QuizSeries).description}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Category</div>
+                      <div className="font-medium">{(previewItem as QuizSeries).category}</div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Difficulty</div>
+                      <DifficultyBadge difficulty={(previewItem as QuizSeries).difficulty} />
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Questions</div>
+                      <div className="font-medium">{(previewItem as QuizSeries).totalQuestions}</div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Time Limit</div>
+                      <div className="font-medium">{(previewItem as QuizSeries).timeLimit} min</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Status</div>
+                      <StatusBadge status={(previewItem as QuizSeries).status} />
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Attempts</div>
+                      <div className="font-medium">{(previewItem as QuizSeries).attempts}</div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Avg Score</div>
+                      <div className="font-medium">{(previewItem as QuizSeries).averageScore}%</div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Passing Score</div>
+                      <div className="font-medium">{(previewItem as QuizSeries).passingScore}%</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {previewType === 'category' && (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-16 h-12 bg-primary/10 rounded flex items-center justify-center">
+                      <Tag className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold">{(previewItem as Category).name}</h3>
+                      <p className="text-gray-600 mt-1">{(previewItem as Category).description}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Content Count</div>
+                      <div className="font-medium">{(previewItem as Category).contentCount} items</div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-sm text-gray-600">Status</div>
+                      <StatusBadge status={(previewItem as Category).status} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

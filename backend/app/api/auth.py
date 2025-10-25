@@ -149,11 +149,7 @@ def login():
 
         # find user by email (check both User and Administrator tables via Account)
         from ..models.account import Account
-        print(f"🔍 DEBUG: Searching for user with email: {email}")
         user = db.session.scalar(select(Account).where(Account.email == email))
-        print(f"🔍 DEBUG: User found: {user}")
-        if user:
-            print(f"🔍 DEBUG: User details - ID: {user.id}, Email: {user.email}, Type: {user.account_type}")
 
         if not user:
             return (
@@ -168,9 +164,7 @@ def login():
             )
 
         # check password using werkzeug's built-in function
-        print(f"🔍 DEBUG: Checking password for user: {user.email}")
         password_valid = check_password_hash(user.password_hash, password)
-        print(f"🔍 DEBUG: Password valid: {password_valid}")
         
         if not password_valid:
             return (
@@ -232,10 +226,6 @@ def login():
 @auth_bp.route("/register", methods=["POST"])
 def register():
     """register endpoint for new user creation with enhanced validation and image upload"""
-    print("🔍 DEBUG: Register endpoint called")
-    print(f"🔍 DEBUG: Request method: {request.method}")
-    print(f"🔍 DEBUG: Content-Type: {request.content_type}")
-    print(f"🔍 DEBUG: Is JSON: {request.is_json}")
     
     try:
         # handle both JSON and form data
@@ -245,20 +235,15 @@ def register():
             password = data.get("password", "")
             name = data.get("name", "").strip()
             profile_image = None
-            print(f"🔍 DEBUG: JSON data received - email: '{email}', name: '{name}', password length: {len(password)}")
         else:
             # handle form data with file upload
             email = request.form.get("email", "").strip()
             password = request.form.get("password", "")
             name = request.form.get("name", "").strip()
             profile_image = request.files.get("profile_image")
-            print(f"🔍 DEBUG: Form data received - email: '{email}', name: '{name}', password length: {len(password)}")
-            print(f"🔍 DEBUG: Profile image: {profile_image}")
 
         # validate email
-        print(f"🔍 DEBUG: Validating email: '{email}'")
         if not email:
-            print("🔍 DEBUG: Email is empty")
             return (
                 jsonify(
                     {"success": False, "error": "Email is required", "field": "email"}
@@ -266,12 +251,9 @@ def register():
                 400,
             )
 
-        print(f"🔍 DEBUG: Calling validate_email with: '{email}'")
         is_valid = validate_email(email)
-        print(f"🔍 DEBUG: validate_email result: {is_valid}")
         
         if not is_valid:
-            print(f"🔍 DEBUG: Email validation failed for: '{email}'")
             return (
                 jsonify(
                     {

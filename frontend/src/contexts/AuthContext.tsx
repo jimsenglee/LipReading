@@ -22,6 +22,7 @@ interface AuthContextType {
   setUser: (user: User | null) => void;
   isLoading: boolean;
   updateProfile: (updates: Partial<User>) => void;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,24 +47,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const storedUser = localStorage.getItem('user');
         const token = localStorage.getItem('token');
         
-        console.log('🔍 DEBUG AuthContext useEffect:', {
-          storedUser: storedUser ? 'exists' : 'null',
-          token: token ? 'exists' : 'null',
-          hasStoredUser: !!storedUser,
-          hasToken: !!token,
-          timestamp: new Date().toISOString()
-        });
         
         if (storedUser && token) {
           try {
             const parsedUser = JSON.parse(storedUser);
-            console.log('🔍 DEBUG AuthContext parsed user:', {
-              id: parsedUser.id,
-              email: parsedUser.email,
-              name: parsedUser.name,
-              profilePicture: parsedUser.profilePicture,
-              role: parsedUser.role
-            });
             
             // Validate that the user object has required fields
             if (parsedUser.id && parsedUser.email && parsedUser.name) {
@@ -76,19 +63,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   setUser(parsedUser);
                   // Set user data in React Query cache
                   queryClient.setQueryData(['user'], parsedUser);
-                  console.log('🔍 DEBUG AuthContext: User session restored successfully');
                 } else {
-                  console.warn('🔍 DEBUG AuthContext: Token expired, clearing session');
                   localStorage.removeItem('user');
                   localStorage.removeItem('token');
                 }
               } catch (tokenError) {
-                console.warn('🔍 DEBUG AuthContext: Invalid token format, clearing session');
                 localStorage.removeItem('user');
                 localStorage.removeItem('token');
               }
             } else {
-              console.warn('🔍 DEBUG AuthContext: Invalid user data, clearing session');
               localStorage.removeItem('user');
               localStorage.removeItem('token');
             }
@@ -98,7 +81,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             localStorage.removeItem('token');
           }
         } else {
-          console.log('🔍 DEBUG AuthContext: No stored session found');
         }
       } catch (error) {
         console.error('Error in session restoration:', error);
@@ -124,11 +106,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const logout = () => {
+    
+    // Clear all state immediately
+    setUser(null);
+    setIsLoading(false);
+    setIsInitialized(true);
+    
+    // Clear localStorage
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    
+    // Clear React Query cache
+    queryClient.clear();
+    
+  };
+
   const value: AuthContextType = {
     user,
     setUser,
     isLoading: isLoading || !isInitialized,
-    updateProfile
+    updateProfile,
+    logout
   };
 
   return (

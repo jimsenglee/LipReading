@@ -28,7 +28,6 @@ export const EducationProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const updateProgress = useCallback((progress: ProgressData) => {
     // This would typically save to backend, for now just update local state
-    console.log('Progress updated:', progress);
   }, []);
 
   const toggleBookmark = useCallback((courseId: string) => {

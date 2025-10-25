@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -31,6 +32,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
+import { useCreateTutorialSeries, useUpdateTutorial } from '@/services/content/contentMutations';
+import { useCategories, useTutorialById } from '@/services/content/contentQueries';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface TutorialVideo {
   id: string;
@@ -40,12 +44,12 @@ interface TutorialVideo {
   videoUrl?: string;
   duration?: string;
   order: number;
+  isPreview?: boolean;
 }
 
 interface TutorialSeries {
   title: string;
   description: string;
-  detailedDescription: string;
   category: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   tags: string[];
@@ -59,13 +63,20 @@ interface TutorialSeries {
 
 const CreateTutorialSeriesWizard: React.FC = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [previewVideo, setPreviewVideo] = useState<{ url: string; title: string } | null>(null);
+  const [showBackConfirmation, setShowBackConfirmation] = useState(false);
+  
+  // Check if we're in edit mode
+  const editMode = location.state?.editMode || false;
+  const tutorialId = location.state?.tutorialId;
   
   const [tutorialSeries, setTutorialSeries] = useState<TutorialSeries>({
     title: '',
     description: '',
-    detailedDescription: '',
     category: '',
     difficulty: 'beginner',
     tags: [],
@@ -77,11 +88,61 @@ const CreateTutorialSeriesWizard: React.FC = () => {
 
   const [newTag, setNewTag] = useState('');
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // API hooks
+  const { data: categoriesData } = useCategories();
+  const { data: tutorialData, isLoading: isLoadingTutorial } = useTutorialById(tutorialId || 0);
+  
+  // Mutations
+  const createTutorialSeriesMutation = useCreateTutorialSeries();
+  const updateTutorialMutation = useUpdateTutorial();
+  
+  // Populate form when tutorial data is loaded (edit mode)
+  useEffect(() => {
+    if (editMode && tutorialData) {
+      setTutorialSeries({
+        title: tutorialData.title || '',
+        description: tutorialData.description || '',
+        category: tutorialData.categoryId?.toString() || '',
+        difficulty: (tutorialData.difficulty as 'beginner' | 'intermediate' | 'advanced') || 'beginner',
+        tags: tutorialData.tags ? JSON.parse(tutorialData.tags) : [],
+        learningObjectives: tutorialData.learningObjectives ? JSON.parse(tutorialData.learningObjectives) : [''],
+        prerequisites: tutorialData.prerequisites ? JSON.parse(tutorialData.prerequisites) : [],
+        videos: tutorialData.videoPath ? [{
+          id: '1',
+          title: tutorialData.title || 'Video 1',
+          description: tutorialData.description || '',
+          videoFile: undefined, // File object not available in edit mode
+          videoUrl: tutorialData.videoPath, // Use existing video path
+          duration: tutorialData.videoDuration?.toString() || '',
+          order: 1,
+          isPreview: tutorialData.isPreview || false
+        }] : [],
+        status: (tutorialData.status as 'draft' | 'published') || 'draft'
+      });
+    }
+  }, [editMode, tutorialData]);
+
+  // Track changes to detect unsaved changes
+  useEffect(() => {
+    const hasChanges = 
+      tutorialSeries.title.trim() !== '' ||
+      tutorialSeries.description.trim() !== '' ||
+      tutorialSeries.category !== '' ||
+      tutorialSeries.learningObjectives.some(obj => obj.trim() !== '') ||
+      tutorialSeries.prerequisites.length > 0 ||
+      tutorialSeries.tags.length > 0 ||
+      tutorialSeries.videos.length > 0 ||
+      tutorialSeries.thumbnailFile !== undefined;
+    
+    setHasUnsavedChanges(hasChanges);
+  }, [tutorialSeries]);
 
   const breadcrumbItems = [
     { title: 'Admin Dashboard', href: '/admin' },
     { title: 'Content Management', href: '/admin/content' },
-    { title: 'Create Tutorial Series' }
+    { title: editMode ? 'Edit Tutorial Series' : 'Create Tutorial Series' }
   ];
 
   const steps = [
@@ -91,13 +152,8 @@ const CreateTutorialSeriesWizard: React.FC = () => {
     { id: 4, title: 'Review & Publish', description: 'Final review and publishing options' }
   ];
 
-  const categories = [
-    'Vowel Sounds',
-    'Consonant Sounds',
-    'Sentence Reading',
-    'Advanced Techniques',
-    'Practice Exercises'
-  ];
+  // Use real categories from API
+  const categories = categoriesData?.data || [];
 
   const availablePrerequisites = [
     'Basic Vowel Sounds',
@@ -135,6 +191,93 @@ const CreateTutorialSeriesWizard: React.FC = () => {
     if (validateStep(currentStep)) {
       setCurrentStep(prev => Math.min(prev + 1, 4));
     }
+  };
+
+  const handleBack = () => {
+    // Check if any fields are filled
+    const hasFilledFields = tutorialSeries.title.trim() !== '' || 
+                           tutorialSeries.description.trim() !== '' || 
+                           tutorialSeries.category !== '' ||
+                           tutorialSeries.learningObjectives.some(obj => obj.trim() !== '') ||
+                           tutorialSeries.prerequisites.some(obj => obj.trim() !== '') ||
+                           tutorialSeries.tags.some(tag => tag.trim() !== '') ||
+                           tutorialSeries.videos.some(video => video.title.trim() !== '');
+
+    if (hasFilledFields) {
+      // Show confirmation dialog
+      setShowBackConfirmation(true);
+    } else {
+      navigate('/admin/content');
+    }
+  };
+
+  const handleBackConfirm = async () => {
+    try {
+      // Save current progress as draft on server
+      if (editMode && tutorialId) {
+        // Update existing tutorial as draft
+        await updateTutorialMutation.mutateAsync({
+          id: tutorialId,
+          tutorialData: {
+            title: tutorialSeries.title,
+            description: tutorialSeries.description,
+            categoryId: parseInt(tutorialSeries.category),
+            difficulty: tutorialSeries.difficulty,
+            learningObjectives: tutorialSeries.learningObjectives.filter(obj => obj.trim() !== ''),
+            prerequisites: tutorialSeries.prerequisites.filter(obj => obj.trim() !== ''),
+            tags: tutorialSeries.tags,
+            status: 'draft',
+            videos: tutorialSeries.videos.map(video => ({
+              title: video.title,
+              description: video.description,
+              videoFile: video.videoFile,
+              duration: video.duration ? parseInt(video.duration) : undefined,
+              isPreview: video.isPreview || false
+            })),
+            thumbnailFile: tutorialSeries.thumbnailFile
+          }
+        });
+      } else {
+        // Create new draft
+        await createTutorialSeriesMutation.mutateAsync({
+          title: tutorialSeries.title,
+          description: tutorialSeries.description,
+          categoryId: parseInt(tutorialSeries.category),
+          difficulty: tutorialSeries.difficulty,
+          learningObjectives: tutorialSeries.learningObjectives.filter(obj => obj.trim() !== ''),
+          prerequisites: tutorialSeries.prerequisites.filter(obj => obj.trim() !== ''),
+          tags: tutorialSeries.tags,
+          status: 'draft',
+          videos: tutorialSeries.videos.map(video => ({
+            title: video.title,
+            description: video.description,
+            videoFile: video.videoFile,
+            duration: video.duration ? parseInt(video.duration) : undefined,
+            isPreview: video.isPreview || false
+          })),
+          thumbnailFile: tutorialSeries.thumbnailFile
+        });
+      }
+      
+      toast({
+        title: "Draft Saved",
+        description: "Your tutorial progress has been saved as a draft.",
+      });
+      
+      setShowBackConfirmation(false);
+      navigate('/admin/content');
+    } catch (error) {
+      toast({
+        title: "Error Saving Draft",
+        description: "Failed to save draft. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBackCancel = () => {
+    setShowBackConfirmation(false);
+    navigate('/admin/content');
   };
 
   const handlePrevious = () => {
@@ -231,10 +374,33 @@ const CreateTutorialSeriesWizard: React.FC = () => {
     const file = event.target.files?.[0];
     if (file) {
       if (file.type.startsWith('video/')) {
-        updateVideo(videoId, {
-          videoFile: file,
-          videoUrl: URL.createObjectURL(file)
-        });
+        // Create video element to extract duration
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        
+        video.onloadedmetadata = () => {
+          const duration = Math.round(video.duration);
+          const formattedDuration = formatDuration(duration);
+          
+          updateVideo(videoId, {
+            videoFile: file,
+            videoUrl: URL.createObjectURL(file),
+            duration: formattedDuration
+          });
+          
+          // Clean up
+          URL.revokeObjectURL(video.src);
+        };
+        
+        video.onerror = () => {
+          toast({
+            variant: "destructive",
+            title: "Video Error",
+            description: "Could not load video metadata. Please try a different file."
+          });
+        };
+        
+        video.src = URL.createObjectURL(file);
       } else {
         toast({
           variant: "destructive",
@@ -243,6 +409,18 @@ const CreateTutorialSeriesWizard: React.FC = () => {
         });
       }
     }
+  };
+
+  // Helper function to format duration
+  const formatDuration = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
   const moveVideo = (fromIndex: number, toIndex: number) => {
@@ -263,29 +441,86 @@ const CreateTutorialSeriesWizard: React.FC = () => {
   };
 
   const handleSubmit = async (publishNow: boolean = false) => {
-    if (!validateStep(3)) return;
+    console.log('DEBUG: handleSubmit called', { publishNow, editMode, tutorialId });
+    
+    const validationResult = validateStep(3);
+    console.log('DEBUG: validateStep(3) result:', validationResult);
+    
+    if (!validationResult) {
+      console.log('DEBUG: Validation failed, returning early');
+      console.log('DEBUG: Current errors:', errors);
+      console.log('DEBUG: Videos count:', tutorialSeries.videos.length);
+      toast({
+        title: "Validation Failed",
+        description: "Please complete all required fields before publishing.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setIsSubmitting(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const finalSeries = {
-        ...tutorialSeries,
-        status: publishNow ? 'published' : 'draft'
+      const seriesData = {
+        title: tutorialSeries.title,
+        description: tutorialSeries.description,
+        categoryId: parseInt(tutorialSeries.category),
+        difficulty: tutorialSeries.difficulty,
+        learningObjectives: tutorialSeries.learningObjectives.filter(obj => obj.trim() !== ''),
+        prerequisites: tutorialSeries.prerequisites.filter(obj => obj.trim() !== ''),
+        tags: tutorialSeries.tags,
+        thumbnailFile: tutorialSeries.thumbnailFile,
+        videos: tutorialSeries.videos.map(video => ({
+          title: video.title,
+          description: video.description,
+          videoFile: video.videoFile,
+          duration: video.duration ? parseInt(video.duration) : undefined,
+          isPreview: video.isPreview || false
+        }))
       };
       
-      toast({
-        title: publishNow ? "Tutorial Series Published!" : "Tutorial Series Saved!",
-        description: publishNow 
-          ? "Your tutorial series is now live and available to users."
-          : "Your tutorial series has been saved as a draft."
-      });
-      
-      // In real app, navigate back to content management
+      if (editMode && tutorialId) {
+        console.log('DEBUG: Edit mode - updating existing tutorial', { tutorialId, publishNow });
+        // Update existing tutorial
+        const result = await updateTutorialMutation.mutateAsync({
+          id: tutorialId,
+          tutorialData: {
+            ...seriesData,
+            status: publishNow ? 'published' : 'draft'
+          }
+        });
+        console.log('DEBUG: Update result', result);
+        
+        if (result.success) {
+          toast({
+            title: publishNow ? "Tutorial Series Published!" : "Draft Updated!",
+            description: publishNow ? 
+              "Your tutorial series is now live and available to users." :
+              "Your tutorial series draft has been updated."
+          });
+          
+          navigate('/admin/content');
+        }
+      } else {
+        console.log('DEBUG: Create mode - creating new tutorial', { publishNow });
+        // Create new tutorial
+        const result = await createTutorialSeriesMutation.mutateAsync(seriesData);
+        console.log('DEBUG: Create result', result);
+        
+        if (result.success) {
+          toast({
+            title: publishNow ? "Tutorial Series Published!" : "Draft Saved!",
+            description: publishNow ? 
+              "Your tutorial series is now live and available to users." :
+              "Your tutorial series has been saved as a draft."
+          });
+          
+          navigate('/admin/content');
+        }
+      }
       
     } catch (error) {
+      console.error('Error creating tutorial series:', error);
       toast({
         variant: "destructive",
         title: "Submission Failed",
@@ -296,14 +531,33 @@ const CreateTutorialSeriesWizard: React.FC = () => {
     }
   };
 
+  // Show loading state when fetching tutorial data in edit mode
+  if (editMode && isLoadingTutorial) {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto">
+        <AnimatedBreadcrumb items={breadcrumbItems} />
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading tutorial data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <AnimatedBreadcrumb items={breadcrumbItems} />
       
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900">Create Tutorial Series</h1>
-        <p className="text-gray-600 mt-2">Follow the steps below to create a comprehensive tutorial series</p>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {editMode ? 'Edit Tutorial Series' : 'Create Tutorial Series'}
+        </h1>
+        <p className="text-gray-600 mt-2">
+          {editMode ? 'Update your tutorial series information' : 'Follow the steps below to create a comprehensive tutorial series'}
+        </p>
       </div>
 
       {/* Progress Steps */}
@@ -311,24 +565,76 @@ const CreateTutorialSeriesWizard: React.FC = () => {
         {steps.map((step, index) => (
           <div key={step.id} className="flex-1 flex items-center">
             <div className="flex items-center">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-medium ${
-                currentStep > step.id 
-                  ? 'bg-green-500 text-white' 
-                  : currentStep === step.id
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-200 text-gray-600'
-              }`}>
-                {currentStep > step.id ? <Check className="h-5 w-5" /> : step.id}
-              </div>
+              <motion.div 
+                className={`w-14 h-14 rounded-full flex items-center justify-center font-medium text-sm border-2 ${
+                  currentStep > step.id 
+                    ? 'bg-green-500 text-white shadow-lg border-green-500' 
+                    : currentStep === step.id
+                    ? 'bg-primary text-white shadow-lg ring-4 ring-primary/20 border-primary'
+                    : 'bg-white text-gray-600 border-gray-300 shadow-sm'
+                } ${editMode ? 'cursor-pointer hover:shadow-md' : ''}`}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                style={{ 
+                  aspectRatio: '1/1',
+                  minWidth: '56px',
+                  minHeight: '56px'
+                }}
+                onClick={editMode ? () => {
+                  console.log('DEBUG: Step clicked in edit mode', { stepId: step.id, currentStep });
+                  setCurrentStep(step.id);
+                } : undefined}
+              >
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ duration: 0.3, delay: index * 0.1 }}
+                >
+                  {currentStep > step.id ? (
+                    <motion.div
+                      initial={{ scale: 0, rotate: -180 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ duration: 0.4 }}
+                    >
+                      <Check className="h-6 w-6" />
+                    </motion.div>
+                  ) : (
+                    <span className="font-semibold">{step.id}</span>
+                  )}
+                </motion.div>
+              </motion.div>
               <div className="ml-3 hidden md:block">
-                <p className="text-sm font-medium text-gray-900">{step.title}</p>
-                <p className="text-xs text-gray-500">{step.description}</p>
+                <motion.p 
+                  className="text-sm font-medium text-gray-900"
+                  animate={{ 
+                    color: currentStep === step.id ? '#1f2937' : '#6b7280' 
+                  }}
+                >
+                  {step.title}
+                </motion.p>
+                <motion.p 
+                  className="text-xs text-gray-500"
+                  animate={{ 
+                    color: currentStep === step.id ? '#374151' : '#9ca3af' 
+                  }}
+                >
+                  {step.description}
+                </motion.p>
               </div>
             </div>
             {index < steps.length - 1 && (
-              <div className={`flex-1 h-0.5 mx-4 ${
-                currentStep > step.id ? 'bg-green-500' : 'bg-gray-200'
-              }`} />
+              <motion.div 
+                className={`flex-1 h-1 mx-4 rounded-full ${
+                  currentStep > step.id ? 'bg-green-500' : 'bg-gray-200'
+                }`}
+                initial={{ scaleX: 0 }}
+                animate={{ 
+                  scaleX: currentStep > step.id ? 1 : 0.3,
+                  backgroundColor: currentStep > step.id ? '#10b981' : '#e5e7eb'
+                }}
+                transition={{ duration: 0.5 }}
+              />
             )}
           </div>
         ))}
@@ -345,8 +651,22 @@ const CreateTutorialSeriesWizard: React.FC = () => {
         >
           <Card className="border-primary/20">
             <CardHeader>
-              <CardTitle>Step {currentStep}: {steps[currentStep - 1].title}</CardTitle>
-              <CardDescription>{steps[currentStep - 1].description}</CardDescription>
+              <div className="flex items-center justify-between">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleBack}
+                  className="text-gray-600 hover:text-gray-800"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
+                </Button>
+                <div className="flex-1 text-center">
+                  <CardTitle>Step {currentStep}: {steps[currentStep - 1].title}</CardTitle>
+                  <CardDescription>{steps[currentStep - 1].description}</CardDescription>
+                </div>
+                <div className="w-20"></div> {/* Spacer for centering */}
+              </div>
             </CardHeader>
             
             <CardContent className="space-y-6">
@@ -377,7 +697,7 @@ const CreateTutorialSeriesWizard: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                           {categories.map(category => (
-                            <SelectItem key={category} value={category}>{category}</SelectItem>
+                            <SelectItem key={category.id} value={category.id.toString()}>{category.name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -398,16 +718,6 @@ const CreateTutorialSeriesWizard: React.FC = () => {
                     {errors.description && <p className="text-sm text-red-600">{errors.description}</p>}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="detailedDescription">Detailed Description</Label>
-                    <Textarea
-                      id="detailedDescription"
-                      placeholder="Comprehensive description that appears on the series detail page"
-                      value={tutorialSeries.detailedDescription}
-                      onChange={(e) => setTutorialSeries(prev => ({ ...prev, detailedDescription: e.target.value }))}
-                      rows={4}
-                    />
-                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
@@ -630,25 +940,21 @@ const CreateTutorialSeriesWizard: React.FC = () => {
                               </Button>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label>Video Title</Label>
-                                <Input
-                                  placeholder="e.g., Introduction to A and E sounds"
-                                  value={video.title}
-                                  onChange={(e) => updateVideo(video.id, { title: e.target.value })}
-                                />
-                              </div>
-                              
-                              <div className="space-y-2">
-                                <Label>Duration (optional)</Label>
-                                <Input
-                                  placeholder="e.g., 5:30"
-                                  value={video.duration || ''}
-                                  onChange={(e) => updateVideo(video.id, { duration: e.target.value })}
-                                />
-                              </div>
+                            <div className="space-y-2">
+                              <Label>Video Title</Label>
+                              <Input
+                                placeholder="e.g., Introduction to A and E sounds"
+                                value={video.title}
+                                onChange={(e) => updateVideo(video.id, { title: e.target.value })}
+                              />
                             </div>
+                            
+                            {video.duration && (
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <Clock className="h-4 w-4" />
+                                <span>Duration: {video.duration}</span>
+                              </div>
+                            )}
 
                             <div className="space-y-2">
                               <Label>Description</Label>
@@ -672,7 +978,14 @@ const CreateTutorialSeriesWizard: React.FC = () => {
                                       </span>
                                     </div>
                                     <div className="flex gap-2">
-                                      <Button size="sm" variant="outline">
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline"
+                                        onClick={() => setPreviewVideo({
+                                          url: video.videoUrl!,
+                                          title: video.title || 'Video Preview'
+                                        })}
+                                      >
                                         <Play className="h-4 w-4 mr-2" />
                                         Preview
                                       </Button>
@@ -869,6 +1182,59 @@ const CreateTutorialSeriesWizard: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Video Preview Modal */}
+      {previewVideo && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">{previewVideo.title}</h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPreviewVideo(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="aspect-video bg-black rounded-lg overflow-hidden">
+              <video
+                src={previewVideo.url}
+                controls
+                className="w-full h-full"
+                autoPlay
+              >
+                Your browser does not support the video tag.
+              </video>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Back Confirmation Dialog */}
+      <Dialog open={showBackConfirmation} onOpenChange={setShowBackConfirmation}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Unsaved Changes</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes. Do you want to save as draft before leaving?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={handleBackCancel}>
+              Leave Without Saving
+            </Button>
+            <Button onClick={handleBackConfirm}>
+              Save as Draft
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -16,6 +16,7 @@ export const useLogin = () => {
     mutationFn: ({ email, password }: { email: string; password: string }) => 
       apiClient.login(email, password),
     onSuccess: (data) => {
+      
       const user = {
         id: data.user.id.toString(),
         email: data.user.email,
@@ -28,6 +29,7 @@ export const useLogin = () => {
         practiceTime: "0h",
         avgAccuracy: "0%"
       };
+      
       setUser(user);
       localStorage.setItem('user', JSON.stringify(user));
       localStorage.setItem('token', data.token);
@@ -56,6 +58,7 @@ export const useRegister = () => {
       profileImage?: File 
     }) => apiClient.register(email, password, name, profileImage),
     onSuccess: (data) => {
+      
       const user = {
         id: data.user.id.toString(),
         email: data.user.email,
@@ -68,27 +71,36 @@ export const useRegister = () => {
         practiceTime: "0h",
         avgAccuracy: "0%"
       };
+      
       setUser(user);
       localStorage.setItem('user', JSON.stringify(user));
       localStorage.setItem('token', data.token);
       queryClient.setQueryData(['user'], user);
-      navigate('/dashboard');
+      
+      // Navigate based on user role
+      if (user.role === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     },
   });
 };
 
 export const useLogout = () => {
-  const { setUser } = useAuth();
-  const queryClient = useQueryClient();
+  const { logout } = useAuth();
   const navigate = useNavigate();
 
   return useMutation({
-    mutationFn: () => apiClient.logout(),
+    mutationFn: () => {
+      return apiClient.logout();
+    },
     onSuccess: () => {
-      setUser(null);
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      queryClient.clear();
+      logout();
+      navigate('/login');
+    },
+    onError: (error) => {
+      logout();
       navigate('/login');
     },
   });

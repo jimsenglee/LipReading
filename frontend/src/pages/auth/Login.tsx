@@ -28,7 +28,11 @@ const Login = () => {
   const { toast } = useToast();
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    if (user.role === 'admin') {
+      return <Navigate to="/admin" replace />;
+    } else {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,13 +47,15 @@ const Login = () => {
     }
 
     try {
-      await loginMutation.mutateAsync({ email, password });
+      const result = await loginMutation.mutateAsync({ email, password });
+      
       toast({
         title: "Login Successful",
         description: "Welcome back!",
         variant: "success"
       });
-      navigate('/dashboard');
+      
+      // Navigation is handled by the mutation
     } catch (error: any) {
       console.error('Login error:', error);
       

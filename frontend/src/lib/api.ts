@@ -49,6 +49,27 @@ export interface ApiTutorial {
   title: string;
   description: string | null;
   videoPath: string;
+  // Enhanced fields for tutorial series functionality
+  status: string;
+  difficulty: string;
+  author: string;
+  thumbnailPath: string | null;
+  views: number;
+  rating: number | null;
+  createdAt: string;
+  updatedAt: string;
+  // NEW FIELDS FOR TUTORIAL SERIES
+  seriesType: string;
+  parentSeriesId: number | null;
+  videoOrder: number | null;
+  videoTitle: string | null;
+  videoDescription: string | null;
+  videoDuration: number | null;
+  learningObjectives: string | null;
+  prerequisites: string | null;
+  tags: string | null;
+  isPreview: boolean;
+  videoFilePath: string | null;
 }
 
 export interface ApiQuiz {
@@ -94,23 +115,11 @@ class ApiClient {
       headers,
     };
 
-    console.log('🔍 DEBUG: API Request Details:', {
-      url,
-      method: options.method || 'GET',
-      headers,
-      body: options.body instanceof FormData ? 'FormData' : options.body,
-      isFormData: options.body instanceof FormData
-    });
-
     try {
       const response = await fetch(url, config);
       
-      console.log('🔍 DEBUG: API Response Status:', response.status);
-      console.log('🔍 DEBUG: API Response Headers:', Object.fromEntries(response.headers.entries()));
-      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.log('🔍 DEBUG: API Error Data:', errorData);
         
         // Enhanced error handling with field-specific errors
         const error = new Error(errorData.error || `HTTP ${response.status}`);
@@ -121,11 +130,8 @@ class ApiClient {
         throw error;
       }
 
-      const responseData = await response.json();
-      console.log('🔍 DEBUG: API Success Response:', responseData);
-      return responseData;
+      return await response.json();
     } catch (error) {
-      console.error('🔍 DEBUG: API request failed:', error);
       throw error;
     }
   }
@@ -139,29 +145,13 @@ class ApiClient {
   }
 
   async register(email: string, password: string, name: string, profileImage?: File): Promise<RegisterResponse> {
-    console.log('🔍 DEBUG: Register function called with:', {
-      email,
-      name,
-      passwordLength: password.length,
-      hasProfileImage: !!profileImage,
-      profileImageName: profileImage?.name
-    });
-
     if (profileImage) {
       // Handle file upload with FormData
-      console.log('🔍 DEBUG: Using FormData for registration');
       const formData = new FormData();
       formData.append('email', email);
       formData.append('password', password);
       formData.append('name', name);
       formData.append('profile_image', profileImage);
-
-      console.log('🔍 DEBUG: FormData contents:', {
-        email: formData.get('email'),
-        name: formData.get('name'),
-        passwordLength: formData.get('password')?.toString().length,
-        profileImageName: (formData.get('profile_image') as File)?.name
-      });
 
       return this.request<RegisterResponse>('/auth/register', {
         method: 'POST',
@@ -172,9 +162,7 @@ class ApiClient {
       });
     } else {
       // Handle JSON data
-      console.log('🔍 DEBUG: Using JSON for registration');
       const jsonData = { email, password, name };
-      console.log('🔍 DEBUG: JSON data:', jsonData);
       
       return this.request<RegisterResponse>('/auth/register', {
         method: 'POST',
@@ -189,48 +177,36 @@ class ApiClient {
 
   // data endpoints
   async getCategories(): Promise<ApiCategory[]> {
-    console.log('🔍 API DEBUG: Fetching categories...');
     const response = await this.request<ApiCategory[] | {pagination: any, categories: ApiCategory[]}>('/categories');
-    console.log('🔍 API DEBUG: Categories response:', response);
     
     // Handle both direct array response and nested response
     if (Array.isArray(response)) {
-      console.log('🔍 API DEBUG: Categories returned as direct array');
       return response;
     } else {
-      console.log('🔍 API DEBUG: Categories returned as nested object');
       return response.categories || [];
     }
   }
 
   async getTutorials(categoryId?: number): Promise<ApiTutorial[]> {
     const endpoint = categoryId ? `/tutorials?categoryId=${categoryId}` : '/tutorials';
-    console.log('🔍 API DEBUG: Fetching tutorials from:', endpoint);
     const response = await this.request<ApiTutorial[] | {pagination: any, tutorials: ApiTutorial[]}>(endpoint);
-    console.log('🔍 API DEBUG: Tutorials response:', response);
     
     // Handle both direct array response and nested response
     if (Array.isArray(response)) {
-      console.log('🔍 API DEBUG: Tutorials returned as direct array');
       return response;
     } else {
-      console.log('🔍 API DEBUG: Tutorials returned as nested object');
       return response.tutorials || [];
     }
   }
 
   async getQuizzes(categoryId?: number): Promise<ApiQuiz[]> {
     const endpoint = categoryId ? `/quizzes?categoryId=${categoryId}` : '/quizzes';
-    console.log('🔍 API DEBUG: Fetching quizzes from:', endpoint);
     const response = await this.request<ApiQuiz[] | {pagination: any, quizzes: ApiQuiz[]}>(endpoint);
-    console.log('🔍 API DEBUG: Quizzes response:', response);
     
     // Handle both direct array response and nested response
     if (Array.isArray(response)) {
-      console.log('🔍 API DEBUG: Quizzes returned as direct array');
       return response;
     } else {
-      console.log('🔍 API DEBUG: Quizzes returned as nested object');
       return response.quizzes || [];
     }
   }
@@ -319,16 +295,116 @@ class ApiClient {
     });
   }
 
-  async updateTutorial(id: number, tutorialData: Partial<ApiTutorial>): Promise<{ success: boolean; tutorial: ApiTutorial }> {
+  async updateTutorial(id: number, tutorialData: {
+    title: string;
+    description: string;
+    categoryId: number;
+    difficulty: string;
+    learningObjectives: string[];
+    prerequisites: string[];
+    tags: string[];
+    status: string;
+    thumbnailFile?: File;
+    videos: {
+      title: string;
+      description: string;
+      videoFile?: File;
+      duration?: number;
+      isPreview: boolean;
+    }[];
+  }): Promise<{ success: boolean; tutorial: ApiTutorial }> {
+    const formData = new FormData();
+    
+    // Add tutorial data
+    formData.append('title', tutorialData.title);
+    formData.append('description', tutorialData.description);
+    formData.append('categoryId', tutorialData.categoryId.toString());
+    formData.append('difficulty', tutorialData.difficulty);
+    formData.append('status', tutorialData.status);
+    formData.append('learningObjectives', JSON.stringify(tutorialData.learningObjectives));
+    formData.append('prerequisites', JSON.stringify(tutorialData.prerequisites));
+    formData.append('tags', JSON.stringify(tutorialData.tags));
+    
+    if (tutorialData.thumbnailFile) {
+      formData.append('thumbnail', tutorialData.thumbnailFile);
+    }
+    
+    // Add videos data
+    tutorialData.videos.forEach((video, index) => {
+      formData.append(`videos[${index}][title]`, video.title);
+      formData.append(`videos[${index}][description]`, video.description);
+      formData.append(`videos[${index}][isPreview]`, video.isPreview.toString());
+      if (video.duration) {
+        formData.append(`videos[${index}][duration]`, video.duration.toString());
+      }
+      if (video.videoFile) {
+        formData.append(`videos[${index}][videoFile]`, video.videoFile);
+      }
+    });
+    
     return this.request<{ success: boolean; tutorial: ApiTutorial }>(`/tutorials/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(tutorialData),
+      body: formData,
     });
   }
 
   async deleteTutorial(id: number): Promise<{ success: boolean; message: string }> {
     return this.request<{ success: boolean; message: string }>(`/tutorials/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  // Tutorial series methods
+  async createTutorialSeries(seriesData: {
+    title: string;
+    description: string;
+    categoryId: number;
+    difficulty: string;
+    learningObjectives: string[];
+    prerequisites: string[];
+    tags: string[];
+    status?: string;
+    thumbnailFile?: File;
+    videos: {
+      title: string;
+      description: string;
+      videoFile?: File;
+      duration?: number;
+      isPreview: boolean;
+    }[];
+  }): Promise<{ success: boolean; series: ApiTutorial; videos: ApiTutorial[] }> {
+    const formData = new FormData();
+    
+    // Add series data
+    formData.append('title', seriesData.title);
+    formData.append('description', seriesData.description);
+    formData.append('categoryId', seriesData.categoryId.toString());
+    formData.append('difficulty', seriesData.difficulty);
+    formData.append('status', seriesData.status || 'published');
+    formData.append('learningObjectives', JSON.stringify(seriesData.learningObjectives));
+    formData.append('prerequisites', JSON.stringify(seriesData.prerequisites));
+    formData.append('tags', JSON.stringify(seriesData.tags));
+    
+    if (seriesData.thumbnailFile) {
+      formData.append('thumbnail', seriesData.thumbnailFile);
+    }
+    
+    // Add videos data
+    seriesData.videos.forEach((video, index) => {
+      formData.append(`videos[${index}][title]`, video.title);
+      formData.append(`videos[${index}][description]`, video.description);
+      formData.append(`videos[${index}][isPreview]`, video.isPreview.toString());
+      if (video.duration) {
+        formData.append(`videos[${index}][duration]`, video.duration.toString());
+      }
+      if (video.videoFile) {
+        formData.append(`videos[${index}][videoFile]`, video.videoFile);
+      }
+    });
+    
+    return this.request<{ success: boolean; series: ApiTutorial; videos: ApiTutorial[] }>('/tutorials/series', {
+      method: 'POST',
+      body: formData,
     });
   }
 

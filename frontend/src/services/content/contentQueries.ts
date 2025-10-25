@@ -12,13 +12,16 @@ export interface ContentParams {
   search?: string;
   category?: string;
   status?: 'all' | 'active' | 'inactive';
-  sort_by?: 'title' | 'category' | 'created_at' | 'updated_at';
+  sort_by?: 'id' | 'title' | 'category' | 'created_at' | 'updated_at';
   sort_order?: 'asc' | 'desc';
 }
 
 export interface ContentResponse<T> {
   success: boolean;
-  data: T[];
+  data?: T[];
+  tutorials?: T[];
+  quizzes?: T[];
+  categories?: T[];
   pagination: {
     current_page: number;
     per_page: number;
@@ -33,30 +36,32 @@ export interface ContentResponse<T> {
 // CONTENT QUERIES
 // ============================================================================
 
-export const useCategories = () => {
+export const useCategories = (params: ContentParams = {}) => {
   return useQuery({
-    queryKey: ['categories'],
-    queryFn: () => apiClient.getCategories(),
-  });
-};
-
-export const useTutorials = (params: ContentParams = {}) => {
-  return useQuery({
-    queryKey: ['tutorials', params],
-    queryFn: async (): Promise<ContentResponse<ApiTutorial>> => {
-      console.log('🔍 DEBUG useTutorials: Calling apiClient.getTutorials()');
-      const tutorials = await apiClient.getTutorials();
-      console.log('🔍 DEBUG useTutorials: Got tutorials from apiClient:', tutorials);
+    queryKey: ['categories', params],
+    queryFn: async (): Promise<ContentResponse<ApiCategory>> => {
+      const response = await fetch(`${API_BASE_URL}/api/categories`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
       
-      // Transform the array response to match ContentResponse format
+      if (!response.ok) {
+        throw new Error('Failed to fetch categories');
+      }
+      
+      const categories = await response.json();
+      
+      // transform direct array response to ContentResponse format
       return {
         success: true,
-        data: tutorials,
+        data: categories,
         pagination: {
-          current_page: params.page || 1,
-          per_page: params.per_page || 10,
-          total_count: tutorials.length,
-          total_pages: Math.ceil(tutorials.length / (params.per_page || 10)),
+          current_page: 1,
+          per_page: categories.length,
+          total_count: categories.length,
+          total_pages: 1,
           has_next: false,
           has_prev: false
         }
@@ -65,27 +70,65 @@ export const useTutorials = (params: ContentParams = {}) => {
   });
 };
 
+export const useTutorials = (params: ContentParams = {}) => {
+  return useQuery({
+    queryKey: ['tutorials', params],
+    queryFn: async (): Promise<ContentResponse<ApiTutorial>> => {
+      // Use server-side pagination and filtering
+      const queryParams = new URLSearchParams();
+      
+      if (params.page) queryParams.append('page', params.page.toString());
+      if (params.per_page) queryParams.append('per_page', params.per_page.toString());
+      if (params.search) queryParams.append('search', params.search);
+      if (params.category && params.category !== 'all') queryParams.append('category_id', params.category);
+      if (params.status && params.status !== 'all') queryParams.append('status', params.status);
+      if (params.sort_by) queryParams.append('sort_by', params.sort_by);
+      if (params.sort_order) queryParams.append('sort_order', params.sort_order);
+      
+      const response = await fetch(`${API_BASE_URL}/api/tutorials?${queryParams.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch tutorials: ${response.status}`);
+      }
+      
+      return await response.json();
+    },
+  });
+};
+
 export const useQuizzes = (params: ContentParams = {}) => {
   return useQuery({
     queryKey: ['quizzes', params],
     queryFn: async (): Promise<ContentResponse<ApiQuiz>> => {
-      console.log('🔍 DEBUG useQuizzes: Calling apiClient.getQuizzes()');
-      const quizzes = await apiClient.getQuizzes();
-      console.log('🔍 DEBUG useQuizzes: Got quizzes from apiClient:', quizzes);
+      // Use server-side pagination and filtering
+      const queryParams = new URLSearchParams();
       
-      // Transform the array response to match ContentResponse format
-      return {
-        success: true,
-        data: quizzes,
-        pagination: {
-          current_page: params.page || 1,
-          per_page: params.per_page || 10,
-          total_count: quizzes.length,
-          total_pages: Math.ceil(quizzes.length / (params.per_page || 10)),
-          has_next: false,
-          has_prev: false
+      if (params.page) queryParams.append('page', params.page.toString());
+      if (params.per_page) queryParams.append('per_page', params.per_page.toString());
+      if (params.search) queryParams.append('search', params.search);
+      if (params.category && params.category !== 'all') queryParams.append('category_id', params.category);
+      if (params.status && params.status !== 'all') queryParams.append('status', params.status);
+      if (params.sort_by) queryParams.append('sort_by', params.sort_by);
+      if (params.sort_order) queryParams.append('sort_order', params.sort_order);
+      
+      const response = await fetch(`${API_BASE_URL}/api/quizzes?${queryParams.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
         }
-      };
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch quizzes');
+      }
+      
+      const result = await response.json();
+      return result;
     },
   });
 };

@@ -48,50 +48,34 @@ export const useUsers = (params: UsersParams = {}) => {
   return useQuery({
     queryKey: ['users', params],
     queryFn: async (): Promise<UsersResponse> => {
-      try {
-        console.log('🔍 DEBUG: useUsers queryFn called with params:', params);
-        
-        const searchParams = new URLSearchParams();
-        
-        if (params.page) searchParams.append('page', params.page.toString());
-        if (params.per_page) searchParams.append('per_page', params.per_page.toString());
-        if (params.search) searchParams.append('search', params.search);
-        if (params.role && params.role !== 'all') searchParams.append('role', params.role);
-        if (params.sort_by) searchParams.append('sort_by', params.sort_by);
-        if (params.sort_order) searchParams.append('sort_order', params.sort_order);
-        
-        const token = localStorage.getItem('token');
-        if (!token) {
-          console.error('🔍 DEBUG: no authentication token found');
-          throw new Error('No authentication token found');
-        }
-        
-        const url = `${API_BASE_URL}/api/users?${searchParams.toString()}`;
-        console.log('🔍 DEBUG: making request to:', url);
-        
-        const response = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        console.log('🔍 DEBUG: response status:', response.status, response.statusText);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('🔍 DEBUG: response not ok:', response.status, errorText);
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('🔍 DEBUG: response data:', data);
-        
-        return data;
-      } catch (error) {
-        console.error('🔍 DEBUG: useUsers error:', error);
-        throw error;
+      const searchParams = new URLSearchParams();
+      
+      if (params.page) searchParams.append('page', params.page.toString());
+      if (params.per_page) searchParams.append('per_page', params.per_page.toString());
+      if (params.search) searchParams.append('search', params.search);
+      if (params.role && params.role !== 'all') searchParams.append('role', params.role);
+      if (params.sort_by) searchParams.append('sort_by', params.sort_by);
+      if (params.sort_order) searchParams.append('sort_order', params.sort_order);
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
       }
+      
+      const url = `${API_BASE_URL}/api/users?${searchParams.toString()}`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
     },
     enabled: true,
   });

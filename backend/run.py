@@ -13,5 +13,11 @@ except ImportError:
 app = create_app()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # For debugging, we want to catch all exceptions
+    try:
+        app.run(host='0.0.0.0', port=5000, debug=True)
+    except Exception as e:
+        print(f"CRITICAL ERROR: {e}")
+        import traceback
+        traceback.print_exc()
 

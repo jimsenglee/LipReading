@@ -22,7 +22,24 @@ export const useUpdateTutorial = () => {
   return useMutation({
     mutationFn: ({ id, tutorialData }: { 
       id: number; 
-      tutorialData: Partial<ApiTutorial> 
+      tutorialData: {
+        title: string;
+        description: string;
+        categoryId: number;
+        difficulty: string;
+        learningObjectives: string[];
+        prerequisites: string[];
+        tags: string[];
+        status: string;
+        thumbnailFile?: File;
+        videos: {
+          title: string;
+          description: string;
+          videoFile?: File;
+          duration?: number;
+          isPreview: boolean;
+        }[];
+      }
     }) => apiClient.updateTutorial(id, tutorialData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tutorials'] });
@@ -38,6 +55,35 @@ export const useDeleteTutorial = () => {
     mutationFn: (id: number) => apiClient.deleteTutorial(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tutorials'] });
+    },
+  });
+};
+
+export const useCreateTutorialSeries = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (seriesData: {
+      title: string;
+      description: string;
+      categoryId: number;
+      difficulty: string;
+      learningObjectives: string[];
+      prerequisites: string[];
+      tags: string[];
+      status?: string;
+      thumbnailFile?: File;
+      videos: {
+        title: string;
+        description: string;
+        videoFile?: File;
+        duration?: number;
+        isPreview: boolean;
+      }[];
+    }) => apiClient.createTutorialSeries(seriesData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tutorials'] });
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
     },
   });
 };

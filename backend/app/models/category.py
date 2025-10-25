@@ -10,6 +10,7 @@ class Category(db.Model):
     id: so.Mapped[int] = so.mapped_column(primary_key=True, autoincrement=True)
     public_id: so.Mapped[str] = so.mapped_column(sa.String(20), unique=True, index=True)
     category_name: so.Mapped[str] = so.mapped_column(sa.String(255), nullable=False, unique=True)
+    status: so.Mapped[str] = so.mapped_column(sa.String(20), nullable=False, default='active', index=True)
 
     tutorials: so.WriteOnlyMapped['Tutorial'] = so.relationship(back_populates='category', cascade='all, delete-orphan')
     quizzes: so.WriteOnlyMapped['Quiz'] = so.relationship(back_populates='category', cascade='all, delete-orphan')

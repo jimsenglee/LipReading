@@ -23,12 +23,11 @@ const Transcription = () => {
   // Handle transcription updates
   const handleTranscriptionUpdate = (text: string) => {
     // This can be used to sync with other components or save progress
-    console.log('Transcription updated:', text);
   };
 
   // Handle completed file transcription
   const handleTranscriptionComplete = (transcription: string, file: File) => {
-    console.log('File transcription complete:', { transcription, fileName: file.name });
+    // Handle completed transcription
   };
 
   return (

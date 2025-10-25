@@ -24,14 +24,7 @@ def get_users():
     - sort_order: sort direction (asc, desc)
     """
     try:
-        print(f"🔍 DEBUG: get_users endpoint called")
-        print(f"🔍 DEBUG: Request method: {request.method}")
-        print(f"🔍 DEBUG: Request URL: {request.url}")
-        print(f"🔍 DEBUG: Request headers: {dict(request.headers)}")
-        print(f"🔍 DEBUG: request args: {dict(request.args)}")
-        
         current_user = get_jwt_identity()
-        print(f"🔍 DEBUG: Current user ID: {current_user}")
         # Get query parameters
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 10))
@@ -48,6 +41,9 @@ def get_users():
             
         # Build base query
         query = select(Account)
+        
+        # exclude deleted records by default
+        query = query.where(Account.status != 'deleted')
         
         # Apply search filter
         if search:
@@ -92,14 +88,11 @@ def get_users():
         query = query.offset(offset).limit(per_page)
         
         # execute query
-        print(f"🔍 DEBUG: executing query for accounts")
         accounts = db.session.scalars(query).all()
-        print(f"🔍 DEBUG: found {len(accounts)} accounts")
         
         # format response data
         users_data = []
         for account in accounts:
-            print(f"🔍 DEBUG: processing account: {account.id} - {account.name} - {account.email}")
             user_data = {
                 'id': account.id,
                 'public_id': account.public_id,
@@ -129,14 +122,9 @@ def get_users():
                 'has_prev': page > 1
             }
         }
-        print(f"🔍 DEBUG: returning response with {len(users_data)} users")
         return jsonify(response_data), 200
         
     except Exception as e:
-        print(f"🔍 DEBUG: error in get_users: {str(e)}")
-        print(f"🔍 DEBUG: error type: {type(e)}")
-        import traceback
-        print(f"🔍 DEBUG: traceback: {traceback.format_exc()}")
         current_app.logger.error(f"Error fetching users: {str(e)}")
         return jsonify({
             'success': False,
@@ -237,7 +225,8 @@ def delete_user(user_id):
                 'error': 'Cannot delete administrator account'
             }), 400
         
-        db.session.delete(account)
+        # soft delete user (change status to deleted)
+        account.status = 'deleted'
         db.session.commit()
         
         return jsonify({

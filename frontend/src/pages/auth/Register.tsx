@@ -113,7 +113,7 @@ const Register = () => {
         variant: "success",
         duration: 3000,
       });
-      navigate('/dashboard');
+      // Navigation is handled by the mutation
     } catch (error: any) {
       console.error('Registration error:', error);
       

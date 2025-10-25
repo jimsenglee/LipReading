@@ -25,14 +25,6 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
       ? getImageUrl(currentImage) 
       : DEFAULT_AVATAR_PATH;
     
-    console.log('🔍 DEBUG ProfileImageUpload currentImage changed:', {
-      currentImage,
-      hasCurrentImage: !!currentImage,
-      currentImageLength: currentImage?.length,
-      constructedUrl: imageUrl,
-      defaultAvatarPath: DEFAULT_AVATAR_PATH
-    });
-    
     setPreview(imageUrl);
   }, [currentImage]);
   const [dragOver, setDragOver] = useState(false);
@@ -129,12 +121,10 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
                 alt="Profile" 
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  console.log('🔍 DEBUG: Image failed to load:', preview);
                   // Hide the image element completely when it fails
                   e.currentTarget.style.display = 'none';
                 }}
                 onLoad={() => {
-                  console.log('🔍 DEBUG: Image loaded successfully:', preview);
                 }}
               />
             )}

@@ -51,14 +51,6 @@ const Profile = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Debug logging for profile image
-  React.useEffect(() => {
-    console.log('🔍 DEBUG Profile Image:', {
-      user: user,
-      profilePicture: user?.profilePicture,
-      constructedUrl: user?.profilePicture ? getImageUrl(user.profilePicture) : undefined
-    });
-  }, [user?.profilePicture]);
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',

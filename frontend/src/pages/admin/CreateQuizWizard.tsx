@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 interface QuizOption {
   id: string;
@@ -64,6 +65,7 @@ interface QuizSeries {
 
 const CreateQuizWizard: React.FC = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -161,6 +163,40 @@ const CreateQuizWizard: React.FC = () => {
     if (validateStep(currentStep)) {
       setCurrentStep(prev => Math.min(prev + 1, 4));
     }
+  };
+
+  const handleBack = () => {
+    // Check if any fields are filled
+    const hasFilledFields = quizSeries.title.trim() !== '' || 
+                           quizSeries.description.trim() !== '' || 
+                           quizSeries.category !== '' ||
+                           quizSeries.questions.length > 0;
+
+    if (hasFilledFields) {
+      const confirmed = window.confirm(
+        'You have unsaved changes. Do you want to save as draft before leaving?'
+      );
+      if (confirmed) {
+        // Save as draft
+        const draftData = {
+          id: `draft-${Date.now()}`,
+          ...quizSeries,
+          createdAt: new Date().toISOString(),
+          status: 'draft'
+        };
+        
+        const drafts = JSON.parse(localStorage.getItem('quiz-drafts') || '[]');
+        drafts.push(draftData);
+        localStorage.setItem('quiz-drafts', JSON.stringify(drafts));
+        
+        toast({
+          title: "Draft Saved",
+          description: "Your quiz has been saved as a draft."
+        });
+      }
+    }
+    
+    navigate('/admin/content');
   };
 
   const handlePrevious = () => {
@@ -335,8 +371,21 @@ const CreateQuizWizard: React.FC = () => {
         >
           <Card className="border-primary/20">
             <CardHeader>
-              <CardTitle>Step {currentStep}: {steps[currentStep - 1].title}</CardTitle>
-              <CardDescription>{steps[currentStep - 1].description}</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Step {currentStep}: {steps[currentStep - 1].title}</CardTitle>
+                  <CardDescription>{steps[currentStep - 1].description}</CardDescription>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleBack}
+                  className="text-gray-600 hover:text-gray-800"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
+                </Button>
+              </div>
             </CardHeader>
             
             <CardContent className="space-y-6">

@@ -17,6 +17,7 @@ class Account(db.Model):
     profile_image_path: so.Mapped[Optional[str]] = so.mapped_column(sa.String(255))
     registration_date: so.Mapped[datetime] = so.mapped_column(sa.DateTime(), nullable=False, default=datetime.utcnow)
     account_type: so.Mapped[str] = so.mapped_column(sa.String(20), nullable=False, index=True)
+    status: so.Mapped[str] = so.mapped_column(sa.String(20), nullable=False, default='active', index=True)
 
     __mapper_args__ = {
         'polymorphic_on': account_type,

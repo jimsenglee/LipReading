@@ -19,6 +19,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
     );
   }
 
+  // If no user, redirect to login
   if (!user) {
     return <Navigate to="/login" replace />;
   }

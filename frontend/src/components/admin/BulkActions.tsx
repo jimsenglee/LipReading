@@ -95,7 +95,15 @@ const BulkActions: React.FC<BulkActionsProps> = ({
       {onBulkDelete && selectedCount > 0 && (
         <Button
           variant="destructive"
-          onClick={onBulkDelete}
+          onClick={() => {
+            console.log('DEBUG: Bulk delete button clicked', { selectedCount, onBulkDelete: !!onBulkDelete });
+            if (onBulkDelete) {
+              console.log('DEBUG: Calling onBulkDelete function');
+              onBulkDelete();
+            } else {
+              console.log('DEBUG: onBulkDelete function is not defined');
+            }
+          }}
           className="flex items-center gap-2"
         >
           <Trash2 className="h-4 w-4" />

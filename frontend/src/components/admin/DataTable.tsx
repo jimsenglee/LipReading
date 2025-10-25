@@ -184,6 +184,9 @@ const DataTable = <T,>({
                     </th>
                   )}
                   
+                  {/* numbering column */}
+                  <th className="text-left py-3 px-4 w-16">#</th>
+                  
                   {/* column headers */}
                   {columns.map((column) => (
                     <th
@@ -207,8 +210,11 @@ const DataTable = <T,>({
                 </tr>
               </thead>
               <tbody>
-                {data.map((item) => {
+                {data.map((item, index) => {
                   const itemId = getItemId(item);
+                  const rowNumber = pagination ? 
+                    ((pagination.current_page - 1) * pagination.per_page) + index + 1 : 
+                    index + 1;
                   return (
                     <tr key={itemId} className="border-b border-gray-100 hover:bg-gray-50">
                       {/* select checkbox */}
@@ -220,6 +226,11 @@ const DataTable = <T,>({
                           />
                         </td>
                       )}
+                      
+                      {/* numbering cell */}
+                      <td className="py-3 px-4 text-sm text-gray-600 font-medium">
+                        {rowNumber}
+                      </td>
                       
                       {/* data columns */}
                       {columns.map((column) => (
@@ -265,9 +276,9 @@ const DataTable = <T,>({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="5">5</SelectItem>
                   <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="15">15</SelectItem>
                 </SelectContent>
               </Select>
               <Label className="text-sm font-medium text-gray-700">entries</Label>

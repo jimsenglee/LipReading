@@ -5,6 +5,7 @@ from sqlalchemy.orm import joinedload
 from datetime import datetime
 import os
 import uuid
+import json
 from werkzeug.utils import secure_filename
 
 from ..extensions import db
@@ -45,6 +46,9 @@ def list_tutorials():
             
         # build base query with category join
         query = sa.select(Tutorial).options(joinedload(Tutorial.category))
+        
+        # exclude deleted records by default
+        query = query.where(Tutorial.status != 'deleted')
         
         # apply filters
         if search:
@@ -104,12 +108,15 @@ def list_tutorials():
             })
         
         return jsonify({
-            'tutorials': tutorial_list,
+            'success': True,
+            'data': tutorial_list,
             'pagination': {
-                'page': page,
-                'perPage': per_page,
-                'total': total,
-                'pages': (total + per_page - 1) // per_page
+                'current_page': page,
+                'per_page': per_page,
+                'total_count': total,
+                'total_pages': (total + per_page - 1) // per_page,
+                'has_next': page < (total + per_page - 1) // per_page,
+                'has_prev': page > 1
             }
         })
         
@@ -125,6 +132,7 @@ def get_tutorial(tutorial_id):
         tutorial = db.session.scalar(
             sa.select(Tutorial).options(joinedload(Tutorial.category))
             .where(Tutorial.id == tutorial_id)
+            .where(Tutorial.status != 'deleted')
         )
         
         if not tutorial:
@@ -146,6 +154,15 @@ def get_tutorial(tutorial_id):
             'difficulty': tutorial.difficulty,
             'author': tutorial.author,
             'thumbnailPath': tutorial.thumbnail_path,
+            'duration': tutorial.video_duration,
+            'learningObjectives': tutorial.learning_objectives,
+            'prerequisites': tutorial.prerequisites,
+            'tags': tutorial.tags,
+            'isPreview': tutorial.is_preview,
+            'seriesId': tutorial.parent_series_id,
+            'seriesTitle': tutorial.video_title,
+            'orderInSeries': tutorial.video_order,
+            'totalVideosInSeries': None,  # This field doesn't exist in the model
             'views': tutorial.views,
             'rating': float(tutorial.rating) if tutorial.rating else 0.0,
             'createdAt': tutorial.created_at.isoformat() if tutorial.created_at else None,
@@ -221,67 +238,6 @@ def create_tutorial():
         return jsonify({'error': 'Failed to create tutorial'}), 500
 
 
-@bp.put('/tutorials/<int:tutorial_id>')
-@jwt_required()
-def update_tutorial(tutorial_id):
-    """update tutorial (admin only)"""
-    try:
-        current_user_id = get_jwt_identity()
-        
-        # check if user is admin
-        user = db.session.scalar(
-            sa.select(Account).where(Account.id == current_user_id)
-        )
-        if not user or user.account_type != 'Administrator':
-            return jsonify({'error': 'Admin access required'}), 403
-        
-        tutorial = db.session.scalar(
-            sa.select(Tutorial).where(Tutorial.id == tutorial_id)
-        )
-        if not tutorial:
-            return jsonify({'error': 'Tutorial not found'}), 404
-        
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        # update fields
-        if 'title' in data:
-            tutorial.title = data['title']
-        if 'description' in data:
-            tutorial.description = data['description']
-        if 'video_path' in data:
-            tutorial.video_path = data['video_path']
-        if 'status' in data:
-            tutorial.status = data['status']
-        if 'difficulty' in data:
-            tutorial.difficulty = data['difficulty']
-        if 'thumbnail_path' in data:
-            tutorial.thumbnail_path = data['thumbnail_path']
-        if 'category_id' in data:
-            # validate category exists
-            category = db.session.scalar(
-                sa.select(Category).where(Category.id == data['category_id'])
-            )
-            if not category:
-                return jsonify({'error': 'Category not found'}), 400
-            tutorial.category_id = data['category_id']
-        
-        tutorial.updated_at = datetime.utcnow()
-        db.session.commit()
-        
-        return jsonify({
-            'id': tutorial.id,
-            'publicId': tutorial.public_id,
-            'message': 'Tutorial updated successfully'
-        })
-        
-    except Exception as e:
-        current_app.logger.error(f"Error updating tutorial {tutorial_id}: {str(e)}")
-        db.session.rollback()
-        return jsonify({'error': 'Failed to update tutorial'}), 500
-
-
 @bp.delete('/tutorials/<int:tutorial_id>')
 @jwt_required()
 def delete_tutorial(tutorial_id):
@@ -302,15 +258,170 @@ def delete_tutorial(tutorial_id):
         if not tutorial:
             return jsonify({'error': 'Tutorial not found'}), 404
         
-        db.session.delete(tutorial)
+        # soft delete tutorial (change status to deleted)
+        tutorial.status = 'deleted'
+        tutorial.updated_at = datetime.utcnow()
         db.session.commit()
         
-        return jsonify({'message': 'Tutorial deleted successfully'})
+        return jsonify({
+            'success': True,
+            'message': 'Tutorial deleted successfully'
+        })
         
     except Exception as e:
         current_app.logger.error(f"Error deleting tutorial {tutorial_id}: {str(e)}")
         db.session.rollback()
-        return jsonify({'error': 'Failed to delete tutorial'}), 500
+        return jsonify({
+            'success': False,
+            'error': 'Failed to delete tutorial',
+            'message': str(e)
+        }), 500
+
+
+@bp.put('/tutorials/<int:tutorial_id>')
+@jwt_required()
+def update_tutorial(tutorial_id):
+    """Update tutorial (including draft updates)"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Check if user is admin
+        user = db.session.scalar(
+            sa.select(Account).where(Account.id == current_user_id)
+        )
+        if not user or user.account_type != 'Administrator':
+            return jsonify({'error': 'Admin access required'}), 403
+        
+        tutorial = db.session.scalar(
+            sa.select(Tutorial).where(Tutorial.id == tutorial_id)
+        )
+        if not tutorial:
+            return jsonify({'error': 'Tutorial not found'}), 404
+        
+        # Get form data
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        category_id = request.form.get('categoryId', type=int)
+        difficulty = request.form.get('difficulty', 'beginner')
+        status = request.form.get('status', 'draft')
+        learning_objectives = request.form.get('learningObjectives', '[]')
+        prerequisites = request.form.get('prerequisites', '[]')
+        tags = request.form.get('tags', '[]')
+        
+        # Validate required fields
+        if not title:
+            return jsonify({'error': 'Title is required'}), 400
+        if not description:
+            return jsonify({'error': 'Description is required'}), 400
+        if not category_id:
+            return jsonify({'error': 'Category is required'}), 400
+        
+        # Check if category exists
+        category = Category.query.get(category_id)
+        if not category:
+            return jsonify({'error': 'Category not found'}), 404
+        
+        # Parse JSON fields
+        try:
+            learning_objectives_list = json.loads(learning_objectives) if learning_objectives else []
+            prerequisites_list = json.loads(prerequisites) if prerequisites else []
+            tags_list = json.loads(tags) if tags else []
+        except json.JSONDecodeError:
+            return jsonify({'error': 'Invalid JSON in learning objectives, prerequisites, or tags'}), 400
+        
+        # Handle thumbnail upload
+        if 'thumbnail' in request.files:
+            thumbnail_file = request.files['thumbnail']
+            if thumbnail_file and thumbnail_file.filename:
+                # Generate unique filename
+                file_extension = os.path.splitext(thumbnail_file.filename)[1]
+                filename = f"series_thumb_{uuid.uuid4().hex}{file_extension}"
+                thumbnail_path = os.path.join('uploads/series/thumbnails', filename)
+                
+                # Create directory if it doesn't exist
+                os.makedirs(os.path.dirname(thumbnail_path), exist_ok=True)
+                thumbnail_file.save(thumbnail_path)
+                tutorial.thumbnail_path = thumbnail_path
+        
+        # Update tutorial fields
+        tutorial.title = title
+        tutorial.description = description
+        tutorial.category_id = category_id
+        tutorial.difficulty = difficulty
+        tutorial.status = status
+        tutorial.learning_objectives = json.dumps(learning_objectives_list)
+        tutorial.prerequisites = json.dumps(prerequisites_list)
+        tutorial.tags = json.dumps(tags_list)
+        tutorial.updated_at = datetime.utcnow()
+        
+        # Handle video data updates
+        videos_data = []
+        video_index = 0
+        
+        while f'videos[{video_index}][title]' in request.form:
+            video_title = request.form.get(f'videos[{video_index}][title]', '').strip()
+            video_description = request.form.get(f'videos[{video_index}][description]', '').strip()
+            is_preview = request.form.get(f'videos[{video_index}][isPreview]', 'false').lower() == 'true'
+            duration = request.form.get(f'videos[{video_index}][duration]', type=int)
+            
+            if not video_title:
+                video_index += 1
+                continue
+            
+            # Handle video file upload
+            video_file_path = None
+            if f'videos[{video_index}][videoFile]' in request.files:
+                video_file = request.files[f'videos[{video_index}][videoFile]']
+                if video_file and video_file.filename:
+                    # Generate unique filename
+                    file_extension = os.path.splitext(video_file.filename)[1]
+                    filename = f"series_video_{uuid.uuid4().hex}{file_extension}"
+                    video_file_path = os.path.join('uploads/series/videos', filename)
+                    
+                    # Create directory if it doesn't exist
+                    os.makedirs(os.path.dirname(video_file_path), exist_ok=True)
+                    video_file.save(video_file_path)
+            
+            # Store video data as JSON
+            videos_data.append({
+                'title': video_title,
+                'description': video_description,
+                'duration': duration,
+                'file_path': video_file_path,
+                'is_preview': is_preview,
+                'order': video_index + 1
+            })
+            video_index += 1
+        
+        # Update video data
+        tutorial.video_data = json.dumps(videos_data)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Tutorial {status} successfully',
+            'tutorial': {
+                'id': tutorial.id,
+                'public_id': tutorial.public_id,
+                'title': tutorial.title,
+                'description': tutorial.description,
+                'category_id': tutorial.category_id,
+                'difficulty': tutorial.difficulty,
+                'status': tutorial.status,
+                'learning_objectives': learning_objectives_list,
+                'prerequisites': prerequisites_list,
+                'tags': tags_list,
+                'thumbnail_path': tutorial.thumbnail_path,
+                'updated_at': tutorial.updated_at.isoformat(),
+                'videos_count': len(videos_data)
+            }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error updating tutorial {tutorial_id}: {str(e)}")
+        return jsonify({'error': 'Failed to update tutorial'}), 500
 
 
 @bp.post('/tutorials/<int:tutorial_id>/upload-thumbnail')
@@ -369,5 +480,161 @@ def upload_thumbnail(tutorial_id):
         current_app.logger.error(f"Error uploading thumbnail for tutorial {tutorial_id}: {str(e)}")
         db.session.rollback()
         return jsonify({'error': 'Failed to upload thumbnail'}), 500
+
+
+@bp.post('/tutorials/series')
+@jwt_required()
+def create_tutorial_series():
+    """
+    Create a new tutorial series with multiple videos
+    """
+    try:
+        # Get current user
+        current_user_id = get_jwt_identity()
+        current_user = Account.query.get(current_user_id)
+        if not current_user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Get form data
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        category_id = request.form.get('categoryId', type=int)
+        difficulty = request.form.get('difficulty', 'beginner')
+        learning_objectives = request.form.get('learningObjectives', '[]')
+        prerequisites = request.form.get('prerequisites', '[]')
+        tags = request.form.get('tags', '[]')
+        
+        # Validate required fields
+        if not title:
+            return jsonify({'error': 'Title is required'}), 400
+        if not description:
+            return jsonify({'error': 'Description is required'}), 400
+        if not category_id:
+            return jsonify({'error': 'Category is required'}), 400
+        
+        # Check if category exists
+        category = Category.query.get(category_id)
+        if not category:
+            return jsonify({'error': 'Category not found'}), 404
+        
+        # Parse JSON fields
+        try:
+            learning_objectives_list = json.loads(learning_objectives) if learning_objectives else []
+            prerequisites_list = json.loads(prerequisites) if prerequisites else []
+            tags_list = json.loads(tags) if tags else []
+        except json.JSONDecodeError:
+            return jsonify({'error': 'Invalid JSON in learning objectives, prerequisites, or tags'}), 400
+        
+        # Handle thumbnail upload
+        thumbnail_path = None
+        if 'thumbnail' in request.files:
+            thumbnail_file = request.files['thumbnail']
+            if thumbnail_file and thumbnail_file.filename:
+                # Generate unique filename
+                file_extension = os.path.splitext(thumbnail_file.filename)[1]
+                filename = f"series_thumb_{uuid.uuid4().hex}{file_extension}"
+                thumbnail_path = os.path.join('uploads/series/thumbnails', filename)
+                
+                # Create directory if it doesn't exist
+                os.makedirs(os.path.dirname(thumbnail_path), exist_ok=True)
+                thumbnail_file.save(thumbnail_path)
+        
+        # Create ONLY ONE tutorial record for the series
+        # Store video information as JSON in the main tutorial record
+        videos_data = []
+        video_index = 0
+        
+        while f'videos[{video_index}][title]' in request.form:
+            video_title = request.form.get(f'videos[{video_index}][title]', '').strip()
+            video_description = request.form.get(f'videos[{video_index}][description]', '').strip()
+            is_preview = request.form.get(f'videos[{video_index}][isPreview]', 'false').lower() == 'true'
+            duration = request.form.get(f'videos[{video_index}][duration]', type=int)
+            
+            if not video_title:
+                video_index += 1
+                continue
+            
+            # Handle video file upload
+            video_file_path = None
+            if f'videos[{video_index}][videoFile]' in request.files:
+                video_file = request.files[f'videos[{video_index}][videoFile]']
+                if video_file and video_file.filename:
+                    # Generate unique filename
+                    file_extension = os.path.splitext(video_file.filename)[1]
+                    filename = f"series_video_{uuid.uuid4().hex}{file_extension}"
+                    video_file_path = os.path.join('uploads/series/videos', filename)
+                    
+                    # Create directory if it doesn't exist
+                    os.makedirs(os.path.dirname(video_file_path), exist_ok=True)
+                    video_file.save(video_file_path)
+            
+            # Store video data as JSON
+            videos_data.append({
+                'title': video_title,
+                'description': video_description,
+                'duration': duration,
+                'file_path': video_file_path,
+                'is_preview': is_preview,
+                'order': video_index + 1
+            })
+            video_index += 1
+        
+        # Generate sequential public ID following seed.py pattern
+        # Get the highest existing tutorial ID to determine next sequential number
+        max_tutorial = db.session.scalar(sa.select(sa.func.max(Tutorial.id)))
+        next_id = (max_tutorial or 0) + 1
+        
+        # Get status from form data (draft or published)
+        status = request.form.get('status', 'published')
+        
+        # Create the main series tutorial with video data stored as JSON
+        series_tutorial = Tutorial(
+            public_id=f"TUT-{datetime.now().strftime('%Y%m%d')}-{next_id:04d}",
+            category_id=category_id,
+            title=title,
+            description=description,
+            video_path='/uploads/series/intro.mp4',  # Placeholder
+            status=status,
+            difficulty=difficulty,
+            author=current_user.name,
+            thumbnail_path=thumbnail_path,
+            series_type='series',
+            learning_objectives=json.dumps(learning_objectives_list),
+            prerequisites=json.dumps(prerequisites_list),
+            tags=json.dumps(tags_list),
+            # Store videos as JSON in a single field
+            video_data=json.dumps(videos_data)
+        )
+        
+        db.session.add(series_tutorial)
+        db.session.flush()  # Get the ID
+        
+        # Commit all changes
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Tutorial series created successfully',
+            'series': {
+                'id': series_tutorial.id,
+                'public_id': series_tutorial.public_id,
+                'title': series_tutorial.title,
+                'description': series_tutorial.description,
+                'category_id': series_tutorial.category_id,
+                'difficulty': series_tutorial.difficulty,
+                'learning_objectives': learning_objectives_list,
+                'prerequisites': prerequisites_list,
+                'tags': tags_list,
+                'thumbnail_path': series_tutorial.thumbnail_path,
+                'created_at': series_tutorial.created_at.isoformat(),
+                'videos_count': len(videos_data)
+            },
+            'videos': videos_data
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error creating tutorial series: {str(e)}")
+        return jsonify({'error': 'Failed to create tutorial series'}), 500
 
 
