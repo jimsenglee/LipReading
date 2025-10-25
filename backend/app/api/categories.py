@@ -1,43 +1,74 @@
-from flask import jsonify, current_app
-import sqlalchemy as sa
+"""
+Category API endpoints - Thin layer delegating to services
+Following README.txt separation of concerns
+"""
+from flask import request
+from flask_jwt_extended import jwt_required
 
-from ..extensions import db
-from ..models import Category
+from ..services.category_service import CategoryService
+from ..services.auth_service import AuthService
+from ..services.response_service import ResponseService
+from ..services.error_service import APIError, handle_api_error
 from . import bp
 
 
 @bp.get('/categories')
 def list_categories():
-    # exclude deleted records by default
-    rows = db.session.scalars(sa.select(Category).where(Category.status != 'deleted').order_by(Category.category_name)).all()
-    return jsonify([
-        {
-            'id': c.id,
-            'publicId': c.public_id,
-            'name': c.category_name,
-        }
-        for c in rows
-    ])
+    """Get paginated list of categories with filtering and sorting"""
+    try:
+        return CategoryService.get_categories(request.args)
+    except APIError as e:
+        return handle_api_error(e)
+    except Exception as e:
+        return ResponseService.error_response(f"Failed to retrieve categories: {str(e)}", 500)
+
+
+@bp.post('/categories')
+@jwt_required()
+@AuthService.require_admin()
+def create_category():
+    """Create new category (admin only)"""
+    try:
+        data = request.get_json()
+        if not data:
+            return ResponseService.error_response('No data provided', 400)
+        
+        return CategoryService.create_category(data)
+        
+    except APIError as e:
+        return handle_api_error(e)
+    except Exception as e:
+        return ResponseService.error_response(f"Failed to create category: {str(e)}", 500)
+
+
+@bp.put('/categories/<int:category_id>')
+@jwt_required()
+@AuthService.require_admin()
+def update_category(category_id: int):
+    """Update existing category (admin only)"""
+    try:
+        data = request.get_json()
+        if not data:
+            return ResponseService.error_response('No data provided', 400)
+        
+        return CategoryService.update_category(category_id, data)
+        
+    except APIError as e:
+        return handle_api_error(e)
+    except Exception as e:
+        return ResponseService.error_response(f"Failed to update category: {str(e)}", 500)
 
 
 @bp.delete('/categories/<int:category_id>')
+@jwt_required()
+@AuthService.require_admin()
 def delete_category(category_id: int):
+    """Delete category (admin only)"""
     try:
-        category = db.session.scalar(
-            sa.select(Category).where(Category.id == category_id)
-        )
-        if not category:
-            return jsonify({'error': 'Category not found'}), 404
-        
-        # soft delete category (change status to deleted)
-        category.status = 'deleted'
-        db.session.commit()
-        
-        return jsonify({'message': 'Category deleted successfully'})
-        
+        return CategoryService.delete_category(category_id)
+    except APIError as e:
+        return handle_api_error(e)
     except Exception as e:
-        current_app.logger.error(f"Error deleting category {category_id}: {str(e)}")
-        db.session.rollback()
-        return jsonify({'error': 'Failed to delete category'}), 500
+        return ResponseService.error_response(f"Failed to delete category: {str(e)}", 500)
 
 
