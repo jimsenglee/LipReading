@@ -104,3 +104,15 @@ def get_current_user():
         return handle_api_error(e)
     except Exception as e:
         return ResponseService.error_response(f"Failed to get user info: {str(e)}", 500)
+
+
+@auth_bp.route("/logout", methods=["POST"])
+@jwt_required()
+def logout():
+    """logout endpoint for user authentication"""
+    try:
+        return ResponseService.success_response({
+            "message": "Logout successful"
+        })
+    except Exception as e:
+        return ResponseService.error_response(f"Failed to logout: {str(e)}", 500)
