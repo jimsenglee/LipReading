@@ -185,7 +185,15 @@ const DataTable = <T,>({
                   )}
                   
                   {/* numbering column */}
-                  <th className="text-left py-3 px-4 w-16">#</th>
+                  <th 
+                    className="text-left py-3 px-4 w-16 cursor-pointer hover:bg-gray-50"
+                    onClick={() => onSort && onSort('id')}
+                  >
+                    <div className="flex items-center gap-2">
+                      No.
+                      {onSort && getSortIcon('id')}
+                    </div>
+                  </th>
                   
                   {/* column headers */}
                   {columns.map((column) => (
@@ -212,9 +220,20 @@ const DataTable = <T,>({
               <tbody>
                 {data.map((item, index) => {
                   const itemId = getItemId(item);
-                  const rowNumber = pagination ? 
-                    ((pagination.current_page - 1) * pagination.per_page) + index + 1 : 
-                    index + 1;
+                  // Calculate row number based on sort order
+                  let rowNumber: number;
+                  if (pagination) {
+                    const baseIndex = (pagination.current_page - 1) * pagination.per_page;
+                    // If sorting by 'id' descending, show numbers from total_count downwards
+                    // Otherwise, show sequential numbering
+                    if (sortBy === 'id' && sortOrder === 'desc') {
+                      rowNumber = pagination.total_count - baseIndex - index;
+                    } else {
+                      rowNumber = baseIndex + index + 1;
+                    }
+                  } else {
+                    rowNumber = index + 1;
+                  }
                   return (
                     <tr key={itemId} className="border-b border-gray-100 hover:bg-gray-50">
                       {/* select checkbox */}

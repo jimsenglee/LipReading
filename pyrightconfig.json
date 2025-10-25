@@ -1,0 +1,25 @@
+{
+  "venvPath": "C:\\Users\\gimsh\\Desktop\\FYP\\Front end UI (already have copy on github previoseuly)\\LipReading\\backend",
+  "venv": ".venv",
+  "pythonVersion": "3.11",
+  "pythonPlatform": "Windows",
+  "executionEnvironments": [
+    {
+      "root": "./backend/app",
+      "pythonVersion": "3.11",
+      "pythonPlatform": "Windows",
+      "extraPaths": ["./backend/app"]
+    }
+  ],
+  "include": [
+    "backend/app/**/*.py"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "backend/.venv"
+  ],
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": true,
+  "autoImportCompletions": true
+}

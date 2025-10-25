@@ -10,14 +10,14 @@ import ConfirmationDialog from '@/components/ui/confirmation-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useConfirmation } from '@/hooks/use-confirmation';
 import { useNavigate } from 'react-router-dom';
-import {
-  useCategories,
-  useTutorials,
+import { 
+  useCategories, 
+  useTutorials, 
   useQuizzes,
-  ContentParams
+  ContentParams 
 } from '@/services';
-import {
-  Plus,
+import { 
+  Plus, 
   BookOpen,
   Brain,
   Tag,
@@ -34,12 +34,12 @@ import { StatusBadge, DifficultyBadge } from '@/components/admin/BadgeUtils';
 import { formatDateForExport } from '@/lib/export-utils';
 import { useContentState } from '@/hooks/use-content-state';
 import { useContentOperations } from '@/hooks/use-content-operations';
-import {
-  mapTutorialData,
-  mapQuizData,
-  mapCategoryData,
-  buildContentParams,
-  getTableConfig
+import { 
+  mapTutorialData, 
+  mapQuizData, 
+  mapCategoryData, 
+  buildContentParams, 
+  getTableConfig 
 } from '@/lib/content-utils';
 
 // ============================================================================
@@ -104,10 +104,10 @@ const ContentManagement: React.FC = () => {
   // ============================================================================
   // SHARED STATE MANAGEMENT (DRY PRINCIPLE)
   // ============================================================================
-
+  
   // Active tab state
   const [activeTab, setActiveTab] = useState<'tutorials' | 'quizzes' | 'categories' | 'drafts'>('tutorials');
-
+  
   // Shared state for all content types with default sorting by ID
   const [tutorialState, tutorialStateActions] = useContentState({
     sortBy: 'id',
@@ -115,26 +115,26 @@ const ContentManagement: React.FC = () => {
     itemsPerPage: 10
   });
   const [quizState, quizStateActions] = useContentState({
-    sortBy: 'id',
+    sortBy: 'id', 
     sortOrder: 'asc',
     itemsPerPage: 10
   });
   const [categoryState, categoryStateActions] = useContentState({
     sortBy: 'id',
-    sortOrder: 'asc',
+    sortOrder: 'asc', 
     itemsPerPage: 10
   });
-
+  
   // Shared operations
   const contentOperations = useContentOperations();
-
+  
   // Modal states
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteType, setDeleteType] = useState<'tutorial' | 'quiz' | 'category'>('tutorial');
   const [deleteId, setDeleteId] = useState<string>('');
   const [isMultiDeleteModalOpen, setIsMultiDeleteModalOpen] = useState(false);
   const [multiDeleteType, setMultiDeleteType] = useState<'tutorial' | 'quiz' | 'category'>('tutorial');
-
+  
   // Preview modal states
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState<TutorialSeries | QuizSeries | Category | null>(null);
@@ -151,7 +151,7 @@ const ContentManagement: React.FC = () => {
   // ============================================================================
   // API QUERIES (Using Shared Utilities)
   // ============================================================================
-
+  
   // Build query parameters using shared utility
   const tutorialParams: ContentParams = buildContentParams(
     tutorialState.currentPage,
@@ -191,7 +191,7 @@ const ContentManagement: React.FC = () => {
   // ============================================================================
   // DATA MAPPING (Using Shared Utilities)
   // ============================================================================
-
+  
   // Map API data using shared utilities
   const tutorialData = Array.isArray(tutorialsResponse?.tutorials) ? tutorialsResponse.tutorials : (Array.isArray(tutorialsResponse?.data) ? tutorialsResponse.data : (Array.isArray(tutorialsResponse) ? tutorialsResponse : []));
   const tutorialSeries: TutorialSeries[] = tutorialData.map((tutorial, index) => {
@@ -246,7 +246,7 @@ const ContentManagement: React.FC = () => {
   // ============================================================================
   // SHARED EVENT HANDLERS (DRY PRINCIPLE)
   // ============================================================================
-
+  
   // Tutorial handlers using shared state
   const handleTutorialSearch = (value: string) => tutorialStateActions.handleSearch(value);
   const handleTutorialFilter = (category: string, status: string) => tutorialStateActions.handleFilter(category, status);
@@ -271,7 +271,7 @@ const ContentManagement: React.FC = () => {
   // ============================================================================
   // SHARED EXPORT HANDLERS (DRY PRINCIPLE)
   // ============================================================================
-
+  
   const handleTutorialExport = () => {
     const exportData = tutorialSeries.map(tutorial => ({
       id: tutorial.id,
@@ -311,7 +311,7 @@ const ContentManagement: React.FC = () => {
   // ============================================================================
   // SHARED DELETE HANDLERS (DRY PRINCIPLE)
   // ============================================================================
-
+  
   const handleTutorialBulkDelete = async () => {
     await contentOperations.handleBulkDelete(
       tutorialState.selectedItems,
@@ -394,7 +394,7 @@ const ContentManagement: React.FC = () => {
   // ============================================================================
   // TABLE COLUMNS (Following UserManagement Pattern)
   // ============================================================================
-
+  
   const tutorialColumns: Column<TutorialSeries>[] = [
     {
       key: 'title',
@@ -559,7 +559,7 @@ const ContentManagement: React.FC = () => {
   // ============================================================================
   // TABLE ACTIONS
   // ============================================================================
-
+  
   const tutorialActions: Action<TutorialSeries>[] = [
     {
       key: 'view',
@@ -578,8 +578,8 @@ const ContentManagement: React.FC = () => {
       icon: <Edit className="h-4 w-4" />,
       onClick: (tutorial) => {
         // Navigate to tutorial creation wizard with edit mode
-        navigate('/admin/content/create-tutorial', {
-          state: { editMode: true, tutorialId: tutorial.id }
+        navigate('/admin/content/create-tutorial', { 
+          state: { editMode: true, tutorialId: tutorial.id } 
         });
       }
     },
@@ -613,8 +613,8 @@ const ContentManagement: React.FC = () => {
       icon: <Edit className="h-4 w-4" />,
       onClick: (quiz) => {
         // Navigate to quiz creation wizard with edit mode
-        navigate('/admin/content/create-quiz', {
-          state: { editMode: true, quizId: quiz.id }
+        navigate('/admin/content/create-quiz', { 
+          state: { editMode: true, quizId: quiz.id } 
         });
       }
     },
@@ -639,8 +639,8 @@ const ContentManagement: React.FC = () => {
       icon: <Edit className="h-4 w-4" />,
       onClick: (category) => {
         // Navigate to category creation wizard with edit mode
-        navigate('/admin/content/create-category', {
-          state: { editMode: true, categoryId: category.id }
+        navigate('/admin/content/create-category', { 
+          state: { editMode: true, categoryId: category.id } 
         });
       }
     },
@@ -701,19 +701,19 @@ const ContentManagement: React.FC = () => {
     per_page: draftPerPage,
     page: draftPage
   });
-
+  
   const getDraftsCount = () => {
     return draftsResponse?.data?.length || 0;
   };
-
+  
   const getTutorialDrafts = () => {
     return draftsResponse?.data || [];
   };
-
+  
   const getQuizDrafts = () => {
     return []; // No quiz drafts for now
   };
-
+  
   const getCategoryDrafts = () => {
     return []; // No category drafts for now
   };
@@ -724,12 +724,12 @@ const ContentManagement: React.FC = () => {
       const result = await apiClient.deleteTutorial(parseInt(draftId));
 
       if (result.success) {
-        toast({
-          title: "Draft Deleted",
-          description: "The draft has been permanently deleted."
-        });
+    toast({
+      title: "Draft Deleted",
+      description: "The draft has been permanently deleted."
+    });
         refetchDrafts();
-      } else {
+    } else {
         throw new Error(result.message || 'Failed to delete draft');
       }
     } catch (error) {
@@ -740,10 +740,10 @@ const ContentManagement: React.FC = () => {
       });
     }
   };
-
+  
   const continueDraft = (draft: any) => {
     // Navigate to tutorial creation with draft data
-    navigate('/admin/content/create-tutorial', {
+    navigate('/admin/content/create-tutorial', { 
       state: { editMode: true, tutorialId: draft.id }
     });
   };
@@ -751,7 +751,7 @@ const ContentManagement: React.FC = () => {
   // ============================================================================
   // BREADCRUMB
   // ============================================================================
-
+  
   const breadcrumbItems = [
     { title: 'Admin Dashboard', href: '/admin' },
     { title: 'Content Management', href: '/admin/content' }
@@ -760,11 +760,11 @@ const ContentManagement: React.FC = () => {
   // ============================================================================
   // RENDER
   // ============================================================================
-
+  
   return (
     <div className="space-y-6">
       <AnimatedBreadcrumb items={breadcrumbItems} />
-
+      
       {/* Header - Following UserManagement Pattern */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
@@ -775,7 +775,7 @@ const ContentManagement: React.FC = () => {
             Manage tutorials, quizzes, and educational content
           </p>
         </div>
-
+        
         <div className="flex flex-col sm:flex-row gap-3">
           {/* Bulk Actions - Using Shared State */}
           {activeTab === 'tutorials' && (
@@ -790,7 +790,7 @@ const ContentManagement: React.FC = () => {
               exportLabel="Export"
             />
           )}
-
+          
           {activeTab === 'quizzes' && (
             <BulkActions
               selectedCount={quizState.selectedItems.size}
@@ -803,7 +803,7 @@ const ContentManagement: React.FC = () => {
               exportLabel="Export"
             />
           )}
-
+          
           {activeTab === 'categories' && (
             <BulkActions
               selectedCount={categoryState.selectedItems.size}
@@ -852,30 +852,30 @@ const ContentManagement: React.FC = () => {
       {/* Tabs - Following UserManagement Pattern */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
         <TabsList className={`grid w-full ${getDraftsCount() > 0 ? 'grid-cols-4' : 'grid-cols-3'} bg-primary/5 border border-primary/20`}>
-          <TabsTrigger
-            value="tutorials"
+          <TabsTrigger 
+            value="tutorials" 
             className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
           >
             <BookOpen className="h-4 w-4" />
             Tutorial Series ({tutorialSeries.length})
           </TabsTrigger>
-          <TabsTrigger
-            value="quizzes"
+          <TabsTrigger 
+            value="quizzes" 
             className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
           >
             <Brain className="h-4 w-4" />
             Quiz Series ({quizSeries.length})
           </TabsTrigger>
-          <TabsTrigger
-            value="categories"
+          <TabsTrigger 
+            value="categories" 
             className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
           >
             <Tag className="h-4 w-4" />
             Categories ({categoryList.length})
           </TabsTrigger>
           {getDraftsCount() > 0 && (
-            <TabsTrigger
-              value="drafts"
+            <TabsTrigger 
+              value="drafts" 
               className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
             >
               <Edit className="h-4 w-4" />
@@ -931,7 +931,7 @@ const ContentManagement: React.FC = () => {
             onRetry={() => refetchTutorials()}
             emptyStateIcon={<BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />}
             emptyStateTitle={tutorialState.searchTerm || tutorialState.category !== 'all' ? 'No Tutorials Found' : 'No Tutorials Yet'}
-            emptyStateDescription={tutorialState.searchTerm || tutorialState.category !== 'all'
+            emptyStateDescription={tutorialState.searchTerm || tutorialState.category !== 'all' 
               ? 'Try adjusting your search or filter criteria.'
               : 'Get started by creating your first tutorial.'
             }
@@ -994,7 +994,7 @@ const ContentManagement: React.FC = () => {
             onRetry={() => refetchQuizzes()}
             emptyStateIcon={<Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />}
             emptyStateTitle={quizState.searchTerm || quizState.category !== 'all' ? 'No Quizzes Found' : 'No Quizzes Yet'}
-            emptyStateDescription={quizState.searchTerm || quizState.category !== 'all'
+            emptyStateDescription={quizState.searchTerm || quizState.category !== 'all' 
               ? 'Try adjusting your search or filter criteria.'
               : 'Get started by creating your first quiz.'
             }
@@ -1057,7 +1057,7 @@ const ContentManagement: React.FC = () => {
             onRetry={() => refetchCategories()}
             emptyStateIcon={<Tag className="h-12 w-12 text-gray-400 mx-auto mb-4" />}
             emptyStateTitle={categoryState.searchTerm || categoryState.status !== 'all' ? 'No Categories Found' : 'No Categories Yet'}
-            emptyStateDescription={categoryState.searchTerm || categoryState.status !== 'all'
+            emptyStateDescription={categoryState.searchTerm || categoryState.status !== 'all' 
               ? 'Try adjusting your search or filter criteria.'
               : 'Get started by creating your first category.'
             }
@@ -1103,7 +1103,7 @@ const ContentManagement: React.FC = () => {
                       <Button onClick={() => navigate('/admin/content/create-tutorial')} className="bg-primary hover:bg-primary/90">
                         <Plus className="h-4 w-4 mr-2" />
                         Create New Tutorial
-                      </Button>
+                                </Button>
                     }
                     title="Saved Drafts"
                     description={`${draftsResponse?.pagination?.total_count || 0} total drafts`}
@@ -1113,15 +1113,15 @@ const ContentManagement: React.FC = () => {
                   <div className="text-center py-12">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                       <FileText className="h-8 w-8 text-gray-400" />
-                    </div>
+                              </div>
                     <h3 className="text-lg font-medium text-gray-900 mb-2">No Drafts Found</h3>
                     <p className="text-gray-600 mb-6">You haven't saved any drafts yet. Start creating content to see your drafts here.</p>
                     <Button onClick={() => navigate('/admin/content/create-tutorial')} className="bg-primary hover:bg-primary/90">
                       <Plus className="h-4 w-4 mr-2" />
                       Create New Tutorial
-                    </Button>
-                  </div>
-                )}
+                                </Button>
+                    </div>
+                  )}
               </div>
             </CardContent>
           </Card>
@@ -1140,7 +1140,7 @@ const ContentManagement: React.FC = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogAction 
               onClick={async () => {
                 console.log('DEBUG: Individual delete clicked', { deleteType, deleteId });
                 try {
@@ -1151,15 +1151,19 @@ const ContentManagement: React.FC = () => {
                     console.log('DEBUG: Calling apiClient.deleteTutorial');
                     const result = await apiClient.deleteTutorial(parseInt(deleteId));
                     console.log('DEBUG: Tutorial delete result:', result);
-
-                    if (result.success) {
+                    
+                    if (result.success || (result.message && result.message.includes('successfully'))) {
                       console.log('DEBUG: Tutorial delete successful');
                       toast({
                         title: "Tutorial Deleted",
                         description: "The tutorial has been successfully deleted."
                       });
-                      // Refresh the data
-                      refetchTutorials();
+                      // Refresh the data based on active tab
+                      if (activeTab === 'drafts') {
+                        refetchDrafts();
+                    } else {
+                        refetchTutorials();
+                      }
                     } else {
                       console.log('DEBUG: Tutorial delete failed:', result.message);
                       throw new Error(result.message || 'Failed to delete tutorial');
@@ -1171,8 +1175,8 @@ const ContentManagement: React.FC = () => {
                     console.log('DEBUG: Calling apiClient.deleteQuiz');
                     const result = await apiClient.deleteQuiz(parseInt(deleteId));
                     console.log('DEBUG: Quiz delete result:', result);
-
-                    if (result.success) {
+                    
+                    if (result.message && result.message.includes('successfully')) {
                       console.log('DEBUG: Quiz delete successful');
                       toast({
                         title: "Quiz Deleted",
@@ -1191,8 +1195,8 @@ const ContentManagement: React.FC = () => {
                     console.log('DEBUG: Calling apiClient.deleteCategory');
                     const result = await apiClient.deleteCategory(parseInt(deleteId));
                     console.log('DEBUG: Category delete result:', result);
-
-                    if (result.success) {
+                    
+                    if (result.message && result.message.includes('successfully')) {
                       console.log('DEBUG: Category delete successful');
                       toast({
                         title: "Category Deleted",
@@ -1288,16 +1292,16 @@ const ContentManagement: React.FC = () => {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {previewType === 'tutorial' ? 'Tutorial Preview' :
-                previewType === 'quiz' ? 'Quiz Preview' : 'Category Preview'}
+              {previewType === 'tutorial' ? 'Tutorial Preview' : 
+               previewType === 'quiz' ? 'Quiz Preview' : 'Category Preview'}
             </DialogTitle>
             <DialogDescription>
               {previewType === 'tutorial' ? 'Preview tutorial details and content' :
-                previewType === 'quiz' ? 'Preview quiz details and questions' :
-                  'Preview category information'}
+               previewType === 'quiz' ? 'Preview quiz details and questions' :
+               'Preview category information'}
             </DialogDescription>
           </DialogHeader>
-
+          
           {previewItem && (
             <div className="space-y-6">
               {previewType === 'tutorial' && (
@@ -1311,7 +1315,7 @@ const ContentManagement: React.FC = () => {
                       <p className="text-gray-600 mt-1">{(previewItem as TutorialSeries).description}</p>
                     </div>
                   </div>
-
+                  
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-gray-50 p-3 rounded-lg">
                       <div className="text-sm text-gray-600">Category</div>
@@ -1330,7 +1334,7 @@ const ContentManagement: React.FC = () => {
                       <div className="font-medium">{(previewItem as TutorialSeries).totalDuration}</div>
                     </div>
                   </div>
-
+                  
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-gray-50 p-3 rounded-lg">
                       <div className="text-sm text-gray-600">Status</div>
@@ -1349,7 +1353,7 @@ const ContentManagement: React.FC = () => {
                       <div className="font-medium">{(previewItem as TutorialSeries).rating}/5</div>
                     </div>
                   </div>
-
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-gray-50 p-3 rounded-lg">
                       <div className="text-sm text-gray-600">Created</div>
@@ -1362,7 +1366,7 @@ const ContentManagement: React.FC = () => {
                   </div>
                 </div>
               )}
-
+              
               {previewType === 'quiz' && (
                 <div className="space-y-4">
                   <div className="flex items-start gap-4">
@@ -1374,7 +1378,7 @@ const ContentManagement: React.FC = () => {
                       <p className="text-gray-600 mt-1">{(previewItem as QuizSeries).description}</p>
                     </div>
                   </div>
-
+                  
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-gray-50 p-3 rounded-lg">
                       <div className="text-sm text-gray-600">Category</div>
@@ -1393,7 +1397,7 @@ const ContentManagement: React.FC = () => {
                       <div className="font-medium">{(previewItem as QuizSeries).timeLimit} min</div>
                     </div>
                   </div>
-
+                  
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-gray-50 p-3 rounded-lg">
                       <div className="text-sm text-gray-600">Status</div>
@@ -1414,7 +1418,7 @@ const ContentManagement: React.FC = () => {
                   </div>
                 </div>
               )}
-
+              
               {previewType === 'category' && (
                 <div className="space-y-4">
                   <div className="flex items-start gap-4">
@@ -1426,7 +1430,7 @@ const ContentManagement: React.FC = () => {
                       <p className="text-gray-600 mt-1">{(previewItem as Category).description}</p>
                     </div>
                   </div>
-
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-gray-50 p-3 rounded-lg">
                       <div className="text-sm text-gray-600">Content Count</div>

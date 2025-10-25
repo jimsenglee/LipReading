@@ -40,7 +40,17 @@ export const useCategories = (params: ContentParams = {}) => {
   return useQuery({
     queryKey: ['categories', params],
     queryFn: async (): Promise<ContentResponse<ApiCategory>> => {
-      const response = await fetch(`${API_BASE_URL}/api/categories`, {
+      // Use server-side pagination and filtering
+      const queryParams = new URLSearchParams();
+      
+      if (params.page) queryParams.append('page', params.page.toString());
+      if (params.per_page) queryParams.append('per_page', params.per_page.toString());
+      if (params.search) queryParams.append('search', params.search);
+      if (params.status && params.status !== 'all') queryParams.append('status', params.status);
+      if (params.sort_by) queryParams.append('sort_by', params.sort_by);
+      if (params.sort_order) queryParams.append('sort_order', params.sort_order);
+      
+      const response = await fetch(`${API_BASE_URL}/api/categories?${queryParams.toString()}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
@@ -51,21 +61,10 @@ export const useCategories = (params: ContentParams = {}) => {
         throw new Error('Failed to fetch categories');
       }
       
-      const categories = await response.json();
+      const result = await response.json();
       
-      // transform direct array response to ContentResponse format
-      return {
-        success: true,
-        data: categories,
-        pagination: {
-          current_page: 1,
-          per_page: categories.length,
-          total_count: categories.length,
-          total_pages: 1,
-          has_next: false,
-          has_prev: false
-        }
-      };
+      // Return the result directly as it now has the correct format
+      return result;
     },
   });
 };

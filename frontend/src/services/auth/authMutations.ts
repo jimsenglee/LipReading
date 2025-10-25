@@ -16,13 +16,15 @@ export const useLogin = () => {
     mutationFn: ({ email, password }: { email: string; password: string }) => 
       apiClient.login(email, password),
     onSuccess: (data) => {
+      // handle backend response structure: { success: true, data: { user: {...} } }
+      const userData = data.data || data;
       
       const user = {
-        id: data.user.id.toString(),
-        email: data.user.email,
-        name: data.user.name,
-        role: data.user.role as 'user' | 'admin',
-        profilePicture: data.user.profile_picture,
+        id: userData.user.id.toString(),
+        email: userData.user.email,
+        name: userData.user.name,
+        role: userData.user.role as 'user' | 'admin',
+        profilePicture: userData.user.profile_picture,
         twoFactorEnabled: false,
         preferences: { transcriptionFormat: 'plain' },
         totalSessions: 0,
@@ -32,7 +34,7 @@ export const useLogin = () => {
       
       setUser(user);
       localStorage.setItem('user', JSON.stringify(user));
-      localStorage.setItem('token', data.token);
+      localStorage.setItem('token', userData.token);
       queryClient.setQueryData(['user'], user);
       
       // Navigate based on user role
@@ -58,13 +60,15 @@ export const useRegister = () => {
       profileImage?: File 
     }) => apiClient.register(email, password, name, profileImage),
     onSuccess: (data) => {
+      // handle backend response structure: { success: true, data: { user: {...} } }
+      const userData = data.data || data;
       
       const user = {
-        id: data.user.id.toString(),
-        email: data.user.email,
-        name: data.user.name,
-        role: data.user.role as 'user' | 'admin',
-        profilePicture: data.user.profile_picture,
+        id: userData.user.id.toString(),
+        email: userData.user.email,
+        name: userData.user.name,
+        role: userData.user.role as 'user' | 'admin',
+        profilePicture: userData.user.profile_picture,
         twoFactorEnabled: false,
         preferences: { transcriptionFormat: 'plain' },
         totalSessions: 0,
@@ -74,7 +78,7 @@ export const useRegister = () => {
       
       setUser(user);
       localStorage.setItem('user', JSON.stringify(user));
-      localStorage.setItem('token', data.token);
+      localStorage.setItem('token', userData.token);
       queryClient.setQueryData(['user'], user);
       
       // Navigate based on user role
