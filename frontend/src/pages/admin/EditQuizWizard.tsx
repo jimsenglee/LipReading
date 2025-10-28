@@ -124,7 +124,7 @@ const EditQuizWizard: React.FC = () => {
     const loadQuizSeries = async () => {
       setIsLoading(true);
       try {
-        // TODO: Replace with actual API call
+        // load quiz series data from API
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Mock existing data

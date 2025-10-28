@@ -1,9 +1,11 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { API_BASE_URL } from '@/lib/constants';
 import { 
   Search, 
   Filter, 
@@ -29,9 +31,10 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import { useToast } from '@/hooks/use-toast';
+import { useSidebar } from '@/hooks/use-sidebar';
 
 // New imports for enhanced components
-import FilterPanel, { FilterState } from '@/components/education/FilterPanel';
+import FilterDrawer, { FilterState } from '@/components/education/FilterDrawer';
 import EducationPagination from '@/components/education/EducationPagination';
 import { TutorialGridSkeleton } from '@/components/education/TutorialSkeleton';
 import NoResultsState from '@/components/education/NoResultsState';
@@ -41,7 +44,9 @@ import TutorialSeriesCard from '@/components/education/TutorialSeriesCard';
 import QuizSeriesCard from '@/components/education/QuizSeriesCard';
 
 // Import tutorial series data from organized services
-import { useTutorials, useQuizzes } from '@/services';
+import { useTutorials, useQuizzes, useCategories } from '@/services';
+import { useBookmarks, useBookmarkCheck } from '@/services/bookmarks/bookmarkQueries';
+import { useToggleBookmark } from '@/services/bookmarks/bookmarkMutations';
 
 interface Tutorial {
   id: number;
@@ -50,12 +55,15 @@ interface Tutorial {
   duration: string;
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
   category: string;
+  categoryName: string; // add categoryName field to match ApiTutorial
   instructor: string;
   rating: number;
   students: number;
   thumbnail: string;
+  thumbnailPath: string | null; // add thumbnailPath field to match ApiTutorial
   isBookmarked: boolean;
   tags: string[];
+  createdAt?: string; // add created_at field
 }
 
 const Education = () => {
@@ -67,6 +75,33 @@ const Education = () => {
     selectedDurations: [],
     selectedProgress: []
   });
+
+  // filter panel toggle state
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const { sidebarOpen, toggleSidebar, closeSidebar } = useSidebar();
+
+  // mutually exclusive behavior: close sidebar when filter drawer opens
+  const toggleFilterDrawer = () => {
+    if (sidebarOpen) {
+      closeSidebar();
+    }
+    setIsFilterDrawerOpen(prev => !prev);
+  };
+
+  // aggressive mutual exclusion: close filter when sidebar opens
+  useEffect(() => {
+    if (sidebarOpen && isFilterDrawerOpen) {
+      setIsFilterDrawerOpen(false);
+    }
+  }, [sidebarOpen]);
+
+  // aggressive mutual exclusion: close sidebar when filter opens
+  useEffect(() => {
+    if (isFilterDrawerOpen && sidebarOpen) {
+      closeSidebar();
+    }
+  }, [isFilterDrawerOpen]);
+
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -80,32 +115,58 @@ const Education = () => {
   const { toast } = useToast();
 
   const tutorialsQuery = useTutorials();
+  const categoriesQuery = useCategories();
+
+  // phase 4: real bookmark functionality
+  const bookmarksQuery = useBookmarks();
+  const toggleBookmarkMutation = useToggleBookmark();
+
+  // phase 8: optimize data mapping with useMemo to prevent unnecessary recalculations
+  // debug: log the actual data received from backend
   useEffect(() => {
-    setIsLoading(tutorialsQuery.isLoading);
     if (tutorialsQuery.data) {
-      const mapped: Tutorial[] = tutorialsQuery.data.data.map(t => ({
+      console.log('DEBUG: Raw tutorials data from backend:', tutorialsQuery.data);
+    }
+    if (categoriesQuery.data) {
+      console.log('DEBUG: Raw categories data from backend:', categoriesQuery.data);
+    }
+  }, [tutorialsQuery.data, categoriesQuery.data]);
+
+  const mappedTutorials = useMemo(() => {
+    if (!tutorialsQuery.data) return [];
+
+    return tutorialsQuery.data.data.map(t => ({
         id: t.id,
         title: t.title,
         description: t.description ?? '',
-        // TODO: Implement these fields in backend API
-        duration: '0', // TODO: Add duration field to API
-        difficulty: 'Beginner', // TODO: Add difficulty field to API
-        category: String(t.categoryId),
-        instructor: 'System', // TODO: Add instructor field to API
-        rating: 0, // TODO: Add rating system to API
-        students: 0, // TODO: Add student count to API
-        thumbnail: '/placeholder-video.jpg', // TODO: Add thumbnail field to API
-        isBookmarked: false, // TODO: Implement bookmarking system
-        tags: [], // TODO: Add tags field to API
-      }));
-      setTutorials(mapped);
+      // use actual backend fields instead of hardcoded values
+      duration: t.videoDuration ? `${Math.floor(t.videoDuration / 60)}:${(t.videoDuration % 60).toString().padStart(2, '0')}` : '0:00',
+      difficulty: (t.difficulty ? t.difficulty.charAt(0).toUpperCase() + t.difficulty.slice(1) : 'Beginner') as 'Beginner' | 'Intermediate' | 'Advanced',
+      category: t.categoryName || 'General',
+      categoryName: t.categoryName || 'General', // add categoryName field to match interface
+      thumbnailPath: t.thumbnailPath, // add thumbnailPath field to match interface
+      instructor: t.author || 'System',
+      rating: t.rating || 0,
+      students: t.views || 0,
+      thumbnail: t.thumbnailPath ?
+        `${API_BASE_URL}${t.thumbnailPath}` :
+        '/placeholder-video.jpg',
+      isBookmarked: bookmarksQuery.data?.data.some(b => b.id === t.id) || false, // phase 4: use real bookmark data
+      tags: t.tags ? JSON.parse(t.tags) : [], // parse JSON tags from backend
+    }));
+  }, [tutorialsQuery.data, bookmarksQuery.data]);
+
+  useEffect(() => {
+    setIsLoading(tutorialsQuery.isLoading);
+    if (tutorialsQuery.data) {
+      setTutorials(mappedTutorials);
       setLoadingError(null);
     }
     if (tutorialsQuery.error) {
       setLoadingError('Unable to load tutorials. Please make sure the backend server is running.');
       console.error('Tutorials query error:', tutorialsQuery.error);
     }
-  }, [tutorialsQuery.isLoading, tutorialsQuery.data, tutorialsQuery.error]);
+  }, [tutorialsQuery.isLoading, tutorialsQuery.data, tutorialsQuery.error, mappedTutorials]);
 
   // Enhanced filtering and sorting logic
   const filteredAndSortedTutorials = useMemo(() => {
@@ -128,20 +189,28 @@ const Education = () => {
       const matchesDuration = filters.selectedDurations.length === 0 || 
         filters.selectedDurations.some(duration => {
           const minutes = parseInt(tutorial.duration);
-          if (duration === 'Short (< 30 min)') return minutes < 30;
-          if (duration === 'Medium (30-60 min)') return minutes >= 30 && minutes <= 60;
-          if (duration === 'Long (> 60 min)') return minutes > 60;
+          if (duration === '0-5 min') return minutes >= 0 && minutes <= 5;
+          if (duration === '5-15 min') return minutes > 5 && minutes <= 15;
+          if (duration === '15-30 min') return minutes > 15 && minutes <= 30;
+          if (duration === '30+ min') return minutes > 30;
           return true;
         });
 
-      return matchesSearch && matchesCategory && matchesDifficulty && matchesDuration;
+      // Progress filter
+      const matchesProgress = filters.selectedProgress.length === 0 ||
+        filters.selectedProgress.includes('Not Started'); // Default to 'Not Started' for now
+
+      return matchesSearch && matchesCategory && matchesDifficulty && matchesDuration && matchesProgress;
     });
 
     // Sorting logic
+    console.log('DEBUG: Before sorting, sortBy:', sortBy, 'first 3 items:', filtered.slice(0, 3).map(f => ({ id: f.id, title: f.title })));
     filtered.sort((a, b) => {
       switch (sortBy) {
+        case 'id':
+          return Number(a.id) - Number(b.id); // sort by ID ascending (1-10)
         case 'newest':
-          return b.id - a.id; // Assuming higher ID = newer
+          return Number(b.id) - Number(a.id); // sort by ID descending (10, 9, 8...)
         case 'most-viewed':
           return b.students - a.students;
         case 'title-az':
@@ -156,9 +225,10 @@ const Education = () => {
           return 0;
       }
     });
+    console.log('DEBUG: After sorting, first 3 items:', filtered.slice(0, 3).map(f => ({ id: f.id, title: f.title })));
 
     return filtered;
-  }, [tutorials, filters, sortBy]);
+  }, [tutorialsQuery.data?.data, filters, sortBy]);
 
   // Pagination logic
   const totalItems = filteredAndSortedTutorials.length;
@@ -208,19 +278,11 @@ const Education = () => {
     filters.selectedProgress.length > 0;
 
   const toggleBookmark = (tutorialId: number) => {
-    setTutorials(prev => prev.map(tutorial => 
-      tutorial.id === tutorialId 
-        ? { ...tutorial, isBookmarked: !tutorial.isBookmarked }
-        : tutorial
-    ));
-    
     const tutorial = tutorials.find(t => t.id === tutorialId);
     if (tutorial) {
-      toast({
-        title: tutorial.isBookmarked ? "Bookmark Removed" : "Tutorial Bookmarked",
-        description: tutorial.isBookmarked 
-          ? `Removed "${tutorial.title}" from bookmarks` 
-          : `Added "${tutorial.title}" to bookmarks`
+      toggleBookmarkMutation.mutate({
+        tutorialId,
+        isBookmarked: tutorial.isBookmarked
       });
     }
   };
@@ -243,28 +305,46 @@ const Education = () => {
     }
   };
 
-  // TODO: Implement real stats from database
   // calculate stats from fetched tutorials
   const totalSeries = tutorials.length;
-  // const enrolledSeriesCount = 0; // TODO: Implement user enrollment tracking
-  // const completedSeriesCount = 0; // TODO: Implement completion tracking
-  // const overallProgressRate = 0; // TODO: Implement progress calculation
-  const enrolledSeriesCount = 0; // Commented out until backend implementation
-  const completedSeriesCount = 0; // Commented out until backend implementation
-  const overallProgressRate = 0; // Commented out until backend implementation
+  const enrolledSeriesCount = bookmarksQuery.data?.data.length || 0; // use actual bookmark count
+  const completedSeriesCount = bookmarksQuery.data?.data.filter(b => b.progressPercentage === 100).length || 0; // use actual completion count based on progress
+  const overallProgressRate = enrolledSeriesCount > 0 ? (completedSeriesCount / enrolledSeriesCount) * 100 : 0; // calculate actual progress rate
+
+  // helper function to map series to education categories
+  const getCategoryFromSeries = (series: { title: string }) => {
+    const title = series.title.toLowerCase();
+    if (title.includes('basic') || title.includes('fundamental')) return 'Fundamentals';
+    if (title.includes('conversation') || title.includes('social')) return 'Conversations';
+    if (title.includes('advanced') || title.includes('phoneme')) return 'Phonemes';
+    if (title.includes('number') || title.includes('time') || title.includes('math')) return 'Numbers';
+    if (title.includes('medical') || title.includes('healthcare')) return 'Medical';
+    if (title.includes('business') || title.includes('professional')) return 'Business';
+    if (title.includes('emotion') || title.includes('context')) return 'Emotions';
+    if (title.includes('technology') || title.includes('modern')) return 'Technology';
+    return 'General';
+  };
 
   // Enhanced filtering and sorting for tutorial series
   const filteredAndSortedSeries = useMemo(() => {
-    // map tutorials to the series card shape expected by UI using safe defaults
-    let filtered = tutorials.map(t => ({
+    // map tutorials to the series card shape expected by UI using actual backend fields
+
+    // map tutorials to the series card shape expected by UI using actual backend fields
+    let filtered = (tutorialsQuery.data?.data || []).map(t => ({
       id: String(t.id),
       title: t.title,
       description: t.description,
-      instructor: 'System', // TODO: Add instructor field to API
-      tags: [], // TODO: Add tags field to API
-      totalDuration: parseInt(t.duration) || 0, // TODO: Add duration field to API
-      createdAt: new Date().toISOString(), // TODO: Add created_at field to API
-      difficulty: t.difficulty, // TODO: Add difficulty field to API
+      instructor: t.author || 'System', // use actual author field
+      tags: t.tags || [], // use actual tags field
+      totalDuration: t.videoDuration || 0, // use actual videoDuration field
+      createdAt: t.createdAt || new Date().toISOString(), // use actual created_at field from backend
+      difficulty: t.difficulty ? t.difficulty.charAt(0).toUpperCase() + t.difficulty.slice(1) : 'Beginner', // capitalize difficulty
+      category: t.categoryName || 'General', // add category field for filtering
+      categoryName: t.categoryName || 'General', // add categoryName field to match interface
+      thumbnail: t.thumbnailPath ?
+        `${API_BASE_URL}${t.thumbnailPath}` :
+        '/placeholder-video.jpg', // add thumbnail field for TutorialSeriesCard
+      rating: { average: t.rating || 0, totalReviews: Math.floor((t.rating || 0) * 10) }, // add rating field for sorting
     }));
 
     // Search filter
@@ -274,16 +354,15 @@ const Education = () => {
         series.title.toLowerCase().includes(searchLower) ||
         series.description.toLowerCase().includes(searchLower) ||
         series.instructor.toLowerCase().includes(searchLower) ||
-        series.tags.some(tag => tag.toLowerCase().includes(searchLower))
+        series.tags && Array.isArray(series.tags) && series.tags.some(tag => tag.toLowerCase().includes(searchLower))
       );
     }
 
-    // Category filter (map series categories to filter categories)
+    // Category filter (use actual backend category)
     if (filters.selectedCategories.length > 0) {
       filtered = filtered.filter(series => {
-        // Map series to education categories
-        const seriesCategory = getCategoryFromSeries(series);
-        return filters.selectedCategories.includes(seriesCategory);
+        // Use the actual category from the backend data
+        return filters.selectedCategories.includes(series.category);
       });
     }
 
@@ -322,47 +401,77 @@ const Education = () => {
       });
     }
 
-    // Sorting logic
+    // Sorting logic - use database ID order for proper sequence
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'newest':
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        case 'most-viewed':
-          return 0;
+        case 'id':
+          return Number(b.id) - Number(a.id); // newest first (10, 9, 8...)
+        case 'oldest':
+          return Number(a.id) - Number(b.id); // oldest first (1, 2, 3...)
         case 'title-az':
           return a.title.localeCompare(b.title);
         case 'title-za':
           return b.title.localeCompare(a.title);
         case 'rating':
-          return 0;
+          return b.rating.average - a.rating.average;
         case 'duration':
           return a.totalDuration - b.totalDuration;
         default:
-          return 0;
+          return Number(b.id) - Number(a.id); // default to newest first
       }
     });
 
     return filtered;
-  }, [tutorials, filters, sortBy]);
+  }, [tutorialsQuery.data?.data, filters, sortBy]);
 
   // Enhanced filtering and sorting for quiz series  
-  const [apiQuizzes, setApiQuizzes] = useState<{ id: number; title: string; categoryId: number }[]>([]);
+  // phase 2: enhanced quiz data interface with all backend fields
+  const [apiQuizzes, setApiQuizzes] = useState<{
+    id: number;
+    title: string;
+    categoryId: number;
+    description?: string;
+    difficulty?: string;
+    author?: string;
+    thumbnailPath?: string;
+    views?: number;
+    rating?: number;
+    totalQuestions?: number;
+    estimatedDuration?: number;
+    tags?: string;
+  }[]>([]);
   const quizzesQuery = useQuizzes();
   useEffect(() => {
     if (quizzesQuery.data) {
-      setApiQuizzes(quizzesQuery.data.data.map(q => ({ id: q.id, title: q.title, categoryId: q.categoryId })));
+      // phase 2: map all available backend fields for quiz data
+      setApiQuizzes(quizzesQuery.data.data.map(q => ({
+        id: q.id,
+        title: q.title,
+        categoryId: q.categoryId,
+        description: q.description,
+        difficulty: q.difficulty,
+        author: q.author,
+        thumbnailPath: q.thumbnailPath,
+        views: q.views,
+        rating: q.rating,
+        totalQuestions: q.totalQuestions,
+        estimatedDuration: q.estimatedDuration,
+        tags: q.tags,
+      })));
     }
   }, [quizzesQuery.data]);
 
   const filteredAndSortedQuizSeries = useMemo(() => {
+    // use actual backend fields for quiz data mapping
     let filtered = apiQuizzes.map(q => ({
       id: String(q.id),
       title: q.title,
-      description: '',
+      description: q.description || '', // use actual description field
       category: String(q.categoryId),
-      difficulty: 'Beginner',
-      totalQuestions: 0,
-      rating: { average: 0, totalReviews: 0 },
+      difficulty: q.difficulty ? q.difficulty.charAt(0).toUpperCase() + q.difficulty.slice(1) : 'Beginner', // use actual difficulty field
+      totalQuestions: q.totalQuestions || 0, // use actual total questions field
+      rating: { average: q.rating || 0, totalReviews: 0 }, // use actual rating field
     }));
 
     // Search filter
@@ -452,20 +561,6 @@ const Education = () => {
     const endIndex = startIndex + itemsPerPage;
     return filteredAndSortedSeries.slice(startIndex, endIndex);
   }, [filteredAndSortedSeries, currentPage, itemsPerPage]);
-
-  // Helper function to map series to education categories
-  const getCategoryFromSeries = (series: { title: string }) => {
-    const title = series.title.toLowerCase();
-    if (title.includes('basic') || title.includes('fundamental')) return 'Fundamentals';
-    if (title.includes('conversation') || title.includes('social')) return 'Conversations';
-    if (title.includes('advanced') || title.includes('phoneme')) return 'Phonemes';
-    if (title.includes('number') || title.includes('time') || title.includes('math')) return 'Numbers';
-    if (title.includes('medical') || title.includes('healthcare')) return 'Medical';
-    if (title.includes('business') || title.includes('professional')) return 'Business';
-    if (title.includes('emotion') || title.includes('context')) return 'Emotions';
-    if (title.includes('technology') || title.includes('modern')) return 'Technology';
-    return 'General';
-  };
 
   return (
     <div className="space-y-6 p-6">
@@ -561,20 +656,50 @@ const Education = () => {
           
           {/* 
             Layout Structure:
-            - Desktop: Sidebar (FilterPanel) + Main Content Area
-            - Mobile: Main Content Area with Filter Button
-          */}
-          <div className="flex gap-6">
-            {/* Left Sidebar - Desktop Only */}
-            <div className="hidden lg:block">
-              <FilterPanel
+             - Full-width content with Filter Drawer that pushes from left
+             - Filter drawer is mutually exclusive with main sidebar
+           */}
+          <div className={`flex gap-6 transition-all duration-300 ease-in-out ${sidebarOpen ? 'ml-64' : 'ml-0'
+            }`}>
+            {/* Filter Drawer - Only render when open */}
+            {isFilterDrawerOpen && (
+              <FilterDrawer
                 filters={filters}
                 onFiltersChange={setFilters}
+                isOpen={isFilterDrawerOpen}
+                onClose={() => setIsFilterDrawerOpen(false)}
+                hasActiveFilters={hasActiveFilters}
+                customFilterOptions={[
+                  {
+                    key: 'category',
+                    label: 'Category',
+                    type: 'checkbox',
+                    options: categoriesQuery.data?.data?.map(cat => cat.category_name) || []
+                  },
+                  {
+                    key: 'difficulty',
+                    label: 'Difficulty',
+                    type: 'radio',
+                    options: ['Beginner', 'Intermediate', 'Advanced']
+                  },
+                  {
+                    key: 'duration',
+                    label: 'Duration',
+                    type: 'checkbox',
+                    options: ['0-5 min', '5-15 min', '15-30 min', '30+ min']
+                  },
+                  {
+                    key: 'progress',
+                    label: 'Progress',
+                    type: 'checkbox',
+                    options: ['Not Started', 'In Progress', 'Completed']
+                  }
+                ]}
               />
-            </div>
+            )}
 
-            {/* Main Content Area - Responsive */}
-            <div className="flex-1 space-y-6 min-w-0">
+             {/* Main Content Area */}
+             <div className="flex-1 space-y-6 p-6">
               {/* Top Controls Bar */}
               <motion.div 
                 className="flex items-center justify-between gap-4 flex-wrap"
@@ -584,15 +709,14 @@ const Education = () => {
               >
                 {/* Left Side - Mobile Filter Button + Results Info */}
                 <div className="flex items-center gap-4">
-                  {/* Mobile Filter Button */}
-                  <div className="lg:hidden">
+                  {/* Filter Button */}
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {/* Add mobile filter modal logic later */}}
+                    onClick={toggleFilterDrawer}
                       className="flex items-center gap-2"
                     >
-                      <Filter className="h-4 w-4" />
+                      <Filter className="h-4 w-4 text-purple-600" />
                       <span>Filters</span>
                       {hasActiveFilters && (
                         <Badge variant="secondary" className="ml-1 px-1.5 py-0.5 text-xs">
@@ -606,7 +730,6 @@ const Education = () => {
                         </Badge>
                       )}
                     </Button>
-                  </div>
 
                   {/* Results Count */}
                   <span className="text-sm text-gray-600 font-medium">
@@ -702,8 +825,8 @@ const Education = () => {
               {/* Tutorial Series Grid */}
               <motion.div
                 className={viewMode === 'grid' 
-                  ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
-                  : "space-y-4"
+                    ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8"
+                    : "space-y-6"
                 }
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -755,9 +878,19 @@ const Education = () => {
             {/* Sidebar - Filter Panel */}
             <div className="hidden lg:block w-80 flex-shrink-0">
               <div className="sticky top-4">
-                <FilterPanel
+                <FilterDrawer
                   filters={filters}
                   onFiltersChange={setFilters}
+                  isOpen={isFilterDrawerOpen}
+                  onClose={() => setIsFilterDrawerOpen(false)}
+                  customFilterOptions={[
+                    {
+                      key: 'category',
+                      label: 'Category',
+                      type: 'checkbox',
+                      options: categoriesQuery.data?.data?.map(cat => cat.category_name) || []
+                    }
+                  ]}
                 />
               </div>
             </div>

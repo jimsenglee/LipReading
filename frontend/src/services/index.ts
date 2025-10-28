@@ -14,6 +14,14 @@ export * from './users/userMutations';
 export * from './content/contentQueries';
 export * from './content/contentMutations';
 
+// Bookmarks
+export * from './bookmarks/bookmarkQueries';
+export * from './bookmarks/bookmarkMutations';
+
+// Reviews
+export * from './reviews/reviewQueries';
+export * from './reviews/reviewMutations';
+
 // Analytics
 export * from './analytics/analyticsQueries';
 export * from './analytics/analyticsMutations';

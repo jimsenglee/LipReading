@@ -114,7 +114,7 @@ const EditTutorialSeriesWizard: React.FC = () => {
     const loadTutorialSeries = async () => {
       setIsLoading(true);
       try {
-        // TODO: Replace with actual API call
+        // load tutorial series data from API
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Mock existing data

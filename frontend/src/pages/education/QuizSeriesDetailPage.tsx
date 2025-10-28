@@ -27,6 +27,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import { useToast } from '@/hooks/use-toast';
+import { useTutorialReviews, useUserReview } from '@/services/reviews/reviewQueries';
+import { useSubmitReview } from '@/services/reviews/reviewMutations';
 type QuizSeries = {
   id: string;
   title: string;
@@ -152,13 +154,19 @@ const QuizSeriesDetailPage: React.FC = () => {
   const { toast } = useToast();
   const [showPrerequisitesModal, setShowPrerequisitesModal] = useState(false);
   
-  // Feedback state
+  // feedback state
   const [showWriteReview, setShowWriteReview] = useState(false);
   const [userRating, setUserRating] = useState(0);
   const [userReview, setUserReview] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
-  // Find the series data - will be fetched from API when implemented
+  // real review data integration
+  const tutorialId = parseInt(seriesId || '1');
+  const reviewsQuery = useTutorialReviews(tutorialId);
+  const userReviewQuery = useUserReview(tutorialId);
+  const submitReviewMutation = useSubmitReview();
+
+  // find the series data - will be fetched from API when implemented
   const series: QuizSeries | undefined = undefined;
   const userProgress: UserQuizProgress | undefined = undefined;
 
@@ -222,8 +230,14 @@ const QuizSeriesDetailPage: React.FC = () => {
     setIsSubmittingReview(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // use real review submission API
+      await submitReviewMutation.mutateAsync({
+        tutorialId,
+        data: {
+          rating: userRating,
+          reviewText: userReview || undefined
+        }
+      });
       
       toast({
         title: "Review Submitted!",
@@ -485,13 +499,13 @@ const QuizSeriesDetailPage: React.FC = () => {
                   <div className="text-center space-y-3">
                     <div className="flex items-center justify-center gap-2">
                       <RatingDisplay 
-                        rating={series.rating.average} 
-                        totalReviews={series.rating.totalReviews}
+                        rating={reviewsQuery.data?.averageRating || 0} 
+                        totalReviews={reviewsQuery.data?.totalReviews || 0}
                         size="lg"
                       />
                     </div>
                     <p className="text-sm text-gray-600">
-                      Based on {series.rating.totalReviews} community reviews
+                      Based on {reviewsQuery.data?.totalReviews || 0} community reviews
                     </p>
                     <Button 
                       onClick={() => setShowWriteReview(!showWriteReview)}

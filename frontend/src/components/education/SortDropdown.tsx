@@ -2,7 +2,7 @@ import React from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowUpDown, Calendar, Eye, Star, Clock, Type } from 'lucide-react';
 
-export type SortOption = 'newest' | 'most-viewed' | 'title-az' | 'title-za' | 'rating' | 'duration';
+export type SortOption = 'id' | 'newest' | 'oldest' | 'most-viewed' | 'title-az' | 'title-za' | 'rating' | 'duration';
 
 interface SortDropdownProps {
   value: SortOption;
@@ -19,6 +19,11 @@ const SortDropdown: React.FC<SortDropdownProps> = ({
     {
       value: 'newest' as SortOption,
       label: 'Newest First',
+      icon: Calendar
+    },
+    {
+      value: 'oldest' as SortOption,
+      label: 'Oldest First',
       icon: Calendar
     },
     {
@@ -58,12 +63,12 @@ const SortDropdown: React.FC<SortDropdownProps> = ({
       <span className="text-sm font-medium text-gray-700">Sort by:</span>
       <Select value={value} onValueChange={onValueChange}>
         <SelectTrigger className="w-[160px] border-primary/20 focus:border-primary">
-          <SelectValue>
+          <SelectValue placeholder="Newest First">
             <div className="flex items-center gap-2">
               {getCurrentOption()?.icon && 
                 React.createElement(getCurrentOption()!.icon, { className: "h-3 w-3" })
               }
-              {getCurrentOption()?.label}
+              {getCurrentOption()?.label || 'Newest First'}
             </div>
           </SelectValue>
         </SelectTrigger>

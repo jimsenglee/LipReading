@@ -13,6 +13,7 @@ import {
   Award
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { cardStyles, getDifficultyColor, ratingStyles, animationVariants } from '@/lib/education-styles';
 type UserQuizProgress = {
   status?: 'not-started' | 'in-progress' | 'completed';
   completedQuestions?: string[];
@@ -34,11 +35,10 @@ type QuizSeries = {
   prerequisites?: string[];
 };
 
-const getDifficultyColor = (d?: string) => {
-  const diff = (d || 'beginner').toLowerCase();
-  if (diff === 'beginner') return 'bg-green-100 text-green-800';
-  if (diff === 'intermediate') return 'bg-yellow-100 text-yellow-800';
-  return 'bg-red-100 text-red-800';
+// use consistent difficulty color from shared styles
+const getQuizDifficultyColor = (d?: string) => {
+  const difficultyColors = getDifficultyColor(d || 'beginner');
+  return `${difficultyColors.bg} ${difficultyColors.text}`;
 };
 
 const getQuizProgressPercentage = (_progress?: UserQuizProgress, _series?: QuizSeries) => {
@@ -124,7 +124,7 @@ const QuizSeriesCard: React.FC<QuizSeriesCardProps> = ({
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between mb-2">
             <div className="space-y-1">
-              <Badge className={getDifficultyColor(series.difficulty)}>
+              <Badge className={getQuizDifficultyColor(series.difficulty)}>
                 {(series.difficulty || 'beginner').charAt(0).toUpperCase() + (series.difficulty || 'beginner').slice(1)}
               </Badge>
               {series.category && <Badge variant="outline">{series.category}</Badge>}

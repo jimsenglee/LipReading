@@ -140,10 +140,24 @@ export const useTutorialById = (id: number) => {
   });
 };
 
-export const useQuizById = (id: number) => {
+export const useTutorialSeriesById = (seriesId: number) => {
   return useQuery({
-    queryKey: ['quiz', id],
-    queryFn: () => apiClient.getQuizById(id),
-    enabled: !!id,
+    queryKey: ['tutorial-series', seriesId],
+    queryFn: async (): Promise<ApiTutorial> => {
+      const response = await fetch(`${API_BASE_URL}/api/tutorials/series/${seriesId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch tutorial series: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      return result.data;
+    },
+    enabled: !!seriesId,
   });
 };

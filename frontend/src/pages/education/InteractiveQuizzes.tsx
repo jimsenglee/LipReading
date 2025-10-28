@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import { useToast } from '@/hooks/use-toast';
 import QuizSeriesCard from '@/components/education/QuizSeriesCard';
-import FilterPanel, { FilterState } from '@/components/education/FilterPanel';
+import FilterDrawer, { FilterState } from '@/components/education/FilterDrawer';
 import SortDropdown, { SortOption } from '@/components/education/SortDropdown';
 import EducationPagination from '@/components/education/EducationPagination';
 import { useQuizzes } from '@/services';
@@ -38,6 +38,7 @@ const InteractiveQuizzes = () => {
     selectedDurations: [],
     selectedProgress: []
   });
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [sortOption, setSortOption] = useState<SortOption>('newest');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
@@ -191,9 +192,11 @@ const InteractiveQuizzes = () => {
           {/* Sidebar - Filter Panel */}
           <div className="hidden lg:block w-80 flex-shrink-0">
             <div className="sticky top-4">
-              <FilterPanel
+              <FilterDrawer
                 filters={filters}
                 onFiltersChange={setFilters}
+                isOpen={isFilterDrawerOpen}
+                onClose={() => setIsFilterDrawerOpen(false)}
               />
             </div>
           </div>

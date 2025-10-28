@@ -11,6 +11,7 @@ import {
   Users
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { cardStyles, getDifficultyColor, ratingStyles, animationVariants } from '@/lib/education-styles';
 
 interface Tutorial {
   id: number;
@@ -40,14 +41,7 @@ const TutorialCard: React.FC<TutorialCardProps> = ({
   onBookmarkToggle,
   onPlay
 }) => {
-  const getDifficultyColor = (level: string) => {
-    switch (level) {
-      case 'Beginner': return 'bg-green-100 text-green-800 border-green-200';
-      case 'Intermediate': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Advanced': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
+  const difficultyColors = getDifficultyColor(tutorial.difficulty);
 
   return (
     <motion.div
@@ -87,7 +81,7 @@ const TutorialCard: React.FC<TutorialCardProps> = ({
         
         <div className={`p-4 ${isGridView ? 'flex-1' : 'flex-1'}`}>
           <div className="flex items-start justify-between mb-2">
-            <Badge className={getDifficultyColor(tutorial.difficulty)}>
+            <Badge className={`${difficultyColors.bg} ${difficultyColors.text} ${difficultyColors.border}`}>
               {tutorial.difficulty}
             </Badge>
             <div className="flex items-center gap-1 text-sm text-yellow-500">

@@ -13,6 +13,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { cardStyles, getDifficultyColor, ratingStyles, animationVariants } from '@/lib/education-styles';
 type TutorialSeries = {
   id: string;
   title: string;
@@ -135,17 +136,26 @@ const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
       }`}>
         {/* Thumbnail Section */}
         <div className={`relative ${isGridView ? 'w-full' : 'w-64 flex-shrink-0'}`}>
-          <img 
-            src={(series as any).thumbnailUrl || 'https://via.placeholder.com/600x300/e2e8f0/64748b?text=Tutorial'}
-            alt={series.title}
-            className={`w-full object-cover ${
-              isGridView ? 'h-40 rounded-t-lg' : 'h-full rounded-l-lg'
-            }`}
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.src = 'https://via.placeholder.com/400x225/e2e8f0/64748b?text=Tutorial+Series';
-            }}
-          />
+          {(() => {
+            console.log('DEBUG: TutorialSeriesCard series object:', series);
+            console.log('DEBUG: series.thumbnail:', (series as any).thumbnail);
+            const thumbnailUrl = (series as any).thumbnail || 'https://via.placeholder.com/600x300/e2e8f0/64748b?text=Tutorial';
+            console.log('DEBUG: constructed thumbnailUrl:', thumbnailUrl);
+            return (
+              <img 
+                src={thumbnailUrl}
+                alt={series.title}
+                className={`w-full object-cover ${
+                  isGridView ? 'h-40 rounded-t-lg' : 'h-full rounded-l-lg'
+                }`}
+                onError={(e) => {
+                  console.log('DEBUG: Image failed to load:', (e.target as HTMLImageElement).src);
+                  const target = e.target as HTMLImageElement;
+                  target.src = 'https://via.placeholder.com/400x225/e2e8f0/64748b?text=Tutorial+Series';
+                }}
+              />
+            );
+          })()}
           
           {/* Duration Badge */}
           <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-sm flex items-center gap-1">

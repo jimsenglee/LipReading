@@ -697,7 +697,7 @@ const CreateTutorialSeriesWizard: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                           {categories.map(category => (
-                            <SelectItem key={category.id} value={category.id.toString()}>{category.name}</SelectItem>
+                            <SelectItem key={category.id} value={category.id.toString()}>{category.category_name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

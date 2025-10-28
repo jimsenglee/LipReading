@@ -23,6 +23,7 @@ import { motion } from 'framer-motion';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import BackButton from '@/components/ui/back-button';
 import { useToast } from '@/hooks/use-toast';
+import ReactPlayer from 'react-player';
 
 interface Tutorial {
   id: number;
@@ -53,7 +54,7 @@ const TutorialPlayer = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<any>(null);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -112,47 +113,22 @@ const TutorialPlayer = () => {
   const playbackSpeeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
   const togglePlay = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
-    }
-  };
-
-  const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      setDuration(videoRef.current.duration);
-    }
+    setIsPlaying(!isPlaying);
   };
 
   const handleSeek = (newTime: number) => {
     if (videoRef.current) {
-      videoRef.current.currentTime = newTime;
+      videoRef.current.seekTo(newTime);
       setCurrentTime(newTime);
     }
   };
 
   const handleVolumeChange = (newVolume: number) => {
-    if (videoRef.current) {
-      videoRef.current.volume = newVolume;
-      setVolume(newVolume);
-    }
+    setVolume(newVolume);
   };
 
   const handleSpeedChange = (speed: number) => {
-    if (videoRef.current) {
-      videoRef.current.playbackRate = speed;
-      setPlaybackSpeed(speed);
-    }
+    setPlaybackSpeed(speed);
   };
 
   const toggleBookmark = () => {
@@ -168,7 +144,7 @@ const TutorialPlayer = () => {
   const toggleFullscreen = () => {
     if (videoRef.current) {
       if (!isFullscreen) {
-        videoRef.current.requestFullscreen();
+        videoRef.current.getInternalPlayer()?.requestFullscreen();
       } else {
         document.exitFullscreen();
       }
@@ -201,16 +177,22 @@ const TutorialPlayer = () => {
           <Card className="border-primary/20">
             <CardContent className="p-0">
               <div className="relative bg-black rounded-t-lg overflow-hidden">
-                <video
-                  ref={videoRef}
-                  className="w-full aspect-video"
-                  onTimeUpdate={handleTimeUpdate}
-                  onLoadedMetadata={handleLoadedMetadata}
-                  poster="/api/placeholder/800/450"
-                >
-                  <source src={tutorial.videoUrl || '/api/placeholder/video/tutorial.mp4'} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
+                {/* phase 1: react-player integration with proper implementation */}
+                {(ReactPlayer as any)({
+                  ref: videoRef,
+                  url: tutorial.videoUrl || '/api/placeholder/video/tutorial.mp4',
+                  width: "100%",
+                  height: "100%",
+                  playing: isPlaying,
+                  volume: volume,
+                  playbackRate: playbackSpeed,
+                  onProgress: (state: any) => setCurrentTime(state.playedSeconds),
+                  onDuration: (duration: any) => setDuration(duration),
+                  onPlay: () => setIsPlaying(true),
+                  onPause: () => setIsPlaying(false),
+                  onSeek: (seconds: any) => setCurrentTime(seconds),
+                  controls: false
+                })}
                 
                 {/* Video Controls Overlay */}
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">

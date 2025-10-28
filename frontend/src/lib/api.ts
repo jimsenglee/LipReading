@@ -39,13 +39,14 @@ export interface UserResponse {
 export interface ApiCategory {
   id: number;
   publicId: string;
-  name: string;
+  category_name: string;
 }
 
 export interface ApiTutorial {
   id: number;
   publicId: string;
   categoryId: number;
+  categoryName: string;
   title: string;
   description: string | null;
   videoPath: string;
@@ -70,6 +71,19 @@ export interface ApiTutorial {
   tags: string | null;
   isPreview: boolean;
   videoFilePath: string | null;
+  // Additional fields for series detail page
+  videos?: Video[];
+  estimatedDuration?: number;
+}
+
+export interface Video {
+  id: string;
+  title: string;
+  duration?: number;
+  url?: string;
+  description?: string;
+  order?: number;
+  isAdvanced?: boolean;
 }
 
 export interface ApiQuiz {
@@ -77,6 +91,18 @@ export interface ApiQuiz {
   publicId: string;
   categoryId: number;
   title: string;
+  // phase 2: add missing fields for education module
+  description?: string;
+  difficulty?: string;
+  author?: string;
+  thumbnailPath?: string;
+  views?: number;
+  rating?: number;
+  totalQuestions?: number;
+  estimatedDuration?: number;
+  tags?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 class ApiClient {
@@ -134,6 +160,29 @@ class ApiClient {
     } catch (error) {
       throw error;
     }
+  }
+
+  // phase 4: add generic http methods for bookmark service
+  async get<T>(endpoint: string): Promise<{ data: T }> {
+    return this.request<{ data: T }>(endpoint, { method: 'GET' });
+  }
+
+  async post<T>(endpoint: string, data?: any): Promise<{ data: T }> {
+    return this.request<{ data: T }>(endpoint, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async delete<T>(endpoint: string): Promise<{ data: T }> {
+    return this.request<{ data: T }>(endpoint, { method: 'DELETE' });
+  }
+
+  async put<T>(endpoint: string, data?: any): Promise<{ data: T }> {
+    return this.request<{ data: T }>(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    });
   }
 
   // auth endpoints

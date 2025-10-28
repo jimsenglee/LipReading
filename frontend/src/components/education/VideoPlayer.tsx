@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEducation } from '@/hooks/use-education';
+import ReactPlayer from 'react-player';
 
 interface VideoPlayerProps {
   videoUrl: string;
@@ -44,7 +45,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   onProgress,
   onComplete
 }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { updateProgress, getCourseProgress } = useEducation();
 
@@ -76,11 +77,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     return () => clearTimeout(timeout);
   }, [isPlaying, showControls]);
 
-  // Load saved progress
+  // load saved progress
   useEffect(() => {
     const progress = getCourseProgress(courseId);
     if (progress?.videoPosition && videoRef.current) {
-      videoRef.current.currentTime = progress.videoPosition;
+      videoRef.current.seekTo(progress.videoPosition);
     }
   }, [courseId, getCourseProgress]);
 
@@ -112,32 +113,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   }, [currentTime, duration, courseId, lessonId, updateProgress, onProgress, onComplete]);
 
   const togglePlay = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
-    }
-  };
-
-  const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      setDuration(videoRef.current.duration);
-    }
+    setIsPlaying(!isPlaying);
   };
 
   const handleSeek = (value: number[]) => {
     if (videoRef.current) {
       const newTime = (value[0] / 100) * duration;
-      videoRef.current.currentTime = newTime;
+      videoRef.current.seekTo(newTime);
       setCurrentTime(newTime);
     }
   };
@@ -145,49 +127,40 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const handleVolumeChange = (value: number[]) => {
     const newVolume = value[0] / 100;
     setVolume(newVolume);
-    if (videoRef.current) {
-      videoRef.current.volume = newVolume;
-    }
     setIsMuted(newVolume === 0);
   };
 
   const toggleMute = () => {
-    if (videoRef.current) {
-      const newMuted = !isMuted;
-      setIsMuted(newMuted);
-      videoRef.current.muted = newMuted;
-    }
+    setIsMuted(!isMuted);
   };
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
+    if (videoRef.current) {
+      if (!isFullscreen) {
+        videoRef.current.getInternalPlayer()?.requestFullscreen();
+      } else {
+        document.exitFullscreen();
+      }
+      setIsFullscreen(!isFullscreen);
     }
   };
 
   const changePlaybackRate = (rate: number) => {
-    if (videoRef.current) {
-      videoRef.current.playbackRate = rate;
-      setPlaybackRate(rate);
-      setShowSettings(false);
-    }
+    setPlaybackRate(rate);
+    setShowSettings(false);
   };
 
   const skipTime = (seconds: number) => {
     if (videoRef.current) {
       const newTime = Math.max(0, Math.min(duration, currentTime + seconds));
-      videoRef.current.currentTime = newTime;
+      videoRef.current.seekTo(newTime);
       setCurrentTime(newTime);
     }
   };
 
   const jumpToChapter = (startTime: number) => {
     if (videoRef.current) {
-      videoRef.current.currentTime = startTime;
+      videoRef.current.seekTo(startTime);
       setCurrentTime(startTime);
       setShowChapters(false);
     }
@@ -196,9 +169,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const enterPictureInPicture = async () => {
     if (videoRef.current && document.pictureInPictureEnabled) {
       try {
-        await videoRef.current.requestPictureInPicture();
+        const internalPlayer = videoRef.current.getInternalPlayer();
+        if (internalPlayer && internalPlayer.requestPictureInPicture) {
+          await internalPlayer.requestPictureInPicture();
+        }
       } catch (error) {
-        console.error('Failed to enter Picture-in-Picture mode:', error);
+        console.error('failed to enter picture-in-picture mode:', error);
       }
     }
   };
@@ -218,19 +194,24 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       onMouseMove={() => setShowControls(true)}
       onMouseLeave={() => isPlaying && setShowControls(false)}
     >
-      {/* Video Element */}
-      <video
-        ref={videoRef}
-        className="w-full aspect-video"
-        src={videoUrl}
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoadedMetadata}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onWaiting={() => setIsBuffering(true)}
-        onCanPlay={() => setIsBuffering(false)}
-        onClick={togglePlay}
-      />
+      {/* react-player integration */}
+      {(ReactPlayer as any)({
+        ref: videoRef,
+        url: videoUrl,
+        width: "100%",
+        height: "100%",
+        playing: isPlaying,
+        volume: isMuted ? 0 : volume,
+        playbackRate: playbackRate,
+        onProgress: (state: any) => setCurrentTime(state.playedSeconds),
+        onDuration: (duration: any) => setDuration(duration),
+        onPlay: () => setIsPlaying(true),
+        onPause: () => setIsPlaying(false),
+        onBuffer: () => setIsBuffering(true),
+        onBufferEnd: () => setIsBuffering(false),
+        onClick: togglePlay,
+        controls: false
+      })}
 
       {/* Loading Spinner */}
       {isBuffering && (

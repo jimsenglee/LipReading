@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { API_BASE_URL } from '@/lib/constants';
 import { 
   Play, 
   Clock, 
@@ -25,6 +26,9 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import { useToast } from '@/hooks/use-toast';
+import { useTutorialReviews, useUserReview } from '@/services/reviews/reviewQueries';
+import { useSubmitReview } from '@/services/reviews/reviewMutations';
+import { useTutorialSeriesById } from '@/services/content/contentQueries';
 type Video = { 
   id: string; 
   title: string; 
@@ -142,17 +146,72 @@ const SeriesDetailPage: React.FC = () => {
   const [showAdvancedModal, setShowAdvancedModal] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   
-  // Feedback state
+  // feedback state
   const [showWriteReview, setShowWriteReview] = useState(false);
   const [userRating, setUserRating] = useState(0);
   const [userReview, setUserReview] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
-  // Find the series data - will be fetched from API when implemented
-  const series: TutorialSeries | undefined = undefined;
+  // real review data integration
+  const tutorialId = parseInt(seriesId || '1');
+  const reviewsQuery = useTutorialReviews(tutorialId);
+  const userReviewQuery = useUserReview(tutorialId);
+  const submitReviewMutation = useSubmitReview();
+
+  // fetch tutorial series data from API
+  const seriesQuery = useTutorialSeriesById(tutorialId);
+  
+  // find the series data from API response
+  const series: TutorialSeries | undefined = seriesQuery.data ? {
+    id: seriesQuery.data.id,
+    title: seriesQuery.data.title,
+    description: seriesQuery.data.description,
+    detailedDescription: seriesQuery.data.description,
+    videos: seriesQuery.data.videos || [],
+    difficulty: seriesQuery.data.difficulty,
+    category: seriesQuery.data.categoryId?.toString(),
+    thumbnailUrl: seriesQuery.data.thumbnailPath ? 
+      `${API_BASE_URL}${seriesQuery.data.thumbnailPath}` : 
+      undefined,
+    rating: { 
+      average: seriesQuery.data.rating || 0, 
+      totalReviews: 0 
+    },
+    estimatedCompletionTime: seriesQuery.data.estimatedDuration ? `${Math.floor(seriesQuery.data.estimatedDuration / 60)} min` : '0 min',
+    prerequisites: seriesQuery.data.prerequisites ? JSON.parse(seriesQuery.data.prerequisites) : [],
+    learningObjectives: seriesQuery.data.learningObjectives ? JSON.parse(seriesQuery.data.learningObjectives) : []
+  } : undefined;
+  
   const userProgress: UserProgress | undefined = undefined;
 
   if (!series) {
+    if (seriesQuery.isLoading) {
+      return (
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">Loading Series...</h1>
+            <p className="text-gray-600">Please wait while we fetch the tutorial series.</p>
+          </div>
+        </div>
+      );
+    }
+    
+    if (seriesQuery.error) {
+      return (
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">Series Not Found</h1>
+            <p className="text-gray-600 mb-4">The tutorial series you're looking for doesn't exist or there was an error loading it.</p>
+            <Button onClick={() => navigate('/education')} className="bg-primary hover:bg-primary/90">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Education
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
@@ -251,8 +310,14 @@ const SeriesDetailPage: React.FC = () => {
     setIsSubmittingReview(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // use real review submission API
+      await submitReviewMutation.mutateAsync({
+        tutorialId,
+        data: {
+          rating: userRating,
+          reviewText: userReview || undefined
+        }
+      });
       
       toast({
         title: "Review Submitted!",
@@ -521,13 +586,13 @@ const SeriesDetailPage: React.FC = () => {
                   <div className="text-center space-y-3">
                     <div className="flex items-center justify-center gap-2">
                       <RatingDisplay 
-                        rating={series.rating.average} 
-                        totalReviews={series.rating.totalReviews}
+                        rating={reviewsQuery.data?.averageRating || 0} 
+                        totalReviews={reviewsQuery.data?.totalReviews || 0}
                         size="lg"
                       />
                     </div>
                     <p className="text-sm text-gray-600">
-                      Based on {series.rating.totalReviews} community reviews
+                      Based on {reviewsQuery.data?.totalReviews || 0} community reviews
                     </p>
                     <Button 
                       onClick={() => setShowWriteReview(!showWriteReview)}
