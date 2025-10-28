@@ -238,24 +238,13 @@ const SeriesDetailPage: React.FC = () => {
 
   const handleEnroll = async () => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      toast({
-        title: "Enrollment Successful!",
-        description: `You've enrolled in "${series.title}". Happy learning!`,
-      });
-
-      // In real app, this would update the user progress via API
-      // For now, we'll navigate to the first video
-      setTimeout(() => {
-        navigate(`/education/series/${series.id}/video/${series.videos[0].id}`);
-      }, 1500);
+      // navigate directly to video player without mock API call
+      navigate(`/education/tutorial/${series.id}`);
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "Enrollment Failed",
-        description: "There was an error enrolling in this series. Please try again.",
+        title: "Navigation Failed",
+        description: "There was an error navigating to the tutorial. Please try again.",
       });
     }
   };
@@ -272,7 +261,7 @@ const SeriesDetailPage: React.FC = () => {
   };
 
   const navigateToVideo = (video: Video) => {
-    navigate(`/education/series/${series.id}/video/${video.id}`);
+    navigate(`/education/tutorial/${series.id}`);
   };
 
   const handleModalContinue = () => {

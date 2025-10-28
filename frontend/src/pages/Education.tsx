@@ -108,69 +108,44 @@ const Education = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const itemsPerPage = 6;
 
-  const [tutorials, setTutorials] = useState<Tutorial[]>([]);
-  const [loadingError, setLoadingError] = useState<string | null>(null);
-
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const tutorialsQuery = useTutorials();
   const categoriesQuery = useCategories();
 
-  // phase 4: real bookmark functionality
+  // real bookmark functionality
   const bookmarksQuery = useBookmarks();
   const toggleBookmarkMutation = useToggleBookmark();
 
-  // phase 8: optimize data mapping with useMemo to prevent unnecessary recalculations
-  // debug: log the actual data received from backend
-  useEffect(() => {
-    if (tutorialsQuery.data) {
-      console.log('DEBUG: Raw tutorials data from backend:', tutorialsQuery.data);
-    }
-    if (categoriesQuery.data) {
-      console.log('DEBUG: Raw categories data from backend:', categoriesQuery.data);
-    }
-  }, [tutorialsQuery.data, categoriesQuery.data]);
+  // optimize data mapping with useMemo to prevent unnecessary recalculations
 
   const mappedTutorials = useMemo(() => {
     if (!tutorialsQuery.data) return [];
 
     return tutorialsQuery.data.data.map(t => ({
-        id: t.id,
-        title: t.title,
-        description: t.description ?? '',
-      // use actual backend fields instead of hardcoded values
+      id: t.id,
+      title: t.title,
+      description: t.description ?? '',
       duration: t.videoDuration ? `${Math.floor(t.videoDuration / 60)}:${(t.videoDuration % 60).toString().padStart(2, '0')}` : '0:00',
       difficulty: (t.difficulty ? t.difficulty.charAt(0).toUpperCase() + t.difficulty.slice(1) : 'Beginner') as 'Beginner' | 'Intermediate' | 'Advanced',
       category: t.categoryName || 'General',
-      categoryName: t.categoryName || 'General', // add categoryName field to match interface
-      thumbnailPath: t.thumbnailPath, // add thumbnailPath field to match interface
+      categoryName: t.categoryName || 'General',
+      thumbnailPath: t.thumbnailPath,
       instructor: t.author || 'System',
       rating: t.rating || 0,
       students: t.views || 0,
       thumbnail: t.thumbnailPath ?
         `${API_BASE_URL}${t.thumbnailPath}` :
         '/placeholder-video.jpg',
-      isBookmarked: bookmarksQuery.data?.data.some(b => b.id === t.id) || false, // phase 4: use real bookmark data
-      tags: t.tags ? JSON.parse(t.tags) : [], // parse JSON tags from backend
+      isBookmarked: bookmarksQuery.data?.data.some(b => b.id === t.id) || false,
+      tags: t.tags ? JSON.parse(t.tags) : [],
     }));
   }, [tutorialsQuery.data, bookmarksQuery.data]);
 
-  useEffect(() => {
-    setIsLoading(tutorialsQuery.isLoading);
-    if (tutorialsQuery.data) {
-      setTutorials(mappedTutorials);
-      setLoadingError(null);
-    }
-    if (tutorialsQuery.error) {
-      setLoadingError('Unable to load tutorials. Please make sure the backend server is running.');
-      console.error('Tutorials query error:', tutorialsQuery.error);
-    }
-  }, [tutorialsQuery.isLoading, tutorialsQuery.data, tutorialsQuery.error, mappedTutorials]);
-
   // Enhanced filtering and sorting logic
   const filteredAndSortedTutorials = useMemo(() => {
-    const filtered = tutorials.filter(tutorial => {
+    const filtered = mappedTutorials.filter(tutorial => {
       // Search filter
       const matchesSearch = !filters.searchTerm || 
         tutorial.title.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
@@ -225,10 +200,8 @@ const Education = () => {
           return 0;
       }
     });
-    console.log('DEBUG: After sorting, first 3 items:', filtered.slice(0, 3).map(f => ({ id: f.id, title: f.title })));
-
     return filtered;
-  }, [tutorialsQuery.data?.data, filters, sortBy]);
+  }, [mappedTutorials, filters, sortBy]);
 
   // Pagination logic
   const totalItems = filteredAndSortedTutorials.length;
@@ -236,7 +209,7 @@ const Education = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedTutorials = filteredAndSortedTutorials.slice(startIndex, startIndex + itemsPerPage);
 
-  const bookmarkedTutorials = tutorials.filter(tutorial => tutorial.isBookmarked);
+  const bookmarkedTutorials = mappedTutorials.filter(tutorial => tutorial.isBookmarked);
 
   const breadcrumbItems = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -278,7 +251,7 @@ const Education = () => {
     filters.selectedProgress.length > 0;
 
   const toggleBookmark = (tutorialId: number) => {
-    const tutorial = tutorials.find(t => t.id === tutorialId);
+    const tutorial = mappedTutorials.find(t => t.id === tutorialId);
     if (tutorial) {
       toggleBookmarkMutation.mutate({
         tutorialId,
@@ -288,7 +261,7 @@ const Education = () => {
   };
 
   const watchTutorial = (tutorialId: number) => {
-    const tutorial = tutorials.find(t => t.id === tutorialId);
+    const tutorial = mappedTutorials.find(t => t.id === tutorialId);
     if (tutorial) {
       // Navigate to tutorial player with tutorial data
       navigate(`/education/tutorial/${tutorialId}`, { 
@@ -306,10 +279,10 @@ const Education = () => {
   };
 
   // calculate stats from fetched tutorials
-  const totalSeries = tutorials.length;
-  const enrolledSeriesCount = bookmarksQuery.data?.data.length || 0; // use actual bookmark count
-  const completedSeriesCount = bookmarksQuery.data?.data.filter(b => b.progressPercentage === 100).length || 0; // use actual completion count based on progress
-  const overallProgressRate = enrolledSeriesCount > 0 ? (completedSeriesCount / enrolledSeriesCount) * 100 : 0; // calculate actual progress rate
+  const totalSeries = mappedTutorials.length;
+  const enrolledSeriesCount = bookmarksQuery.data?.data.length || 0;
+  const completedSeriesCount = bookmarksQuery.data?.data.filter(b => b.progressPercentage === 100).length || 0;
+  const overallProgressRate = enrolledSeriesCount > 0 ? (completedSeriesCount / enrolledSeriesCount) * 100 : 0;
 
   // helper function to map series to education categories
   const getCategoryFromSeries = (series: { title: string }) => {
@@ -328,23 +301,21 @@ const Education = () => {
   // Enhanced filtering and sorting for tutorial series
   const filteredAndSortedSeries = useMemo(() => {
     // map tutorials to the series card shape expected by UI using actual backend fields
-
-    // map tutorials to the series card shape expected by UI using actual backend fields
     let filtered = (tutorialsQuery.data?.data || []).map(t => ({
       id: String(t.id),
       title: t.title,
       description: t.description,
-      instructor: t.author || 'System', // use actual author field
-      tags: t.tags || [], // use actual tags field
-      totalDuration: t.videoDuration || 0, // use actual videoDuration field
-      createdAt: t.createdAt || new Date().toISOString(), // use actual created_at field from backend
-      difficulty: t.difficulty ? t.difficulty.charAt(0).toUpperCase() + t.difficulty.slice(1) : 'Beginner', // capitalize difficulty
-      category: t.categoryName || 'General', // add category field for filtering
-      categoryName: t.categoryName || 'General', // add categoryName field to match interface
+      instructor: t.author || 'System',
+      tags: t.tags || [],
+      totalDuration: t.videoDuration || 0,
+      createdAt: t.createdAt || new Date().toISOString(),
+      difficulty: t.difficulty ? t.difficulty.charAt(0).toUpperCase() + t.difficulty.slice(1) : 'Beginner',
+      category: t.categoryName || 'General',
+      categoryName: t.categoryName || 'General',
       thumbnail: t.thumbnailPath ?
         `${API_BASE_URL}${t.thumbnailPath}` :
-        '/placeholder-video.jpg', // add thumbnail field for TutorialSeriesCard
-      rating: { average: t.rating || 0, totalReviews: Math.floor((t.rating || 0) * 10) }, // add rating field for sorting
+        '/placeholder-video.jpg',
+      rating: { average: t.rating || 0, totalReviews: Math.floor((t.rating || 0) * 10) },
     }));
 
     // Search filter
@@ -426,52 +397,18 @@ const Education = () => {
   }, [tutorialsQuery.data?.data, filters, sortBy]);
 
   // Enhanced filtering and sorting for quiz series  
-  // phase 2: enhanced quiz data interface with all backend fields
-  const [apiQuizzes, setApiQuizzes] = useState<{
-    id: number;
-    title: string;
-    categoryId: number;
-    description?: string;
-    difficulty?: string;
-    author?: string;
-    thumbnailPath?: string;
-    views?: number;
-    rating?: number;
-    totalQuestions?: number;
-    estimatedDuration?: number;
-    tags?: string;
-  }[]>([]);
   const quizzesQuery = useQuizzes();
-  useEffect(() => {
-    if (quizzesQuery.data) {
-      // phase 2: map all available backend fields for quiz data
-      setApiQuizzes(quizzesQuery.data.data.map(q => ({
-        id: q.id,
-        title: q.title,
-        categoryId: q.categoryId,
-        description: q.description,
-        difficulty: q.difficulty,
-        author: q.author,
-        thumbnailPath: q.thumbnailPath,
-        views: q.views,
-        rating: q.rating,
-        totalQuestions: q.totalQuestions,
-        estimatedDuration: q.estimatedDuration,
-        tags: q.tags,
-      })));
-    }
-  }, [quizzesQuery.data]);
 
   const filteredAndSortedQuizSeries = useMemo(() => {
     // use actual backend fields for quiz data mapping
-    let filtered = apiQuizzes.map(q => ({
+    let filtered = (quizzesQuery.data?.data || []).map(q => ({
       id: String(q.id),
       title: q.title,
-      description: q.description || '', // use actual description field
+      description: q.description || '',
       category: String(q.categoryId),
-      difficulty: q.difficulty ? q.difficulty.charAt(0).toUpperCase() + q.difficulty.slice(1) : 'Beginner', // use actual difficulty field
-      totalQuestions: q.totalQuestions || 0, // use actual total questions field
-      rating: { average: q.rating || 0, totalReviews: 0 }, // use actual rating field
+      difficulty: q.difficulty ? q.difficulty.charAt(0).toUpperCase() + q.difficulty.slice(1) : 'Beginner',
+      totalQuestions: q.totalQuestions || 0,
+      rating: { average: q.rating || 0, totalReviews: 0 },
     }));
 
     // Search filter
@@ -546,7 +483,7 @@ const Education = () => {
     });
 
     return filtered;
-  }, [apiQuizzes, filters, sortBy]);
+  }, [quizzesQuery.data?.data, filters, sortBy]);
 
   // Pagination logic for quiz series
   const paginatedQuizSeries = useMemo(() => {
@@ -637,7 +574,7 @@ const Education = () => {
 
         <TabsContent value="tutorial" className="space-y-6">
           {/* Error State */}
-          {loadingError && (
+          {tutorialsQuery.error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0">
@@ -647,7 +584,7 @@ const Education = () => {
                 </div>
                 <div className="flex-1">
                   <h3 className="text-sm font-medium text-red-800">Error Loading Content</h3>
-                  <p className="mt-1 text-sm text-red-700">{loadingError}</p>
+                  <p className="mt-1 text-sm text-red-700">Unable to load tutorials. Please make sure the backend server is running.</p>
                   <p className="mt-2 text-xs text-red-600">Make sure the Flask backend is running on http://127.0.0.1:5000</p>
                 </div>
               </div>

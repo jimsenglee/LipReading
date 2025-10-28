@@ -61,13 +61,35 @@ export const useUserReview = (tutorialId: number) => {
   return useQuery({
     queryKey: ['user-review', tutorialId],
     queryFn: async (): Promise<UserReviewResponse> => {
-      const response = await apiClient.get<UserReview>(`/bookmarks/${tutorialId}/review`);
-      return {
-        success: true,
-        data: response.data
-      };
+      try {
+        const response = await apiClient.get<UserReview>(`/bookmarks/${tutorialId}/review`);
+        return {
+          success: true,
+          data: response.data
+        };
+      } catch (error: any) {
+        // if user hasn't bookmarked the tutorial, return empty review data
+        if (error.response?.status === 404) {
+          return {
+            success: true,
+            data: {
+              rating: undefined,
+              reviewText: undefined,
+              reviewedAt: undefined
+            }
+          };
+        }
+        throw error;
+      }
     },
     enabled: !!tutorialId,
     staleTime: 2 * 60 * 1000, // 2 minutes
+    retry: (failureCount, error: any) => {
+      // don't retry on 404 errors (user hasn't bookmarked)
+      if (error.response?.status === 404) {
+        return false;
+      }
+      return failureCount < 3;
+    }
   });
 };
