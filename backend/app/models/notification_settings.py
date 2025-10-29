@@ -1,13 +1,17 @@
 import sqlalchemy as sa
 import sqlalchemy.orm as so
+from typing import TYPE_CHECKING
 
 from ..extensions import db
+
+if TYPE_CHECKING:
+    from .user import User
 
 
 class NotificationSettings(db.Model):
     __tablename__ = 'notification_settings'
 
-    user_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey('users.id'), primary_key=True)
+    user_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey('accounts.id'), primary_key=True)
     reminder_frequency: so.Mapped[str] = so.mapped_column(sa.String(20), nullable=False, default='None')
 
     user: so.Mapped['User'] = so.relationship(back_populates='notification_settings')

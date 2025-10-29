@@ -1,8 +1,19 @@
 import sqlalchemy as sa
 import sqlalchemy.orm as so
+from typing import TYPE_CHECKING
 
 from ..extensions import db
 from .account import Account
+
+if TYPE_CHECKING:
+    from .accessibility_settings import AccessibilitySettings
+    from .notification_settings import NotificationSettings
+    from .login_activity import LoginActivity
+    from .third_party_app import ThirdPartyApp
+    from .transcription import Transcription
+    from .practice_session import PracticeSession
+    from .quiz_attempt import QuizAttempt
+    from .tutorial import Tutorial
 
 
 class User(Account):

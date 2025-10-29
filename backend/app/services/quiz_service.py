@@ -3,10 +3,12 @@ Quiz business logic service
 Following README.txt separation of concerns
 """
 import sqlalchemy as sa
+from sqlalchemy import select
 from typing import Dict, Any
+from flask import current_app
 
 from ..extensions import db
-from ..models import Quiz
+from ..models import Quiz, QuizQuestion
 from ..schemas.quiz_schemas import QuizCreateSchema, QuizUpdateSchema, QuizQuerySchema
 from ..services.response_service import ResponseService
 from ..services.error_service import APIError
@@ -20,9 +22,14 @@ class QuizService:
     def get_quizzes(params: Dict[str, Any]):
         """Get paginated list of quizzes with filtering and sorting"""
         try:
-            # Validate query parameters
+            # validate query parameters
             schema = QuizQuerySchema()
-            validated_params = schema.load(params)
+            try:
+                validated_params = schema.load(params)
+                if not isinstance(validated_params, dict):
+                    validated_params = {}
+            except Exception:
+                validated_params = {}
             
             # Build base query
             query = sa.select(Quiz)
@@ -39,16 +46,27 @@ class QuizService:
             if validated_params.get('status') and validated_params['status'] != 'all':
                 query = query.where(Quiz.status == validated_params['status'])
             
+            if validated_params.get('difficulty'):
+                query = query.where(Quiz.difficulty == validated_params['difficulty'])
+            
             # Apply sorting
-            sort_by = validated_params.get('sort_by', 'id')
-            sort_order = validated_params.get('sort_order', 'asc')
+            sort_by = validated_params.get('sort_by', 'created_at')
+            sort_order = validated_params.get('sort_order', 'desc')
             
             if sort_by == 'id':
                 sort_column = Quiz.id
             elif sort_by == 'title':
                 sort_column = Quiz.title
+            elif sort_by == 'created_at':
+                sort_column = Quiz.created_at
+            elif sort_by == 'updated_at':
+                sort_column = Quiz.updated_at
+            elif sort_by == 'views':
+                sort_column = Quiz.views
+            elif sort_by == 'rating':
+                sort_column = Quiz.rating
             else:
-                sort_column = Quiz.id
+                sort_column = Quiz.created_at
             
             if sort_order.lower() == 'desc':
                 query = query.order_by(sa.desc(sort_column))
@@ -76,33 +94,98 @@ class QuizService:
                     'publicId': q.public_id,
                     'categoryId': q.category_id,
                     'title': q.title,
+                    'description': q.description,
                     'status': q.status,
+                    # phase 2: add missing fields for education module
+                    'difficulty': q.difficulty,
+                    'author': q.author,
+                    'thumbnailPath': q.thumbnail_path,
+                    'views': q.views,
+                    'rating': float(q.rating) if q.rating else 0.0,
+                    'totalQuestions': q.total_questions,
+                    'estimatedDuration': q.estimated_duration,
+                    'tags': q.tags,
+                    'createdAt': q.created_at.isoformat() if q.created_at else None,
+                    'updatedAt': q.updated_at.isoformat() if q.updated_at else None,
                 })
             
-            pagination = ResponseService.pagination_info(page, per_page, total)
+            pagination = ResponseService.pagination_info(page, per_page, total or 0)
             return ResponseService.success_response(quiz_list, pagination=pagination)
             
         except Exception as e:
             raise APIError(f"Failed to retrieve quizzes: {str(e)}", 500)
     
     @staticmethod
+    def get_quiz(quiz_id: int):
+        """Get single quiz by ID"""
+        try:
+            quiz = db.session.scalar(
+                sa.select(Quiz).where(Quiz.id == quiz_id)
+                .where(Quiz.status != 'deleted')
+            )
+            
+            if not quiz:
+                raise APIError("Quiz not found", 404)
+            
+            # Increment view count
+            quiz.views += 1
+            db.session.commit()
+            
+            return ResponseService.success_response({
+                'id': quiz.id,
+                'publicId': quiz.public_id,
+                'categoryId': quiz.category_id,
+                'title': quiz.title,
+                'description': quiz.description,
+                'status': quiz.status,
+                'difficulty': quiz.difficulty,
+                'author': quiz.author,
+                'thumbnailPath': quiz.thumbnail_path,
+                'views': quiz.views,
+                'rating': float(quiz.rating) if quiz.rating else 0.0,
+                'totalQuestions': quiz.total_questions,
+                'estimatedDuration': quiz.estimated_duration,
+                'tags': quiz.tags,
+                'createdAt': quiz.created_at.isoformat() if quiz.created_at else None,
+                'updatedAt': quiz.updated_at.isoformat() if quiz.updated_at else None,
+            })
+            
+        except APIError:
+            raise
+        except Exception as e:
+            raise APIError(f"Failed to retrieve quiz: {str(e)}", 500)
+    
+    @staticmethod
     def create_quiz(data: Dict[str, Any]):
         """Create new quiz"""
         try:
-            # Validate input data
+            # validate input data
             schema = QuizCreateSchema()
-            validated_data = schema.load(data)
+            try:
+                validated_data = schema.load(data)
+                if not isinstance(validated_data, dict):
+                    validated_data = {}
+            except Exception:
+                validated_data = {}
             
             # Generate public ID
             public_id = generate_public_id(Quiz, "QUZ")
             
             # Create quiz
-            quiz = Quiz(
-                public_id=public_id,
-                category_id=validated_data['category_id'],
-                title=validated_data['title'],
-                status=validated_data.get('status', 'active')
-            )
+            quiz = Quiz()
+            quiz.public_id = public_id
+            quiz.category_id = validated_data['category_id']
+            quiz.title = validated_data['title']
+            quiz.description = validated_data.get('description', '')
+            quiz.status = validated_data.get('status', 'active')
+            quiz.difficulty = validated_data.get('difficulty', 'beginner')
+            quiz.author = validated_data.get('author', 'System')
+            quiz.thumbnail_path = validated_data.get('thumbnail_path')
+            quiz.total_questions = validated_data.get('total_questions', 0)
+            quiz.estimated_duration = validated_data.get('estimated_duration', 0)
+            quiz.tags = str(validated_data.get('tags', []))
+            quiz.views = 0
+            quiz.rating = 0.0
             
             db.session.add(quiz)
             db.session.commit()
@@ -121,9 +204,14 @@ class QuizService:
     def update_quiz(quiz_id: int, data: Dict[str, Any]):
         """Update existing quiz"""
         try:
-            # Validate input data
+            # validate input data
             schema = QuizUpdateSchema()
-            validated_data = schema.load(data)
+            try:
+                validated_data = schema.load(data)
+                if not isinstance(validated_data, dict):
+                    validated_data = {}
+            except Exception:
+                validated_data = {}
             
             quiz = db.session.scalar(
                 sa.select(Quiz).where(Quiz.id == quiz_id)
@@ -173,3 +261,451 @@ class QuizService:
         except Exception as e:
             db.session.rollback()
             raise APIError(f"Failed to delete quiz: {str(e)}", 500)
+
+    @staticmethod
+    def get_quiz_file_url(quiz_id: int, file_type: str):
+        """get file URL for quiz files (thumbnails)"""
+        try:
+            quiz = db.session.scalar(
+                select(Quiz).where(Quiz.id == quiz_id)
+                .where(Quiz.status != 'deleted')
+            )
+            
+            if not quiz:
+                raise APIError("quiz not found", 404)
+            
+            file_path = None
+            if file_type == 'thumbnail':
+                file_path = quiz.thumbnail_path
+            else:
+                raise APIError("invalid file type", 400)
+            
+            if not file_path:
+                raise APIError(f"{file_type} not available", 404)
+            
+            # generate file URL for frontend access
+            from ..utils.file_handler import FileHandler
+            file_url = FileHandler.get_file_url(file_path)
+            
+            return ResponseService.success_response({
+                'quizId': quiz_id,
+                'fileType': file_type,
+                'filePath': file_path,
+                'fileUrl': file_url
+            })
+            
+        except APIError:
+            raise
+        except Exception as e:
+            current_app.logger.error(f"get quiz file url error: {str(e)}")
+            raise APIError("internal server error", 500)
+    
+    @staticmethod
+    def create_quiz_series(data: Dict[str, Any], user_name: str):
+        """Create new quiz series with multiple quizzes"""
+        try:
+            # validate input data for series creation
+            required_fields = ['title', 'description', 'category_id']
+            for field in required_fields:
+                if field not in data:
+                    raise APIError(f"Missing required field: {field}", 400)
+            
+            # validate input data
+            schema = QuizCreateSchema()
+            try:
+                validated_data = schema.load(data)
+                if not isinstance(validated_data, dict):
+                    validated_data = {}
+            except Exception:
+                validated_data = {}
+            
+            # generate public ID for series
+            series_public_id = generate_public_id(Quiz, "QUZ")
+            
+            # create parent series quiz
+            series_quiz = Quiz()
+            series_quiz.public_id = series_public_id
+            series_quiz.category_id = data['category_id']
+            series_quiz.title = data['title']
+            series_quiz.description = data.get('description', '')
+            series_quiz.status = data.get('status', 'active')
+            series_quiz.difficulty = data.get('difficulty', 'beginner')
+            series_quiz.author = user_name
+            series_quiz.thumbnail_path = data.get('thumbnail_path')
+            series_quiz.series_type = 'series'
+            series_quiz.total_questions = data.get('total_questions', 0)
+            series_quiz.estimated_duration = data.get('estimated_duration', 0)
+            series_quiz.tags = str(data.get('tags', []))
+            series_quiz.views = 0
+            series_quiz.rating = 0.0
+            
+            db.session.add(series_quiz)
+            db.session.flush()  # get the series ID
+            
+            # create individual quizzes if provided
+            quizzes = data.get('quizzes', [])
+            for i, quiz_data in enumerate(quizzes):
+                quiz_public_id = generate_public_id(Quiz, "QUZ")
+                
+                quiz = Quiz()
+                quiz.public_id = quiz_public_id
+                quiz.category_id = data['category_id']
+                quiz.title = quiz_data.get('title', f"{data['title']} - Quiz {i+1}")
+                quiz.description = quiz_data.get('description', '')
+                quiz.status = data.get('status', 'active')
+                quiz.difficulty = data.get('difficulty', 'beginner')
+                quiz.author = user_name
+                quiz.thumbnail_path = quiz_data.get('thumbnail_path')
+                quiz.series_type = 'single'
+                quiz.parent_series_id = series_quiz.id
+                quiz.quiz_order = i + 1
+                quiz.quiz_title = quiz_data.get('title', f"Quiz {i+1}")
+                quiz.quiz_description = quiz_data.get('description', '')
+                quiz.total_questions = quiz_data.get('total_questions', 0)
+                quiz.estimated_duration = quiz_data.get('estimated_duration', 0)
+                quiz.tags = str(quiz_data.get('tags', []))
+                quiz.views = 0
+                quiz.rating = 0.0
+                
+                db.session.add(quiz)
+            
+            db.session.commit()
+            
+            return ResponseService.success_response({
+                'id': series_quiz.id,
+                'publicId': series_quiz.public_id,
+                'message': 'Quiz series created successfully',
+                'quizCount': len(quizzes)
+            })
+            
+        except APIError:
+            raise
+        except Exception as e:
+            db.session.rollback()
+            raise APIError(f"Failed to create quiz series: {str(e)}", 500)
+    
+    @staticmethod
+    def get_quiz_series(params: Dict[str, Any]):
+        """Get paginated list of quiz series"""
+        try:
+            # validate query parameters
+            schema = QuizQuerySchema()
+            try:
+                validated_params = schema.load(params)
+                if not isinstance(validated_params, dict):
+                    validated_params = {}
+            except Exception:
+                validated_params = {}
+            
+            # build base query for series only
+            query = sa.select(Quiz)
+            query = query.where(Quiz.status != 'deleted')
+            query = query.where(Quiz.series_type == 'series')
+            
+            # apply filters
+            if validated_params.get('search'):
+                search_term = validated_params['search']
+                query = query.where(Quiz.title.ilike(f'%{search_term}%'))
+            
+            if validated_params.get('category_id'):
+                query = query.where(Quiz.category_id == validated_params['category_id'])
+            
+            if validated_params.get('status') and validated_params['status'] != 'all':
+                query = query.where(Quiz.status == validated_params['status'])
+            
+            if validated_params.get('difficulty'):
+                query = query.where(Quiz.difficulty == validated_params['difficulty'])
+            
+            # apply sorting
+            sort_by = validated_params.get('sort_by', 'created_at')
+            sort_order = validated_params.get('sort_order', 'desc')
+            
+            if sort_by == 'id':
+                sort_column = Quiz.id
+            elif sort_by == 'title':
+                sort_column = Quiz.title
+            elif sort_by == 'created_at':
+                sort_column = Quiz.created_at
+            elif sort_by == 'updated_at':
+                sort_column = Quiz.updated_at
+            elif sort_by == 'views':
+                sort_column = Quiz.views
+            elif sort_by == 'rating':
+                sort_column = Quiz.rating
+            else:
+                sort_column = Quiz.created_at
+            
+            if sort_order.lower() == 'desc':
+                query = query.order_by(sa.desc(sort_column))
+            else:
+                query = query.order_by(sa.asc(sort_column))
+            
+            # get total count
+            count_query = sa.select(sa.func.count()).select_from(query.subquery())
+            total = db.session.scalar(count_query)
+            
+            # apply pagination
+            page = validated_params.get('page', 1)
+            per_page = validated_params.get('per_page', 10)
+            offset = (page - 1) * per_page
+            query = query.offset(offset).limit(per_page)
+            
+            # execute query
+            series = db.session.scalars(query).all()
+            
+            # format response
+            series_list = []
+            for s in series:
+                # count quizzes in series
+                quiz_count = db.session.scalar(
+                    sa.select(sa.func.count()).select_from(Quiz)
+                    .where(Quiz.parent_series_id == s.id)
+                    .where(Quiz.status != 'deleted')
+                )
+                
+                series_list.append({
+                    'id': s.id,
+                    'publicId': s.public_id,
+                    'categoryId': s.category_id,
+                    'title': s.title,
+                    'description': s.description,
+                    'status': s.status,
+                    'difficulty': s.difficulty,
+                    'author': s.author,
+                    'thumbnailPath': s.thumbnail_path,
+                    'views': s.views,
+                    'rating': float(s.rating) if s.rating else 0.0,
+                    'quizCount': quiz_count,
+                    'totalQuestions': s.total_questions,
+                    'estimatedDuration': s.estimated_duration,
+                    'tags': s.tags,
+                    'createdAt': s.created_at.isoformat() if s.created_at else None,
+                    'updatedAt': s.updated_at.isoformat() if s.updated_at else None,
+                })
+            
+            pagination = ResponseService.pagination_info(page, per_page, total or 0)
+            return ResponseService.success_response(series_list, pagination=pagination)
+            
+        except Exception as e:
+            raise APIError(f"Failed to retrieve quiz series: {str(e)}", 500)
+    
+    @staticmethod
+    def get_quiz_questions(quiz_id: int, params: Dict[str, Any]):
+        """Get all questions for a specific quiz"""
+        try:
+            # validate query parameters
+            schema = QuizQuerySchema()
+            try:
+                validated_params = schema.load(params)
+                if not isinstance(validated_params, dict):
+                    validated_params = {}
+            except Exception:
+                validated_params = {}
+            
+            # verify quiz exists
+            quiz = db.session.scalar(
+                sa.select(Quiz).where(Quiz.id == quiz_id)
+                .where(Quiz.status != 'deleted')
+            )
+            if not quiz:
+                raise APIError("Quiz not found", 404)
+            
+            # get questions for the quiz
+            query = sa.select(QuizQuestion).where(QuizQuestion.quiz_id == quiz_id)
+            
+            # apply sorting
+            sort_by = validated_params.get('sort_by', 'id')
+            sort_order = validated_params.get('sort_order', 'asc')
+            
+            if sort_by == 'id':
+                sort_column = QuizQuestion.id
+            else:
+                sort_column = QuizQuestion.id
+            
+            if sort_order.lower() == 'desc':
+                query = query.order_by(sa.desc(sort_column))
+            else:
+                query = query.order_by(sa.asc(sort_column))
+            
+            # get total count
+            count_query = sa.select(sa.func.count()).select_from(query.subquery())
+            total = db.session.scalar(count_query)
+            
+            # apply pagination
+            page = validated_params.get('page', 1)
+            per_page = validated_params.get('per_page', 10)
+            offset = (page - 1) * per_page
+            query = query.offset(offset).limit(per_page)
+            
+            # execute query
+            questions = db.session.scalars(query).all()
+            
+            # format response
+            question_list = []
+            for q in questions:
+                # parse incorrect options (stored as JSON string)
+                try:
+                    import json
+                    incorrect_options = json.loads(q.incorrect_options) if q.incorrect_options else []
+                except:
+                    incorrect_options = []
+                
+                question_list.append({
+                    'id': q.id,
+                    'quizId': q.quiz_id,
+                    'videoClipPath': q.video_clip_path,
+                    'correctAnswer': q.correct_answer,
+                    'incorrectOptions': incorrect_options,
+                })
+            
+            pagination = ResponseService.pagination_info(page, per_page, total or 0)
+            return ResponseService.success_response(question_list, pagination=pagination)
+            
+        except APIError:
+            raise
+        except Exception as e:
+            raise APIError(f"Failed to retrieve quiz questions: {str(e)}", 500)
+    
+    @staticmethod
+    def create_quiz_question(quiz_id: int, data: Dict[str, Any]):
+        """Create new question for a quiz"""
+        try:
+            # validate input data
+            required_fields = ['video_clip_path', 'correct_answer', 'incorrect_options']
+            for field in required_fields:
+                if field not in data:
+                    raise APIError(f"Missing required field: {field}", 400)
+            
+            # verify quiz exists
+            quiz = db.session.scalar(
+                sa.select(Quiz).where(Quiz.id == quiz_id)
+                .where(Quiz.status != 'deleted')
+            )
+            if not quiz:
+                raise APIError("Quiz not found", 404)
+            
+            # create question
+            question = QuizQuestion()
+            question.quiz_id = quiz_id
+            question.video_clip_path = data['video_clip_path']
+            question.correct_answer = data['correct_answer']
+            
+            # handle incorrect options (should be a list)
+            incorrect_options = data['incorrect_options']
+            if isinstance(incorrect_options, list):
+                import json
+                question.incorrect_options = json.dumps(incorrect_options)
+            else:
+                question.incorrect_options = str(incorrect_options)
+            
+            db.session.add(question)
+            db.session.commit()
+            
+            # update quiz total questions count
+            total_count = db.session.scalar(
+                sa.select(sa.func.count()).select_from(QuizQuestion)
+                .where(QuizQuestion.quiz_id == quiz_id)
+            )
+            quiz.total_questions = total_count or 0
+            db.session.commit()
+            
+            return ResponseService.success_response({
+                'id': question.id,
+                'quizId': question.quiz_id,
+                'message': 'Quiz question created successfully'
+            })
+            
+        except APIError:
+            raise
+        except Exception as e:
+            db.session.rollback()
+            raise APIError(f"Failed to create quiz question: {str(e)}", 500)
+    
+    @staticmethod
+    def update_quiz_question(quiz_id: int, question_id: int, data: Dict[str, Any]):
+        """Update existing quiz question"""
+        try:
+            # verify quiz exists
+            quiz = db.session.scalar(
+                sa.select(Quiz).where(Quiz.id == quiz_id)
+                .where(Quiz.status != 'deleted')
+            )
+            if not quiz:
+                raise APIError("Quiz not found", 404)
+            
+            # get the question
+            question = db.session.scalar(
+                sa.select(QuizQuestion).where(QuizQuestion.id == question_id)
+                .where(QuizQuestion.quiz_id == quiz_id)
+            )
+            if not question:
+                raise APIError("Quiz question not found", 404)
+            
+            # update fields
+            if 'video_clip_path' in data:
+                question.video_clip_path = data['video_clip_path']
+            if 'correct_answer' in data:
+                question.correct_answer = data['correct_answer']
+            if 'incorrect_options' in data:
+                incorrect_options = data['incorrect_options']
+                if isinstance(incorrect_options, list):
+                    import json
+                    question.incorrect_options = json.dumps(incorrect_options)
+                else:
+                    question.incorrect_options = str(incorrect_options)
+            
+            db.session.commit()
+            
+            return ResponseService.success_response({
+                'id': question.id,
+                'quizId': question.quiz_id,
+                'message': 'Quiz question updated successfully'
+            })
+            
+        except APIError:
+            raise
+        except Exception as e:
+            db.session.rollback()
+            raise APIError(f"Failed to update quiz question: {str(e)}", 500)
+    
+    @staticmethod
+    def delete_quiz_question(quiz_id: int, question_id: int):
+        """Delete quiz question"""
+        try:
+            # verify quiz exists
+            quiz = db.session.scalar(
+                sa.select(Quiz).where(Quiz.id == quiz_id)
+                .where(Quiz.status != 'deleted')
+            )
+            if not quiz:
+                raise APIError("Quiz not found", 404)
+            
+            # get the question
+            question = db.session.scalar(
+                sa.select(QuizQuestion).where(QuizQuestion.id == question_id)
+                .where(QuizQuestion.quiz_id == quiz_id)
+            )
+            if not question:
+                raise APIError("Quiz question not found", 404)
+            
+            # delete the question
+            db.session.delete(question)
+            db.session.commit()
+            
+            # update quiz total questions count
+            total_count = db.session.scalar(
+                sa.select(sa.func.count()).select_from(QuizQuestion)
+                .where(QuizQuestion.quiz_id == quiz_id)
+            )
+            quiz.total_questions = total_count or 0
+            db.session.commit()
+            
+            return ResponseService.success_response({
+                'message': 'Quiz question deleted successfully'
+            })
+            
+        except APIError:
+            raise
+        except Exception as e:
+            db.session.rollback()
+            raise APIError(f"Failed to delete quiz question: {str(e)}", 500)

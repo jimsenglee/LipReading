@@ -10,9 +10,9 @@ class ResponseService:
     """Consistent API response formatting service"""
     
     @staticmethod
-    def success_response(data: Any = None, message: str = None, pagination: Dict = None):
+    def success_response(data: Any | None = None, message: str | None = None, pagination: Dict[str, Any] | None = None):
         """Standard success response format"""
-        response = {'success': True}
+        response: Dict[str, Any] = {'success': True}
         
         if data is not None:
             response['data'] = data

@@ -1,215 +1,138 @@
-from flask import Blueprint, request, jsonify, current_app
-from sqlalchemy import select
-from datetime import datetime
+"""
+progress tracking API endpoints - Thin layer delegating to services
+Following README.txt separation of concerns
+"""
+from flask import request
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from ..extensions import db
-from ..models.user import User
-from ..models.tutorial import Tutorial
-from ..models.user_bookmark import user_bookmarks
-from .auth import token_required
-
-progress_bp = Blueprint('progress', __name__)
+from ..services.progress_service import ProgressService
+from ..services.auth_service import AuthService
+from ..services.response_service import ResponseService
+from ..services.error_service import APIError, handle_api_error
+from . import bp
 
 
-@progress_bp.route('/series/<int:series_id>/enroll', methods=['POST'])
-@token_required
-def enroll_in_series(current_user, series_id):
+@bp.post('/progress/series/<int:series_id>/enroll')
+@jwt_required()
+def enroll_in_series(series_id: int):
     """enroll user in a tutorial series"""
     try:
-        # check if series exists
-        series = db.session.scalar(select(Tutorial).where(Tutorial.id == series_id))
-        if not series:
-            return jsonify({'error': 'series not found'}), 404
-        
-        # check if already enrolled (using bookmarks as enrollment for now)
-        existing_bookmark = db.session.scalar(
-            select(user_bookmarks).where(
-                user_bookmarks.c.user_id == current_user.id,
-                user_bookmarks.c.tutorial_id == series_id
-            )
-        )
-        
-        if existing_bookmark:
-            return jsonify({
-                'success': False,
-                'message': 'already enrolled in this series'
-            }), 409
-        
-        # create enrollment (using bookmark table for now)
-        db.session.execute(
-            user_bookmarks.insert().values(
-                user_id=current_user.id,
-                tutorial_id=series_id
-            )
-        )
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'successfully enrolled in the series!'
-        }), 200
-        
+        current_user_id = get_jwt_identity()
+        return ProgressService.enroll_in_series(current_user_id, series_id)
+    except APIError as e:
+        return handle_api_error(e)
     except Exception as e:
-        current_app.logger.error(f'enrollment error: {str(e)}')
-        return jsonify({'error': 'internal server error'}), 500
+        return ResponseService.error_response(f"Failed to enroll in series: {str(e)}", 500)
 
 
-@progress_bp.route('/series/<int:series_id>/unenroll', methods=['POST'])
-@token_required
-def unenroll_from_series(current_user, series_id):
+@bp.post('/progress/series/<int:series_id>/unenroll')
+@jwt_required()
+def unenroll_from_series(series_id: int):
     """unenroll user from a tutorial series"""
     try:
-        # find enrollment
-        bookmark = db.session.scalar(
-            select(user_bookmarks).where(
-                user_bookmarks.c.user_id == current_user.id,
-                user_bookmarks.c.tutorial_id == series_id
-            )
-        )
-        
-        if not bookmark:
-            return jsonify({
-                'success': False,
-                'message': 'not enrolled in this series'
-            }), 404
-        
-        # remove enrollment
-        db.session.execute(
-            user_bookmarks.delete().where(
-                user_bookmarks.c.user_id == current_user.id,
-                user_bookmarks.c.tutorial_id == series_id
-            )
-        )
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'successfully unenrolled from the series'
-        }), 200
-        
+        current_user_id = get_jwt_identity()
+        return ProgressService.unenroll_from_series(current_user_id, series_id)
+    except APIError as e:
+        return handle_api_error(e)
     except Exception as e:
-        current_app.logger.error(f'unenrollment error: {str(e)}')
-        return jsonify({'error': 'internal server error'}), 500
+        return ResponseService.error_response(f"Failed to unenroll from series: {str(e)}", 500)
 
 
-@progress_bp.route('/series/<int:series_id>/progress', methods=['GET'])
-@token_required
-def get_series_progress(current_user, series_id):
+@bp.get('/progress/series/<int:series_id>')
+@jwt_required()
+def get_series_progress(series_id: int):
     """get user's progress for a specific series"""
     try:
-        # check if enrolled
-        bookmark = db.session.scalar(
-            select(user_bookmarks).where(
-                user_bookmarks.c.user_id == current_user.id,
-                user_bookmarks.c.tutorial_id == series_id
-            )
-        )
-        
-        if not bookmark:
-            return jsonify({
-                'success': False,
-                'message': 'not enrolled in this series'
-            }), 404
-        
-        # for now, return basic enrollment info
-        # in a real app, you'd have a separate progress table
-        progress = {
-            'seriesId': str(series_id),
-            'status': 'in-progress',
-            'enrolledAt': bookmark.created_at.isoformat(),
-            'completedVideos': [],  # would come from video progress table
-            'totalWatchTime': 0,    # would be calculated from video progress
-            'lastWatchedVideo': None
-        }
-        
-        return jsonify({
-            'success': True,
-            'progress': progress
-        }), 200
-        
+        current_user_id = get_jwt_identity()
+        return ProgressService.get_series_progress(current_user_id, series_id)
+    except APIError as e:
+        return handle_api_error(e)
     except Exception as e:
-        current_app.logger.error(f'progress retrieval error: {str(e)}')
-        return jsonify({'error': 'internal server error'}), 500
+        return ResponseService.error_response(f"Failed to get series progress: {str(e)}", 500)
 
 
-@progress_bp.route('/series/<int:series_id>/rating', methods=['POST'])
-@token_required
-def submit_series_rating(current_user, series_id):
-    """submit rating and review for a series"""
+@bp.put('/progress/tutorials/<int:tutorial_id>')
+@jwt_required()
+def update_video_progress(tutorial_id: int):
+    """update user's progress for a specific video/tutorial"""
     try:
+        current_user_id = get_jwt_identity()
         data = request.get_json()
-        rating = data.get('rating')
-        review = data.get('review', '')
+        if not data:
+            return ResponseService.error_response('No data provided', 400)
         
-        if not rating or not isinstance(rating, int) or rating < 1 or rating > 5:
-            return jsonify({'error': 'invalid rating'}), 400
-        
-        # check if series exists
-        series = db.session.scalar(select(Tutorial).where(Tutorial.id == series_id))
-        if not series:
-            return jsonify({'error': 'series not found'}), 404
-        
-        # for now, just return success
-        # in a real app, you'd store this in a ratings/reviews table
-        return jsonify({
-            'success': True,
-            'message': 'thank you for your feedback!'
-        }), 200
-        
+        return ProgressService.update_video_progress(current_user_id, tutorial_id, data)
+    except APIError as e:
+        return handle_api_error(e)
     except Exception as e:
-        current_app.logger.error(f'rating submission error: {str(e)}')
-        return jsonify({'error': 'internal server error'}), 500
+        return ResponseService.error_response(f"Failed to update progress: {str(e)}", 500)
 
 
-@progress_bp.route('/video/<int:video_id>/feedback', methods=['POST'])
-@token_required
-def submit_video_feedback(current_user, video_id):
-    """submit feedback for a specific video"""
+@bp.get('/progress/user')
+@jwt_required()
+def get_user_progress():
+    """get all user's progress across all series with filtering"""
     try:
+        current_user_id = get_jwt_identity()
+        return ProgressService.get_user_progress(current_user_id, request.args)
+    except APIError as e:
+        return handle_api_error(e)
+    except Exception as e:
+        return ResponseService.error_response(f"Failed to get user progress: {str(e)}", 500)
+
+
+@bp.post('/progress/quizzes/<int:quiz_id>/attempts')
+@jwt_required()
+def submit_quiz_attempt(quiz_id: int):
+    """submit a quiz attempt"""
+    try:
+        current_user_id = get_jwt_identity()
         data = request.get_json()
-        helpful = data.get('helpful')
-        comments = data.get('comments', '')
+        if not data:
+            return ResponseService.error_response('No data provided', 400)
         
-        if helpful is None:
-            return jsonify({'error': 'helpful field is required'}), 400
-        
-        # for now, just return success
-        # in a real app, you'd store this in a video feedback table
-        return jsonify({
-            'success': True,
-            'message': 'thank you for your feedback!'
-        }), 200
-        
+        return ProgressService.submit_quiz_attempt(current_user_id, quiz_id, data)
+    except APIError as e:
+        return handle_api_error(e)
     except Exception as e:
-        current_app.logger.error(f'video feedback error: {str(e)}')
-        return jsonify({'error': 'internal server error'}), 500
+        return ResponseService.error_response(f"Failed to submit quiz attempt: {str(e)}", 500)
 
 
-@progress_bp.route('/user/progress', methods=['GET'])
-@token_required
-def get_user_progress(current_user):
-    """get all user's progress across all series"""
+@bp.get('/progress/quizzes/<int:quiz_id>/attempts')
+@jwt_required()
+def get_quiz_attempts(quiz_id: int):
+    """get user's quiz attempts for a specific quiz"""
     try:
-        # get all enrolled series
-        bookmarks = db.session.scalars(
-            select(user_bookmarks).where(user_bookmarks.c.user_id == current_user.id)
-        ).all()
-        
-        progress_data = {}
-        for bookmark in bookmarks:
-            progress_data[str(bookmark.tutorial_id)] = {
-                'status': 'in-progress',
-                'enrolledAt': bookmark.created_at.isoformat(),
-                'completedVideos': [],
-                'totalWatchTime': 0,
-                'lastWatchedVideo': None
-            }
-        
-        return jsonify({
-            'success': True,
-            'progress': progress_data
-        }), 200
-        
+        current_user_id = get_jwt_identity()
+        return ProgressService.get_quiz_attempts(current_user_id, quiz_id, request.args)
+    except APIError as e:
+        return handle_api_error(e)
     except Exception as e:
-        current_app.logger.error(f'user progress error: {str(e)}')
-        return jsonify({'error': 'internal server error'}), 500
+        return ResponseService.error_response(f"Failed to get quiz attempts: {str(e)}", 500)
+
+
+@bp.get('/progress/quizzes/attempts')
+@jwt_required()
+def get_all_quiz_attempts():
+    """get all user's quiz attempts"""
+    try:
+        current_user_id = get_jwt_identity()
+        return ProgressService.get_quiz_attempts(current_user_id, None, request.args)
+    except APIError as e:
+        return handle_api_error(e)
+    except Exception as e:
+        return ResponseService.error_response(f"Failed to get quiz attempts: {str(e)}", 500)
+
+
+@bp.get('/progress/statistics')
+@jwt_required()
+def get_progress_statistics():
+    """get comprehensive progress statistics for the current user"""
+    try:
+        current_user_id = get_jwt_identity()
+        statistics = ProgressService.get_progress_statistics(current_user_id)
+        return ResponseService.success_response(statistics)
+    except APIError as e:
+        return handle_api_error(e)
+    except Exception as e:
+        return ResponseService.error_response(f"Failed to get progress statistics: {str(e)}", 500)

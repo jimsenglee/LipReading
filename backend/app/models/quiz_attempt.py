@@ -1,8 +1,13 @@
 from datetime import datetime
 import sqlalchemy as sa
 import sqlalchemy.orm as so
+from typing import TYPE_CHECKING
 
 from ..extensions import db
+
+if TYPE_CHECKING:
+    from .user import User
+    from .quiz import Quiz
 
 
 class QuizAttempt(db.Model):
@@ -10,7 +15,7 @@ class QuizAttempt(db.Model):
 
     id: so.Mapped[int] = so.mapped_column(primary_key=True, autoincrement=True)
     public_id: so.Mapped[str] = so.mapped_column(sa.String(25), unique=True, index=True)
-    user_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey('users.id'), nullable=False, index=True)
+    user_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey('accounts.id'), nullable=False, index=True)
     quiz_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey('quizzes.id'), nullable=False, index=True)
     score: so.Mapped[float] = so.mapped_column(sa.Float(), nullable=False)
     answers_json: so.Mapped[str | None] = so.mapped_column(sa.Text())

@@ -1,8 +1,12 @@
 from datetime import datetime
 import sqlalchemy as sa
 import sqlalchemy.orm as so
+from typing import TYPE_CHECKING
 
 from ..extensions import db
+
+if TYPE_CHECKING:
+    from .user import User
 
 
 class Transcription(db.Model):
@@ -10,7 +14,7 @@ class Transcription(db.Model):
 
     id: so.Mapped[int] = so.mapped_column(primary_key=True, autoincrement=True)
     public_id: so.Mapped[str] = so.mapped_column(sa.String(25), unique=True, index=True)
-    user_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey('users.id'), nullable=False, index=True)
+    user_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey('accounts.id'), nullable=False, index=True)
     title: so.Mapped[str] = so.mapped_column(sa.String(255), nullable=False)
     content_text: so.Mapped[str | None] = so.mapped_column(sa.Text())
     timestamps_json: so.Mapped[str | None] = so.mapped_column(sa.Text())

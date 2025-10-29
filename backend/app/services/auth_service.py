@@ -219,7 +219,7 @@ class AuthService:
                 profile_image_path = AuthService.save_profile_image(profile_image)
             
             # create new user using utility function for public ID generation
-            user = User()
+            user: User = User()
             user.public_id = generate_public_id(User, "ACC-U")
             user.name = name
             user.email = email

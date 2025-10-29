@@ -21,6 +21,7 @@ class Tutorial(db.Model):
     title: so.Mapped[str] = so.mapped_column(sa.String(255), nullable=False)
     description: so.Mapped[str | None] = so.mapped_column(sa.Text())
     video_path: so.Mapped[str] = so.mapped_column(sa.String(255), nullable=False)
+    subtitle_path: so.Mapped[Optional[str]] = so.mapped_column(sa.String(255))  # subtitle file path for educational video player
     
     # enhanced fields for tutorial series functionality
     status: so.Mapped[str] = so.mapped_column(sa.String(20), nullable=False, default='draft', index=True)
@@ -43,8 +44,6 @@ class Tutorial(db.Model):
     prerequisites: so.Mapped[Optional[str]] = so.mapped_column(sa.Text())  # JSON array of prerequisites
     tags: so.Mapped[Optional[str]] = so.mapped_column(sa.Text())  # JSON array of tags
     is_preview: so.Mapped[bool] = so.mapped_column(sa.Boolean, nullable=False, default=False)  # Free preview video
-    video_file_path: so.Mapped[Optional[str]] = so.mapped_column(sa.String(255))  # Individual video file path
-    video_data: so.Mapped[Optional[str]] = so.mapped_column(sa.Text())  # JSON data for series videos
 
     category: so.Mapped['Category'] = so.relationship(back_populates='tutorials')
     bookmarked_by: so.WriteOnlyMapped['User'] = so.relationship(

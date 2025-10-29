@@ -22,7 +22,12 @@ class UserService:
         try:
             # Validate query parameters
             schema = UserQuerySchema()
-            validated_params = schema.load(params)
+            try:
+                validated_params = schema.load(params)
+                if not isinstance(validated_params, dict):
+                    validated_params = {}
+            except Exception:
+                validated_params = {}
             
             # Build base query
             query = sa.select(Account)
@@ -81,7 +86,7 @@ class UserService:
                     'registrationDate': u.registration_date.isoformat() if u.registration_date else None,
                 })
             
-            pagination = ResponseService.pagination_info(page, per_page, total)
+            pagination = ResponseService.pagination_info(page, per_page, total or 0)
             return ResponseService.success_response(user_list, pagination=pagination)
             
         except Exception as e:
@@ -93,7 +98,12 @@ class UserService:
         try:
             # Validate input data
             schema = UserCreateSchema()
-            validated_data = schema.load(data)
+            try:
+                validated_data = schema.load(data)
+                if not isinstance(validated_data, dict):
+                    raise APIError("Invalid data format", 400)
+            except Exception as e:
+                raise APIError(f"Validation failed: {str(e)}", 400)
             
             # Check if email already exists
             existing_user = db.session.scalar(
@@ -110,14 +120,13 @@ class UserService:
             password_hash = validated_data['password']  # TODO: Hash password
             
             # Create user
-            user = Account(
-                public_id=public_id,
-                name=validated_data['name'],
-                email=validated_data['email'],
-                password_hash=password_hash,
-                account_type=validated_data.get('account_type', 'Student'),
-                status='active'
-            )
+            user = Account()
+            user.public_id = public_id
+            user.name = validated_data['name']
+            user.email = validated_data['email']
+            user.password_hash = password_hash
+            user.account_type = validated_data.get('account_type', 'Student')
+            user.status = 'active'
             
             db.session.add(user)
             db.session.commit()
@@ -140,7 +149,12 @@ class UserService:
         try:
             # Validate input data
             schema = UserUpdateSchema()
-            validated_data = schema.load(data)
+            try:
+                validated_data = schema.load(data)
+                if not isinstance(validated_data, dict):
+                    validated_data = {}
+            except Exception:
+                validated_data = {}
             
             user = db.session.scalar(
                 sa.select(Account).where(Account.id == user_id)

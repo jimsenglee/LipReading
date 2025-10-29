@@ -1,7 +1,11 @@
 import sqlalchemy as sa
 import sqlalchemy.orm as so
+from typing import TYPE_CHECKING
 
 from ..extensions import db
+
+if TYPE_CHECKING:
+    from .quiz import Quiz
 
 
 class QuizQuestion(db.Model):
