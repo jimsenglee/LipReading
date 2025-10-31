@@ -135,13 +135,12 @@ const UserManagement = () => {
       return;
     }
 
-    const headers = ['Name', 'Email', 'Role', 'Created', 'Sessions'];
+    const headers = ['Name', 'Email', 'Role', 'Created'];
     const data = users.map(user => [
       user.name,
       user.email,
       user.role,
-      formatDateForExport(user.created_at),
-      user.sessions_count
+      user.created_at ? formatDateForExport(user.created_at) : 'N/A'
     ]);
 
     const exportData = { headers, data, filename: 'users' };
@@ -290,18 +289,17 @@ const UserManagement = () => {
       sortable: true,
       render: (user) => (
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center">
-            {user.profile_image_path ? (
+          <div className="w-8 h-8 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center relative">
+            <User className="h-4 w-4 text-primary absolute" />
+            {user.profile_image_path && (
               <img 
                 src={getImageUrl(user.profile_image_path)} 
                 alt={user.name}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover relative z-10"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                 }}
               />
-            ) : (
-              <User className="h-4 w-4 text-primary" />
             )}
           </div>
           <div className="font-medium text-gray-900">{user.name}</div>
@@ -327,12 +325,11 @@ const UserManagement = () => {
       key: 'created_at',
       label: 'Created',
       sortable: true,
-      render: (user) => <span className="text-gray-600">{formatDateForExport(user.created_at)}</span>
-    },
-    {
-      key: 'sessions_count',
-      label: 'Sessions',
-      render: (user) => <span className="text-gray-600">{user.sessions_count}</span>
+      render: (user) => (
+        <span className="text-gray-600">
+          {user.created_at ? formatDateForExport(user.created_at) : 'N/A'}
+        </span>
+      )
     }
   ];
 
@@ -536,11 +533,7 @@ const UserManagement = () => {
                   </div>
                   <div>
                   <Label className="text-sm font-medium text-gray-700">Created</Label>
-                  <p className="text-gray-900">{formatDateForExport(selectedUser.created_at)}</p>
-                  </div>
-                  <div>
-                  <Label className="text-sm font-medium text-gray-700">Sessions</Label>
-                  <p className="text-gray-900">{selectedUser.sessions_count}</p>
+                  <p className="text-gray-900">{selectedUser.created_at ? formatDateForExport(selectedUser.created_at) : 'N/A'}</p>
                   </div>
                 </div>
               </div>

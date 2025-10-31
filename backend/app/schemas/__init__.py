@@ -4,7 +4,10 @@ Following README.txt separation of concerns
 """
 
 from .tutorial_schemas import TutorialCreateSchema, TutorialUpdateSchema, TutorialQuerySchema
-from .quiz_schemas import QuizCreateSchema, QuizUpdateSchema, QuizQuerySchema
+from .quiz_schemas import (
+    QuizCreateSchema, QuizUpdateSchema, QuizQuerySchema,
+    QuizQuestionSchema, QuizQuestionUpdateSchema, QuizSubmissionSchema
+)
 from .category_schemas import CategoryCreateSchema, CategoryUpdateSchema, CategoryQuerySchema
 from .user_schemas import UserCreateSchema, UserUpdateSchema, UserQuerySchema
 
@@ -15,6 +18,9 @@ __all__ = [
     'QuizCreateSchema',
     'QuizUpdateSchema',
     'QuizQuerySchema',
+    'QuizQuestionSchema',
+    'QuizQuestionUpdateSchema',
+    'QuizSubmissionSchema',
     'CategoryCreateSchema',
     'CategoryUpdateSchema',
     'CategoryQuerySchema',

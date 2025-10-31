@@ -18,15 +18,11 @@ def get_user_bookmarks():
     """get all bookmarks for the current user with filtering and pagination"""
     try:
         current_user_id = get_jwt_identity()
-        print(f"DEBUG: get_user_bookmarks called with user_id: {current_user_id}, args: {request.args}")
         bookmarks = BookmarkService.get_user_bookmarks(current_user_id, request.args)
-        print(f"DEBUG: BookmarkService.get_user_bookmarks returned: {type(bookmarks)}")
         return bookmarks
     except APIError as e:
-        print(f"DEBUG: APIError in get_user_bookmarks: {e}")
         return handle_api_error(e)
     except Exception as e:
-        print(f"DEBUG: Exception in get_user_bookmarks: {type(e).__name__}: {str(e)}")
         import traceback
         traceback.print_exc()
         return ResponseService.error_response(f"Failed to get bookmarks: {str(e)}", 500)

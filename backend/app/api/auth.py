@@ -45,28 +45,21 @@ def token_required(f):
 def login():
     """login endpoint for user authentication"""
     try:
-        print(f"DEBUG: login endpoint called")
         data = request.get_json()
-        print(f"DEBUG: request data: {data}")
 
         # validate request data
         if not data:
-            print("DEBUG: No request data provided")
             return ResponseService.error_response("Request data is required", 400, "general")
 
         email = data.get("email", "").strip()
         password = data.get("password", "")
-        print(f"DEBUG: email: {email}, password length: {len(password)}")
 
         result = AuthService.login_user(email, password)
-        print(f"DEBUG: AuthService.login_user returned: {type(result)}")
         return result
 
     except APIError as e:
-        print(f"DEBUG: APIError in login: {e}")
         return handle_api_error(e)
     except Exception as e:
-        print(f"DEBUG: Exception in login: {type(e).__name__}: {str(e)}")
         import traceback
         traceback.print_exc()
         return ResponseService.error_response(f"Failed to login: {str(e)}", 500)

@@ -192,7 +192,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
 
               {/* Content */}
               <ScrollArea className="flex-1 p-4">
-                <div className="space-y-6">
+                <div className="space-y-4">
                   {/* Search Bar */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Search</label>

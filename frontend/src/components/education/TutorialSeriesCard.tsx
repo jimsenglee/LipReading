@@ -38,13 +38,15 @@ interface TutorialSeriesCardProps {
   onViewDetails: (seriesId: string) => void;
   onEnroll?: (seriesId: string) => void;
   isGridView?: boolean;
+  onClick?: (series: TutorialSeries) => void;
 }
 
 const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
   series,
   onViewDetails,
   onEnroll,
-  isGridView = true
+  isGridView = true,
+  onClick
 }) => {
   // no user progress yet - will be implemented when backend supports it
   const progress = undefined;
@@ -85,43 +87,6 @@ const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
     );
   };
 
-  const getActionButton = () => {
-    if (!progress || progress.status === 'not-started') {
-      return (
-        <Button 
-          className="w-full bg-primary hover:bg-primary/90"
-          onClick={() => onEnroll?.(series.id)}
-        >
-          <Play className="mr-2 h-4 w-4" />
-          Enroll Now
-        </Button>
-      );
-    }
-    
-    if (progress.status === 'completed') {
-      return (
-        <Button 
-          variant="outline"
-          className="w-full border-primary/20 text-primary hover:bg-primary/10"
-          onClick={() => onViewDetails(series.id)}
-        >
-          <BookOpen className="mr-2 h-4 w-4" />
-          Review Series
-        </Button>
-      );
-    }
-    
-    return (
-      <Button 
-        className="w-full bg-primary hover:bg-primary/90"
-        onClick={() => onViewDetails(series.id)}
-      >
-        <Play className="mr-2 h-4 w-4" />
-        Continue Learning
-      </Button>
-    );
-  };
-
   const hasPrerequisites = Array.isArray(series.prerequisites) && series.prerequisites.length > 0;
 
   return (
@@ -131,16 +96,22 @@ const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
       whileHover={{ y: -5, scale: 1.02 }}
       transition={{ duration: 0.3 }}
     >
-      <Card className={`h-full border-primary/20 hover:border-primary/40 hover:shadow-lg transition-all duration-300 ${
-        isGridView ? 'flex flex-col' : 'flex flex-row'
-      }`}>
+      <Card 
+        className={`h-full border-primary/20 hover:border-primary/40 hover:shadow-lg transition-all duration-300 cursor-pointer group ${
+          isGridView ? 'flex flex-col' : 'flex flex-row'
+        }`}
+        onClick={() => {
+          if (onClick) {
+            onClick(series);
+          } else {
+            onViewDetails(series.id);
+          }
+        }}
+      >
         {/* Thumbnail Section */}
         <div className={`relative ${isGridView ? 'w-full' : 'w-64 flex-shrink-0'}`}>
           {(() => {
-            console.log('DEBUG: TutorialSeriesCard series object:', series);
-            console.log('DEBUG: series.thumbnail:', (series as any).thumbnail);
             const thumbnailUrl = (series as any).thumbnail || 'https://via.placeholder.com/600x300/e2e8f0/64748b?text=Tutorial';
-            console.log('DEBUG: constructed thumbnailUrl:', thumbnailUrl);
             return (
               <img 
                 src={thumbnailUrl}
@@ -149,7 +120,6 @@ const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
                   isGridView ? 'h-40 rounded-t-lg' : 'h-full rounded-l-lg'
                 }`}
                 onError={(e) => {
-                  console.log('DEBUG: Image failed to load:', (e.target as HTMLImageElement).src);
                   const target = e.target as HTMLImageElement;
                   target.src = 'https://via.placeholder.com/400x225/e2e8f0/64748b?text=Tutorial+Series';
                 }}
@@ -170,10 +140,6 @@ const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
             </div>
           )}
 
-          {/* Status Badge */}
-          <div className="absolute bottom-2 left-2">
-            {getStatusBadge()}
-          </div>
         </div>
         
         {/* Content Section */}
@@ -232,22 +198,28 @@ const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
             )}
           </div>
 
-          {/* Action Button */}
-          <div className="mt-4">
-            {getActionButton()}
-          </div>
-
-          {/* Quick Actions */}
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full text-gray-600 hover:text-primary justify-start"
-              onClick={() => onViewDetails(series.id)}
-            >
-              <BookOpen className="h-4 w-4 mr-2" />
-              View Details & Course Content
-            </Button>
+          {/* Status and Action */}
+          <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {getStatusBadge()}
+            </div>
+            
+            <div className="text-right">
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="inline-flex items-center gap-1 text-primary hover:text-primary/80 transition-colors"
+              >
+                <Play className="h-4 w-4" />
+                <span className="text-sm font-medium">
+                  {!progress || progress.status === 'not-started' 
+                    ? 'Enroll Now' 
+                    : progress.status === 'completed' 
+                    ? 'Review Series' 
+                    : 'Continue Learning'}
+                </span>
+              </motion.div>
+            </div>
           </div>
         </div>
       </Card>

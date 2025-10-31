@@ -26,7 +26,6 @@ class Quiz(db.Model):
     author: so.Mapped[str] = so.mapped_column(sa.String(255), nullable=False, default='System')
     thumbnail_path: so.Mapped[str | None] = so.mapped_column(sa.String(255))
     views: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False, default=0)
-    rating: so.Mapped[float | None] = so.mapped_column(sa.DECIMAL(3, 2), default=0.0)
     total_questions: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False, default=0)
     estimated_duration: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False, default=0) # duration in minutes
     tags: so.Mapped[str | None] = so.mapped_column(sa.Text()) # JSON array of tags
@@ -37,6 +36,13 @@ class Quiz(db.Model):
     quiz_order: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)  # Order within series
     quiz_title: so.Mapped[str | None] = so.mapped_column(sa.String(255))  # Individual quiz title
     quiz_description: so.Mapped[str | None] = so.mapped_column(sa.Text())  # Individual quiz description
+    
+    # quiz settings for user experience
+    passing_score: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False, default=70)  # percentage score to pass
+    max_attempts: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False, default=3)  # 0 means unlimited
+    shuffle_questions: so.Mapped[bool] = so.mapped_column(sa.Boolean, nullable=False, default=False)
+    shuffle_answers: so.Mapped[bool] = so.mapped_column(sa.Boolean, nullable=False, default=False)
+    show_results_immediately: so.Mapped[bool] = so.mapped_column(sa.Boolean, nullable=False, default=True)
     
     created_at: so.Mapped[datetime] = so.mapped_column(sa.DateTime, nullable=False, default=datetime.utcnow)
     updated_at: so.Mapped[datetime] = so.mapped_column(sa.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

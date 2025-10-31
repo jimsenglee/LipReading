@@ -77,13 +77,19 @@ export interface ApiTutorial {
 }
 
 export interface Video {
-  id: string;
+  id: number;
+  publicId: string;
   title: string;
-  duration?: number;
-  url?: string;
   description?: string;
-  order?: number;
-  isAdvanced?: boolean;
+  videoPath?: string;
+  subtitlePath?: string;
+  videoOrder?: number;
+  videoDuration?: number;
+  isPreview?: boolean;
+  views?: number;
+  rating?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ApiQuiz {
@@ -103,6 +109,12 @@ export interface ApiQuiz {
   tags?: string;
   createdAt?: string;
   updatedAt?: string;
+  // quiz settings for user experience
+  passingScore?: number;
+  maxAttempts?: number;
+  shuffleQuestions?: boolean;
+  shuffleAnswers?: boolean;
+  showResultsImmediately?: boolean;
 }
 
 class ApiClient {
@@ -474,6 +486,18 @@ class ApiClient {
   async deleteQuiz(id: number): Promise<{ success: boolean; message: string }> {
     return this.request<{ success: boolean; message: string }>(`/quizzes/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  // user-side quiz methods
+  async getQuizForTaking(id: number): Promise<{ success: boolean; data: any }> {
+    return this.request<{ success: boolean; data: any }>(`/quiz/${id}`);
+  }
+
+  async submitQuiz(id: number, answers: Record<string, string>): Promise<{ success: boolean; data: any }> {
+    return this.request<{ success: boolean; data: any }>(`/quiz/${id}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ answers }),
     });
   }
 

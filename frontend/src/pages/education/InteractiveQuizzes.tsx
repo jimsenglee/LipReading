@@ -164,13 +164,8 @@ const InteractiveQuizzes = () => {
   };
 
   const handleQuizSeriesClick = (series: QuizSeries) => {
-    // Navigate to existing quiz result component instead of detail page
-    navigate('/quiz-result', { 
-      state: { 
-        series,
-        fromQuizSeries: true 
-      } 
-    });
+    // Navigate to quiz detail/preview page (same pattern as tutorials)
+    navigate(`/education/quiz/${series.id}`);
   };
 
   return (

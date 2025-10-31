@@ -16,15 +16,11 @@ from . import bp
 def get_tutorial_reviews_list(tutorial_id: int):
     """get all reviews for a tutorial"""
     try:
-        print(f"DEBUG: get_tutorial_reviews_list called with tutorial_id: {tutorial_id}")
         result = ReviewService.get_tutorial_reviews(tutorial_id)
-        print(f"DEBUG: ReviewService.get_tutorial_reviews returned: {type(result)}")
         return result
     except APIError as e:
-        print(f"DEBUG: APIError in get_tutorial_reviews_list: {e}")
         return handle_api_error(e)
     except Exception as e:
-        print(f"DEBUG: Exception in get_tutorial_reviews_list: {type(e).__name__}: {str(e)}")
         import traceback
         traceback.print_exc()
         return ResponseService.error_response(f"Failed to retrieve tutorial reviews: {str(e)}", 500)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,8 +6,14 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
   Play, 
+  Pause, 
+  Volume2, 
+  Maximize, 
   Bookmark, 
   BookmarkCheck,
+  SkipBack,
+  SkipForward,
+  Settings,
   ArrowLeft,
   Clock,
   Star,
@@ -16,23 +22,24 @@ import {
 import { motion } from 'framer-motion';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import BackButton from '@/components/ui/back-button';
-import VideoPlayer from '@/components/education/VideoPlayer';
 import { useToast } from '@/hooks/use-toast';
-import { useTutorialById } from '@/services/content/contentQueries';
+import ReactPlayer from 'react-player';
 
 interface Tutorial {
   id: number;
   title: string;
   description: string;
-  difficulty: string;
-  categoryName: string;
-  author: string;
+  duration: string;
+  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+  category: string;
+  instructor: string;
   rating: number;
-  views: number;
-  thumbnailPath: string | null;
-  videoPath: string;
-  videoDuration: number | null;
-  tags: string | null;
+  students: number;
+  thumbnail: string;
+  isBookmarked: boolean;
+  tags: string[];
+  videoUrl?: string;
+  chapters?: Chapter[];
 }
 
 interface Chapter {
@@ -47,50 +54,46 @@ const TutorialPlayer = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const videoRef = useRef<any>(null);
+  
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Get tutorial data from navigation state or use default fallback
   const passedTutorial = location.state?.tutorial as Tutorial;
   const passedBreadcrumbs = location.state?.breadcrumbs;
 
-  // fetch tutorial data from API
-  const { data: tutorialData, isLoading, error } = useTutorialById(parseInt(id || '1'));
-  
-  // use passed tutorial data or fetched data
-  const tutorial = passedTutorial || tutorialData;
+  // Default tutorial data - in production, this will be fetched from API by ID
+  const defaultTutorial = {
+    id: parseInt(id || '1'),
+    title: 'Mastering Basic Lip Reading Fundamentals',
+    description: 'Learn the essential techniques for reading lips, starting with vowel sounds and basic consonants. This comprehensive tutorial covers the fundamental principles of lip reading.',
+    duration: '45 min',
+    difficulty: 'Beginner' as const,
+    category: 'Fundamentals',
+    instructor: 'Dr. Sarah Mitchell',
+    rating: 4.8,
+    students: 1240,
+    thumbnail: 'https://img.youtube.com/vi/Rj0vd6tanaU/maxresdefault.jpg',
+    isBookmarked: false,
+    videoUrl: '/api/placeholder/video/tutorial.mp4',
+    chapters: [
+      { id: 1, title: 'Introduction to Lip Reading', startTime: 0, duration: '5 min' },
+      { id: 2, title: 'Vowel Sounds A, E, I', startTime: 300, duration: '12 min' },
+      { id: 3, title: 'Vowel Sounds O, U', startTime: 1020, duration: '8 min' },
+      { id: 4, title: 'Basic Consonants', startTime: 1500, duration: '15 min' },
+      { id: 5, title: 'Practice Exercises', startTime: 2400, duration: '5 min' }
+    ],
+    tags: ['vowels', 'consonants', 'basics']
+  };
 
-  // Set bookmark state from tutorial data - moved before early returns
-  useEffect(() => {
-    setIsBookmarked(false); // default to false since ApiTutorial doesn't have isBookmarked
-  }, [tutorial]);
-
-  // show loading state
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading tutorial...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // show error state
-  if (error || !tutorial) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Tutorial Not Found</h2>
-          <p className="text-gray-600 mb-6">The tutorial you're looking for doesn't exist or there was an error loading it.</p>
-          <Button onClick={() => navigate('/education')}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Education
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  // Use passed tutorial data or fallback to default
+  const tutorial = passedTutorial || defaultTutorial;
 
   // Use passed breadcrumbs or create default ones
   const defaultBreadcrumbs = [
@@ -102,6 +105,31 @@ const TutorialPlayer = () => {
   
   const breadcrumbItems = passedBreadcrumbs || defaultBreadcrumbs;
 
+  // Set bookmark state from tutorial data
+  useEffect(() => {
+    setIsBookmarked(tutorial.isBookmarked || false);
+  }, [tutorial]);
+
+  const playbackSpeeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+  const togglePlay = () => {
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleSeek = (newTime: number) => {
+    if (videoRef.current) {
+      videoRef.current.seekTo(newTime);
+      setCurrentTime(newTime);
+    }
+  };
+
+  const handleVolumeChange = (newVolume: number) => {
+    setVolume(newVolume);
+  };
+
+  const handleSpeedChange = (speed: number) => {
+    setPlaybackSpeed(speed);
+  };
 
   const toggleBookmark = () => {
     setIsBookmarked(!isBookmarked);
@@ -113,6 +141,26 @@ const TutorialPlayer = () => {
     });
   };
 
+  const toggleFullscreen = () => {
+    if (videoRef.current) {
+      if (!isFullscreen) {
+        videoRef.current.getInternalPlayer()?.requestFullscreen();
+      } else {
+        document.exitFullscreen();
+      }
+      setIsFullscreen(!isFullscreen);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  const jumpToChapter = (startTime: number) => {
+    handleSeek(startTime);
+  };
 
   return (
     <div className="space-y-6 p-6">
@@ -128,20 +176,111 @@ const TutorialPlayer = () => {
         <div className="lg:col-span-2 space-y-4">
           <Card className="border-primary/20">
             <CardContent className="p-0">
-               <VideoPlayer
-                 videoUrl={(tutorial as any).videoPath || '/api/placeholder/video/tutorial.mp4'}
-                 videoId={tutorial?.id?.toString() || '1'}
-                 title={tutorial?.title || 'Tutorial'}
-                 courseId="1"
-                 lessonId={tutorial?.id?.toString() || '1'}
-                 chapters={[]}
-                 onProgress={(currentTime: number, duration: number) => {
-                   // video player handles its own progress internally
-                 }}
-                 onComplete={() => {
-                   // handle completion if needed
-                 }}
-               />
+              <div className="relative bg-black rounded-t-lg overflow-hidden">
+                {/* phase 1: react-player integration with proper implementation */}
+                {(ReactPlayer as any)({
+                  ref: videoRef,
+                  url: tutorial.videoUrl || '/api/placeholder/video/tutorial.mp4',
+                  width: "100%",
+                  height: "100%",
+                  playing: isPlaying,
+                  volume: volume,
+                  playbackRate: playbackSpeed,
+                  onProgress: (state: any) => setCurrentTime(state.playedSeconds),
+                  onDuration: (duration: any) => setDuration(duration),
+                  onPlay: () => setIsPlaying(true),
+                  onPause: () => setIsPlaying(false),
+                  onSeek: (seconds: any) => setCurrentTime(seconds),
+                  controls: false
+                })}
+                
+                {/* Video Controls Overlay */}
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                  {/* Progress Bar */}
+                  <div className="mb-4">
+                    <input
+                      type="range"
+                      min={0}
+                      max={duration}
+                      value={currentTime}
+                      onChange={(e) => handleSeek(Number(e.target.value))}
+                      className="w-full h-1 bg-white/30 rounded-lg appearance-none cursor-pointer slider"
+                    />
+                    <div className="flex justify-between text-white text-sm mt-1">
+                      <span>{formatTime(currentTime)}</span>
+                      <span>{formatTime(duration)}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Control Buttons */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleSeek(Math.max(0, currentTime - 10))}
+                        className="text-white hover:bg-white/20"
+                      >
+                        <SkipBack className="h-4 w-4" />
+                      </Button>
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={togglePlay}
+                        className="text-white hover:bg-white/20"
+                      >
+                        {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
+                      </Button>
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleSeek(Math.min(duration, currentTime + 10))}
+                        className="text-white hover:bg-white/20"
+                      >
+                        <SkipForward className="h-4 w-4" />
+                      </Button>
+                      
+                      <div className="flex items-center space-x-2">
+                        <Volume2 className="h-4 w-4 text-white" />
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.1}
+                          value={volume}
+                          onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                          className="w-20 h-1 bg-white/30 rounded-lg appearance-none cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-4">
+                      <select
+                        value={playbackSpeed}
+                        onChange={(e) => handleSpeedChange(Number(e.target.value))}
+                        className="bg-white/20 text-white border border-white/30 rounded px-2 py-1 text-sm"
+                      >
+                        {playbackSpeeds.map(speed => (
+                          <option key={speed} value={speed} className="bg-black text-white">
+                            {speed}x
+                          </option>
+                        ))}
+                      </select>
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={toggleFullscreen}
+                        className="text-white hover:bg-white/20"
+                      >
+                        <Maximize className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
           
@@ -151,13 +290,13 @@ const TutorialPlayer = () => {
               <div className="flex items-start justify-between">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                   <Badge variant={(tutorial?.difficulty || 'Beginner') === 'Beginner' ? 'secondary' : 'default'}>
-                     {tutorial?.difficulty || 'Beginner'}
-                   </Badge>
-                   <Badge variant="outline">{tutorial?.categoryName || 'General'}</Badge>
-                 </div>
-                 <CardTitle className="text-2xl">{tutorial?.title || 'Tutorial'}</CardTitle>
-                 <CardDescription className="text-base">{tutorial?.description || 'No description available'}</CardDescription>
+                    <Badge variant={tutorial.difficulty === 'Beginner' ? 'secondary' : 'default'}>
+                      {tutorial.difficulty}
+                    </Badge>
+                    <Badge variant="outline">{tutorial.category}</Badge>
+                  </div>
+                  <CardTitle className="text-2xl">{tutorial.title}</CardTitle>
+                  <CardDescription className="text-base">{tutorial.description}</CardDescription>
                 </div>
                 <Button
                   variant="outline"
@@ -178,19 +317,19 @@ const TutorialPlayer = () => {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-gray-500" />
-                  <span>{Math.floor((tutorial?.videoDuration || 0) / 60)} min</span>
+                  <span>{tutorial.duration}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Star className="h-4 w-4 text-yellow-500" />
-                  <span>{tutorial?.rating || 0} rating</span>
+                  <span>{tutorial.rating} rating</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-gray-500" />
-                  <span>{(tutorial?.views || 0).toLocaleString()} students</span>
+                  <span>{tutorial.students.toLocaleString()} students</span>
                 </div>
                 <div>
                   <span className="text-gray-500">Instructor: </span>
-                  <span className="font-medium">{tutorial?.author || 'Unknown'}</span>
+                  <span className="font-medium">{tutorial.instructor}</span>
                 </div>
               </div>
             </CardContent>
@@ -206,16 +345,27 @@ const TutorialPlayer = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {/* since ApiTutorial doesn't have chapters, show basic tutorial info */}
-                <div className="p-3 rounded-lg border bg-primary/5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium text-sm">{tutorial?.title || 'Tutorial'}</h4>
-                      <p className="text-xs text-gray-500">{Math.floor((tutorial?.videoDuration || 0) / 60)} min</p>
+                {(tutorial.chapters || []).map((chapter, index) => (
+                  <motion.div
+                    key={chapter.id}
+                    whileHover={{ x: 5 }}
+                    className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                      currentTime >= chapter.startTime && 
+                      (index === (tutorial.chapters || []).length - 1 || currentTime < (tutorial.chapters || [])[index + 1]?.startTime)
+                        ? 'border-primary bg-primary/10'
+                        : 'border-gray-200 hover:border-primary/50'
+                    }`}
+                    onClick={() => jumpToChapter(chapter.startTime)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium text-sm">{chapter.title}</h4>
+                        <p className="text-xs text-gray-500">{chapter.duration}</p>
+                      </div>
+                      <Play className="h-3 w-3 text-primary" />
                     </div>
-                    <Play className="h-3 w-3 text-primary" />
-                  </div>
-                </div>
+                  </motion.div>
+                ))}
               </div>
             </CardContent>
           </Card>

@@ -78,15 +78,13 @@ const Education = () => {
 
   // filter panel toggle state
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>('tutorial');
   const { sidebarOpen, toggleSidebar, closeSidebar } = useSidebar();
 
-  // mutually exclusive behavior: close sidebar when filter drawer opens
-  const toggleFilterDrawer = () => {
-    if (sidebarOpen) {
-      closeSidebar();
-    }
-    setIsFilterDrawerOpen(prev => !prev);
-  };
+  // Close filter when switching tabs
+  useEffect(() => {
+    setIsFilterDrawerOpen(false);
+  }, [activeTab]);
 
   // aggressive mutual exclusion: close filter when sidebar opens
   useEffect(() => {
@@ -179,7 +177,6 @@ const Education = () => {
     });
 
     // Sorting logic
-    console.log('DEBUG: Before sorting, sortBy:', sortBy, 'first 3 items:', filtered.slice(0, 3).map(f => ({ id: f.id, title: f.title })));
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'id':
@@ -263,8 +260,8 @@ const Education = () => {
   const watchTutorial = (tutorialId: number) => {
     const tutorial = mappedTutorials.find(t => t.id === tutorialId);
     if (tutorial) {
-      // Navigate to tutorial player with tutorial data
-      navigate(`/education/tutorial/${tutorialId}`, { 
+      // Navigate to series detail page first, not directly to video player
+      navigate(`/education/series/${tutorialId}`, { 
         state: { 
           tutorial: tutorial,
           breadcrumbs: [
@@ -499,22 +496,30 @@ const Education = () => {
     return filteredAndSortedSeries.slice(startIndex, endIndex);
   }, [filteredAndSortedSeries, currentPage, itemsPerPage]);
 
+  // define toggle handler near other handlers
+  const toggleFilterDrawer = () => {
+    if (sidebarOpen) closeSidebar();
+    setIsFilterDrawerOpen(prev => !prev);
+  };
+
   return (
     <div className="space-y-6 p-6">
       <AnimatedBreadcrumb items={breadcrumbItems} />
       
       {/* Header Section */}
       <motion.div 
-        className="text-center space-y-4"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
       >
-        <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-          Lip-Reading Academy
-        </h1>
-        <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-          Master the art of lip-reading with our comprehensive video courses and interactive practice sessions
-        </p>
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent leading-tight">
+            Lip-Reading Academy
+          </h1>
+          <p className="text-gray-600 text-base leading-relaxed max-w-3xl">
+            Master the art of lip-reading with our comprehensive video courses and interactive practice sessions designed for all skill levels
+          </p>
+        </div>
       </motion.div>
 
       {/* Stats Section */}
@@ -552,7 +557,7 @@ const Education = () => {
 
 
       {/* Navigation Tabs */}
-      <Tabs defaultValue="tutorial" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="h-10 items-center justify-center rounded-md p-1 text-muted-foreground grid w-full grid-cols-4 bg-primary/10">
           <TabsTrigger value="tutorial" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             <Video className="h-4 w-4 mr-2" />
@@ -596,224 +601,211 @@ const Education = () => {
              - Full-width content with Filter Drawer that pushes from left
              - Filter drawer is mutually exclusive with main sidebar
            */}
-          <div className={`flex gap-6 transition-all duration-300 ease-in-out ${sidebarOpen ? 'ml-64' : 'ml-0'
-            }`}>
-            {/* Filter Drawer - Only render when open */}
-            {isFilterDrawerOpen && (
-              <FilterDrawer
-                filters={filters}
-                onFiltersChange={setFilters}
-                isOpen={isFilterDrawerOpen}
-                onClose={() => setIsFilterDrawerOpen(false)}
-                hasActiveFilters={hasActiveFilters}
-                customFilterOptions={[
-                  {
-                    key: 'category',
-                    label: 'Category',
-                    type: 'checkbox',
-                    options: categoriesQuery.data?.data?.map(cat => cat.category_name) || []
-                  },
-                  {
-                    key: 'difficulty',
-                    label: 'Difficulty',
-                    type: 'radio',
-                    options: ['Beginner', 'Intermediate', 'Advanced']
-                  },
-                  {
-                    key: 'duration',
-                    label: 'Duration',
-                    type: 'checkbox',
-                    options: ['0-5 min', '5-15 min', '15-30 min', '30+ min']
-                  },
-                  {
-                    key: 'progress',
-                    label: 'Progress',
-                    type: 'checkbox',
-                    options: ['Not Started', 'In Progress', 'Completed']
-                  }
-                ]}
-              />
-            )}
-
-             {/* Main Content Area */}
-             <div className="flex-1 space-y-6 p-6">
-              {/* Top Controls Bar */}
-              <motion.div 
-                className="flex items-center justify-between gap-4 flex-wrap"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                {/* Left Side - Mobile Filter Button + Results Info */}
-                <div className="flex items-center gap-4">
-                  {/* Filter Button */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                    onClick={toggleFilterDrawer}
-                      className="flex items-center gap-2"
-                    >
-                      <Filter className="h-4 w-4 text-purple-600" />
-                      <span>Filters</span>
-                      {hasActiveFilters && (
-                        <Badge variant="secondary" className="ml-1 px-1.5 py-0.5 text-xs">
-                          {[
-                            filters.searchTerm,
-                            ...filters.selectedCategories,
-                            ...filters.selectedDifficulties,
-                            ...filters.selectedDurations,
-                            ...filters.selectedProgress
-                          ].filter(Boolean).length}
-                        </Badge>
-                      )}
-                    </Button>
-
-                  {/* Results Count */}
-                  <span className="text-sm text-gray-600 font-medium">
-                    {filteredAndSortedSeries.length} {filteredAndSortedSeries.length === 1 ? 'series' : 'series'} found
-                  </span>
-                </div>
-
-                {/* Right Side Controls */}
-                <div className="flex items-center gap-3">
-                  {/* Sort Dropdown */}
-                  <SortDropdown
-                    value={sortBy}
-                    onValueChange={setSortBy}
-                  />
-
-                  {/* View Toggle */}
-                  <div className="flex border border-gray-200 rounded-lg p-1">
-                    <Button
-                      variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => setViewMode('grid')}
-                      className="h-8 w-8 p-0"
-                      title="Grid View"
-                    >
-                      <Grid3X3 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant={viewMode === 'list' ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => setViewMode('list')}
-                      className="h-8 w-8 p-0"
-                      title="List View"
-                    >
-                      <List className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Active Filters Display */}
-              {hasActiveFilters && (
+          {/* Tutorials section layout wrap */}
+<div className={`flex transition-all duration-300 ease-in-out ${isFilterDrawerOpen ? 'gap-6' : 'gap-0'}` }>
+            {/* Filter Drawer - always present, transition width and with light bg */}
+  <div className={`transition-all duration-300 ${isFilterDrawerOpen ? 'w-80 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`} style={{ overflow: 'hidden' }}>
+    <div className="sticky top-4 mr-6">
+      <FilterDrawer
+        filters={filters}
+        onFiltersChange={setFilters}
+        isOpen={isFilterDrawerOpen}
+        onClose={() => setIsFilterDrawerOpen(false)}
+        hasActiveFilters={hasActiveFilters}
+        customFilterOptions={[
+          { key: 'category', label: 'Category', type: 'checkbox', options: categoriesQuery.data?.data?.map(cat => cat.category_name) || [] },
+          { key: 'difficulty', label: 'Difficulty', type: 'radio', options: ['Beginner', 'Intermediate', 'Advanced'] },
+          { key: 'duration', label: 'Duration', type: 'checkbox', options: ['0-5 min', '5-15 min', '15-30 min', '30+ min'] },
+          { key: 'progress', label: 'Progress', type: 'checkbox', options: ['Not Started', 'In Progress', 'Completed'] }
+        ]}
+      />
+    </div>
+  </div>
+            {/* Main content - flex-1, animates width as sidebar opens/closes */}
+            <div className="flex-1 transition-all duration-300 overflow-x-hidden">
+                {/* Top Controls Bar */}
                 <motion.div 
-                  className="flex flex-wrap items-center gap-2"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
+                  className="flex items-center justify-between gap-4 flex-wrap"
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
                 >
-                  <span className="text-sm text-gray-600 font-medium">Active filters:</span>
-                  {filters.searchTerm && (
-                    <Badge variant="secondary" className="flex items-center gap-1">
-                      Search: "{filters.searchTerm}"
-                      <X 
-                        className="h-3 w-3 cursor-pointer hover:text-red-500" 
-                        onClick={() => setFilters(prev => ({ ...prev, searchTerm: '' }))}
-                      />
-                    </Badge>
-                  )}
-                  {filters.selectedCategories.map(category => (
-                    <Badge key={category} variant="secondary" className="flex items-center gap-1">
-                      {category}
-                      <X 
-                        className="h-3 w-3 cursor-pointer hover:text-red-500" 
-                        onClick={() => setFilters(prev => ({ 
-                          ...prev, 
-                          selectedCategories: prev.selectedCategories.filter(c => c !== category) 
-                        }))}
-                      />
-                    </Badge>
-                  ))}
-                  {filters.selectedDifficulties.map(difficulty => (
-                    <Badge key={difficulty} variant="secondary" className="flex items-center gap-1">
-                      {difficulty}
-                      <X 
-                        className="h-3 w-3 cursor-pointer hover:text-red-500" 
-                        onClick={() => setFilters(prev => ({ 
-                          ...prev, 
-                          selectedDifficulties: prev.selectedDifficulties.filter(d => d !== difficulty) 
-                        }))}
-                      />
-                    </Badge>
-                  ))}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearAllFilters}
-                    className="text-xs text-gray-500 hover:text-red-500"
-                  >
-                    Clear all
-                  </Button>
-                </motion.div>
-              )}
+                  {/* Left Side - Mobile Filter Button + Results Info */}
+                  <div className="flex items-center gap-4">
+                    {/* Filter Button */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                      onClick={toggleFilterDrawer}
+                        className="flex items-center gap-2"
+                      >
+                        <Filter className="h-4 w-4 text-purple-600" />
+                        <span>Filters</span>
+                        {hasActiveFilters && (
+                          <Badge variant="secondary" className="ml-1 px-1.5 py-0.5 text-xs">
+                            {[
+                              filters.searchTerm,
+                              ...filters.selectedCategories,
+                              ...filters.selectedDifficulties,
+                              ...filters.selectedDurations,
+                              ...filters.selectedProgress
+                            ].filter(Boolean).length}
+                          </Badge>
+                        )}
+                      </Button>
 
-              {/* Tutorial Series Grid */}
-              <motion.div
-                className={viewMode === 'grid' 
-                    ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8"
-                    : "space-y-6"
-                }
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-              >
-                {isLoading ? (
-                  <TutorialGridSkeleton />
-                ) : filteredAndSortedSeries.length > 0 ? (
-                  paginatedSeries.map((series, index) => (
-                    <motion.div
-                      key={series.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                    >
-                      <TutorialSeriesCard 
-                        series={series}
-                        isGridView={viewMode === 'grid'}
-                        onViewDetails={(seriesId) => navigate(`/education/series/${seriesId}`)}
-                        onEnroll={(seriesId) => navigate(`/education/series/${seriesId}`)}
-                      />
-                    </motion.div>
-                  ))
-                ) : (
-                  <div className="col-span-full">
-                    <NoResultsState 
-                      hasActiveFilters={hasActiveFilters}
-                      onClearFilters={clearAllFilters}
-                    />
+                    {/* Results Count */}
+                    <span className="text-sm text-gray-600 font-medium">
+                      {filteredAndSortedSeries.length} {filteredAndSortedSeries.length === 1 ? 'series' : 'series'} found
+                    </span>
                   </div>
-                )}
-              </motion.div>
 
-              {/* Pagination for Series */}
-              <EducationPagination
-                currentPage={currentPage}
-                totalPages={Math.ceil(filteredAndSortedSeries.length / itemsPerPage)}
-                totalItems={filteredAndSortedSeries.length}
-                itemsPerPage={itemsPerPage}
-                onPageChange={setCurrentPage}
-                itemName="series"
-              />
+                  {/* Right Side Controls */}
+                  <div className="flex items-center gap-3">
+                    {/* Sort Dropdown */}
+                    <SortDropdown
+                      value={sortBy}
+                      onValueChange={setSortBy}
+                    />
+
+                    {/* View Toggle */}
+                    <div className="flex border border-gray-200 rounded-lg p-1">
+                      <Button
+                        variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setViewMode('grid')}
+                        className="h-8 w-8 p-0"
+                        title="Grid View"
+                      >
+                        <Grid3X3 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant={viewMode === 'list' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setViewMode('list')}
+                        className="h-8 w-8 p-0"
+                        title="List View"
+                      >
+                        <List className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Active Filters Display */}
+                {hasActiveFilters && (
+                  <motion.div 
+                    className="flex flex-wrap items-center gap-2"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                  >
+                    <span className="text-sm text-gray-600 font-medium">Active filters:</span>
+                    {filters.searchTerm && (
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        Search: "{filters.searchTerm}"
+                        <X 
+                          className="h-3 w-3 cursor-pointer hover:text-red-500" 
+                          onClick={() => setFilters(prev => ({ ...prev, searchTerm: '' }))}
+                        />
+                      </Badge>
+                    )}
+                    {filters.selectedCategories.map(category => (
+                      <Badge key={category} variant="secondary" className="flex items-center gap-1">
+                        {category}
+                        <X 
+                          className="h-3 w-3 cursor-pointer hover:text-red-500" 
+                          onClick={() => setFilters(prev => ({ 
+                            ...prev, 
+                            selectedCategories: prev.selectedCategories.filter(c => c !== category) 
+                          }))}
+                        />
+                      </Badge>
+                    ))}
+                    {filters.selectedDifficulties.map(difficulty => (
+                      <Badge key={difficulty} variant="secondary" className="flex items-center gap-1">
+                        {difficulty}
+                        <X 
+                          className="h-3 w-3 cursor-pointer hover:text-red-500" 
+                          onClick={() => setFilters(prev => ({ 
+                            ...prev, 
+                            selectedDifficulties: prev.selectedDifficulties.filter(d => d !== difficulty) 
+                          }))}
+                        />
+                      </Badge>
+                    ))}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearAllFilters}
+                      className="text-xs text-gray-500 hover:text-red-500"
+                    >
+                      Clear all
+                    </Button>
+                  </motion.div>
+                )}
+
+                {/* Tutorial Series Grid */}
+                <div className="mt-4" />
+                <motion.div
+                  className={viewMode === 'grid' 
+                      ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8"
+                      : "space-y-6"
+                  }
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {isLoading ? (
+                    <TutorialGridSkeleton />
+                  ) : filteredAndSortedSeries.length > 0 ? (
+                    paginatedSeries.map((series, index) => (
+                      <motion.div
+                        key={series.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                      >
+                        <TutorialSeriesCard 
+                          series={series}
+                          isGridView={viewMode === 'grid'}
+                          onViewDetails={(seriesId) => navigate(`/education/series/${seriesId}`)}
+                          onEnroll={(seriesId) => navigate(`/education/series/${seriesId}`)}
+                          onClick={(series) => navigate(`/education/series/${series.id}`)}
+                        />
+                      </motion.div>
+                    ))
+                  ) : (
+                    <div className="col-span-full">
+                      <NoResultsState 
+                        hasActiveFilters={hasActiveFilters}
+                        onClearFilters={clearAllFilters}
+                      />
+                    </div>
+                  )}
+                </motion.div>
+
+                {/* Pagination for Series */}
+                <div className="mt-8" />
+                <EducationPagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(filteredAndSortedSeries.length / itemsPerPage)}
+                  totalItems={filteredAndSortedSeries.length}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  itemName="series"
+                />
+                <div className="mb-12" />
             </div>
           </div>
         </TabsContent>
 
         <TabsContent value="quizzes" className="space-y-6">
-          <div className="flex gap-6">
-            {/* Sidebar - Filter Panel */}
-            <div className="hidden lg:block w-80 flex-shrink-0">
+          <div className={
+            `flex${isFilterDrawerOpen ? ' gap-6' : ' gap-0'}${sidebarOpen ? ' ml-64' : ' ml-0'} flex-col lg:flex-row`
+          }>
+            {/* Sidebar - Filter Panel (lg only) with light bg */}
+            <div className={`hidden lg:block transition-all duration-300 ${isFilterDrawerOpen ? 'w-80 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`} style={{ overflow: 'hidden' }}>
               <div className="sticky top-4">
                 <FilterDrawer
                   filters={filters}
@@ -821,12 +813,7 @@ const Education = () => {
                   isOpen={isFilterDrawerOpen}
                   onClose={() => setIsFilterDrawerOpen(false)}
                   customFilterOptions={[
-                    {
-                      key: 'category',
-                      label: 'Category',
-                      type: 'checkbox',
-                      options: categoriesQuery.data?.data?.map(cat => cat.category_name) || []
-                    }
+                    { key: 'category', label: 'Category', type: 'checkbox', options: categoriesQuery.data?.data?.map(cat => cat.category_name) || [] }
                   ]}
                 />
               </div>
@@ -834,156 +821,59 @@ const Education = () => {
 
             {/* Main Content */}
             <div className="flex-1 min-w-0">
-              {/* Quiz Series Header */}
+              {/* Unified Controls Bar (same as tutorials) */}
               <motion.div 
-                className="text-center space-y-4 mb-8"
-                initial={{ opacity: 0, y: 20 }}
+                className="flex items-center justify-between gap-4 flex-wrap"
+                initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
               >
-                <div className="space-y-2">
-                  <h2 className="text-3xl font-bold text-gray-900">Interactive Quiz Series</h2>
-                  <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                    Test and improve your lip reading skills with comprehensive quiz series designed for progressive learning
-                  </p>
+                <div className="flex items-center gap-4">
+                  <Button variant="outline" size="sm" onClick={toggleFilterDrawer} className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-purple-600" />
+                    <span>Filters</span>
+                    {hasActiveFilters && (
+                      <Badge variant="secondary" className="ml-1 px-1.5 py-0.5 text-xs">
+                        {[
+                          filters.searchTerm,
+                          ...filters.selectedCategories,
+                          ...filters.selectedDifficulties,
+                          ...filters.selectedDurations,
+                          ...filters.selectedProgress
+                        ].filter(Boolean).length}
+                      </Badge>
+                    )}
+                  </Button>
+                  <span className="text-sm text-gray-600 font-medium">
+                    {filteredAndSortedQuizSeries.length} quiz series found
+                  </span>
                 </div>
-                
-                {/* Stats Overview */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto mt-8">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">{filteredAndSortedQuizSeries.length}</div>
-                    <div className="text-sm text-gray-600">Quiz Series</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">
-                      {filteredAndSortedQuizSeries.reduce((sum, series) => sum + series.totalQuestions, 0)}
-                    </div>
-                    <div className="text-sm text-gray-600">Total Questions</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">3</div>
-                    <div className="text-sm text-gray-600">Difficulty Levels</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">
-                      {(filteredAndSortedQuizSeries.length ? (filteredAndSortedQuizSeries.reduce((sum, series) => sum + series.rating.average, 0) / filteredAndSortedQuizSeries.length) : 0).toFixed(1)}
-                    </div>
-                    <div className="text-sm text-gray-600">Avg Rating</div>
+                <div className="flex items-center gap-3">
+                  <SortDropdown value={sortBy} onValueChange={setSortBy} />
+                  <div className="flex border border-gray-200 rounded-lg p-1">
+                    <Button variant={viewMode === 'grid' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('grid')} className="h-8 w-8 p-0" title="Grid View">
+                      <Grid3X3 className="h-4 w-4" />
+                    </Button>
+                    <Button variant={viewMode === 'list' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('list')} className="h-8 w-8 p-0" title="List View">
+                      <List className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               </motion.div>
+              <div className="mt-4" />
 
-              {/* Mobile Filter Toggle & Controls */}
+              {/* Mobile Filter Toggle & Controls (match tutorials) */}
               <div className="lg:hidden mb-6">
-                <div className="flex flex-col space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold">Quiz Series</h3>
-                    <SortDropdown 
-                      value={sortBy} 
-                      onValueChange={setSortBy} 
-                    />
-                  </div>
-                  
-                  {/* Mobile Search */}
-                  <Input
-                    type="text"
-                    placeholder="Search quiz series..."
-                    value={filters.searchTerm}
-                    onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
-                    className="w-full"
-                  />
-                  
-                  {/* Quick Category Buttons for Mobile */}
-                  <div className="flex flex-wrap gap-2">
-                    {['Fundamentals', 'Phonemes', 'Conversations'].map((category) => (
-                      <Button
-                        key={category}
-                        variant={filters.selectedCategories.includes(category) ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => {
-                          const newCategories = filters.selectedCategories.includes(category)
-                            ? filters.selectedCategories.filter(c => c !== category)
-                            : [...filters.selectedCategories, category];
-                          setFilters(prev => ({ ...prev, selectedCategories: newCategories }));
-                        }}
-                      >
-                        {category}
-                      </Button>
-                    ))}
-                  </div>
+                <div className="flex items-center justify-between">
+                  <Button variant="outline" size="sm" onClick={toggleFilterDrawer} className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-purple-600" />
+                    <span>Filters</span>
+                  </Button>
+                  <SortDropdown value={sortBy} onValueChange={setSortBy} />
                 </div>
               </div>
 
-              {/* Desktop Controls Bar */}
-              <div className="hidden lg:flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {filteredAndSortedQuizSeries.length} quiz series found
-                  </span>
-                  
-                  {/* Active Filters */}
-                  {(filters.searchTerm || filters.selectedCategories.length > 0 || filters.selectedDifficulties.length > 0 || filters.selectedDurations.length > 0) && (
-                    <div className="flex flex-wrap gap-2">
-                      {filters.searchTerm && (
-                        <Badge variant="secondary" className="flex items-center gap-1">
-                          <Search className="h-3 w-3" />
-                          "{filters.searchTerm}"
-                          <button
-                            onClick={() => setFilters(prev => ({ ...prev, searchTerm: '' }))}
-                            className="ml-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full p-0.5"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      )}
-                      {filters.selectedCategories.map(category => (
-                        <Badge key={category} variant="secondary" className="flex items-center gap-1">
-                          Category: {category}
-                          <button
-                            onClick={() => setFilters(prev => ({ 
-                              ...prev, 
-                              selectedCategories: prev.selectedCategories.filter(c => c !== category) 
-                            }))}
-                            className="ml-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full p-0.5"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                      {filters.selectedDifficulties.map(difficulty => (
-                        <Badge key={difficulty} variant="secondary" className="flex items-center gap-1">
-                          Level: {difficulty}
-                          <button
-                            onClick={() => setFilters(prev => ({ 
-                              ...prev, 
-                              selectedDifficulties: prev.selectedDifficulties.filter(d => d !== difficulty) 
-                            }))}
-                            className="ml-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full p-0.5"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                      <button
-                        onClick={() => setFilters({
-                          searchTerm: '',
-                          selectedCategories: [],
-                          selectedDifficulties: [],
-                          selectedDurations: [],
-                          selectedProgress: []
-                        })}
-                        className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
-                      >
-                        Clear all
-                      </button>
-                    </div>
-                  )}
-                </div>
-                
-                <SortDropdown 
-                  value={sortBy} 
-                  onValueChange={setSortBy} 
-                />
-              </div>
+              {/* Desktop Active Filters (optional) remains handled above via controls */}
 
               {/* Quiz Series Content */}
               {filteredAndSortedQuizSeries.length === 0 ? (
@@ -1031,19 +921,17 @@ const Education = () => {
                     </div>
                   </motion.div>
 
-                  {/* Pagination */}
-                  {Math.ceil(filteredAndSortedQuizSeries.length / itemsPerPage) > 1 && (
-                    <div className="mt-12 flex justify-center">
-                      <EducationPagination
-                        currentPage={currentPage}
-                        totalPages={Math.ceil(filteredAndSortedQuizSeries.length / itemsPerPage)}
-                        totalItems={filteredAndSortedQuizSeries.length}
-                        itemsPerPage={itemsPerPage}
-                        onPageChange={setCurrentPage}
-                        itemName="quiz series"
-                      />
-                    </div>
-                  )}
+                  {/* Pagination for Quiz Series */}
+                  <div className="mt-8" />
+                  <EducationPagination
+                    currentPage={currentPage}
+                    totalPages={Math.ceil(filteredAndSortedQuizSeries.length / itemsPerPage)}
+                    totalItems={filteredAndSortedQuizSeries.length}
+                    itemsPerPage={itemsPerPage}
+                    onPageChange={setCurrentPage}
+                    itemName="series"
+                  />
+                  <div className="mb-12" />
                 </>
               )}
             </div>

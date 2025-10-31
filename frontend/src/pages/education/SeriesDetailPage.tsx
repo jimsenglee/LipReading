@@ -29,15 +29,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useTutorialReviews, useUserReview } from '@/services/reviews/reviewQueries';
 import { useSubmitReview } from '@/services/reviews/reviewMutations';
 import { useTutorialSeriesById } from '@/services/content/contentQueries';
-type Video = { 
-  id: string; 
-  title: string; 
-  duration?: number; 
-  url?: string;
-  description?: string;
-  order?: number;
-  isAdvanced?: boolean;
-};
+import { Video } from '@/lib/api';
 type TutorialSeries = { 
   id: number; 
   title: string; 
@@ -60,7 +52,7 @@ type UserProgress = {
 const formatDuration = (n?: number) => (n ? `${Math.round(n/60)} min` : '0 min');
 const getTotalSeriesDuration = (s: TutorialSeries) => {
   if (!s.videos || s.videos.length === 0) return 0;
-  return s.videos.reduce((total, v) => total + (v.duration || 0), 0);
+  return s.videos.reduce((total, v) => total + (v.videoDuration || 0), 0);
 };
 const getProgressPercentage = (p: UserProgress | undefined, s: TutorialSeries) => {
   if (!p || !p.completedVideos || !s.videos) return 0;
@@ -238,13 +230,24 @@ const SeriesDetailPage: React.FC = () => {
 
   const handleEnroll = async () => {
     try {
-      // navigate directly to video player without mock API call
-      navigate(`/education/tutorial/${series.id}`);
+      // simulate enrollment API call with minimal delay
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // navigate to the first video immediately without any success toast
+      if (series.videos && series.videos.length > 0) {
+        navigate(`/education/series/${series.id}/video/${series.videos[0].id}`);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "No Videos Available",
+          description: "This series doesn't have any videos yet.",
+        });
+      }
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "Navigation Failed",
-        description: "There was an error navigating to the tutorial. Please try again.",
+        title: "Enrollment Failed",
+        description: "There was an error enrolling in this series. Please try again.",
       });
     }
   };
@@ -252,16 +255,20 @@ const SeriesDetailPage: React.FC = () => {
   const handleVideoClick = (video: Video) => {
     const skipWarnings = localStorage.getItem('skipAdvancedWarnings') === 'true';
     
-    if (video.isAdvanced && !skipWarnings && !isEnrolled) {
-      setSelectedVideo(video);
-      setShowAdvancedModal(true);
-    } else {
-      navigateToVideo(video);
-    }
+    // remove advanced warning check for now
+    navigateToVideo(video);
   };
 
   const navigateToVideo = (video: Video) => {
-    navigate(`/education/tutorial/${series.id}`);
+    if (video && video.id) {
+      navigate(`/education/series/${series.id}/video/${video.id}`);
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Video Not Available",
+        description: "This video is not available for playback.",
+      });
+    }
   };
 
   const handleModalContinue = () => {
@@ -497,8 +504,8 @@ const SeriesDetailPage: React.FC = () => {
               <CardContent className="p-0">
                 <div className="max-h-96 overflow-y-auto">
                   {series.videos.map((video, index) => {
-                    const isCompleted = isVideoCompleted(video.id);
-                    const isLocked = video.isAdvanced && !isEnrolled;
+                    const isCompleted = isVideoCompleted(String(video.id));
+                    const isLocked = false; // remove advanced check for now
                     
                     return (
                       <motion.div
@@ -528,19 +535,17 @@ const SeriesDetailPage: React.FC = () => {
                               }`}>
                                 {video.title}
                               </h4>
-                              {video.isAdvanced && (
-                                <AlertTriangle className="h-3 w-3 text-orange-500 flex-shrink-0 ml-2" />
-                              )}
+                              {/* remove advanced warning icon for now */}
                             </div>
                             <p className="text-xs text-gray-500 line-clamp-2 mb-2">
                               {video.description}
                             </p>
                             <div className="flex items-center justify-between">
                               <span className="text-xs text-gray-500">
-                                {formatDuration(video.duration)}
+                                {formatDuration(video.videoDuration)}
                               </span>
                               <span className="text-xs text-gray-400">
-                                Video {video.order}
+                                Video {video.videoOrder || 1}
                               </span>
                             </div>
                           </div>

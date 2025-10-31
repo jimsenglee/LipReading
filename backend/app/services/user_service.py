@@ -43,8 +43,20 @@ class UserService:
                     )
                 )
             
-            if validated_params.get('account_type') and validated_params['account_type'] != 'all':
-                query = query.where(Account.account_type == validated_params['account_type'])
+            # handle role filter (frontend sends 'role' but backend uses 'account_type')
+            account_type = validated_params.get('account_type')
+            if not account_type and params.get('role'):
+                # map frontend role to backend account_type
+                role_mapping = {
+                    'admin': 'Administrator',
+                    'user': 'Student'
+                }
+                role = params.get('role')
+                if role and role != 'all' and role in role_mapping:
+                    account_type = role_mapping[role]
+            
+            if account_type and account_type != 'all':
+                query = query.where(Account.account_type == account_type)
             
             if validated_params.get('status') and validated_params['status'] != 'all':
                 query = query.where(Account.status == validated_params['status'])
@@ -53,7 +65,16 @@ class UserService:
             sort_by = validated_params.get('sort_by', 'id')
             sort_order = validated_params.get('sort_order', 'asc')
             
-            sort_column = getattr(Account, sort_by, Account.id)
+            # map frontend sort_by to backend column names
+            sort_mapping = {
+                'created_at': 'registration_date',
+                'name': 'name',
+                'email': 'email',
+                'last_active': 'registration_date'  # TODO: implement last_active tracking
+            }
+            backend_sort_by = sort_mapping.get(sort_by, sort_by)
+            
+            sort_column = getattr(Account, backend_sort_by, Account.id)
             
             if sort_order.lower() == 'desc':
                 query = query.order_by(sa.desc(sort_column))
@@ -73,17 +94,27 @@ class UserService:
             # Execute query
             users = db.session.scalars(query).all()
             
-            # Format response
+            # Format response to match frontend expectations
             user_list = []
             for u in users:
+                # map account_type to role for frontend
+                role_mapping = {
+                    'Administrator': 'admin',
+                    'Student': 'user',
+                    'User': 'user'
+                }
+                role = role_mapping.get(u.account_type, 'user')
+                
                 user_list.append({
                     'id': u.id,
-                    'publicId': u.public_id,
+                    'public_id': u.public_id,
                     'name': u.name,
                     'email': u.email,
-                    'accountType': u.account_type,
-                    'status': u.status,
-                    'registrationDate': u.registration_date.isoformat() if u.registration_date else None,
+                    'role': role,
+                    'created_at': u.registration_date.isoformat() if u.registration_date else None,
+                    'last_active': None,  # TODO: implement last active tracking
+                    'profile_image_path': u.profile_image_path,
+                    'is_active': u.status == 'active',
                 })
             
             pagination = ResponseService.pagination_info(page, per_page, total or 0)

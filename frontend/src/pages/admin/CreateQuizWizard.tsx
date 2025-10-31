@@ -39,7 +39,7 @@ interface QuizOption {
 
 interface QuizQuestion {
   id: string;
-  type: 'multiple-choice' | 'true-false' | 'fill-blank';
+  type: 'multiple-choice' | 'true-false';
   question: string;
   options: QuizOption[];
   explanation: string;
@@ -109,9 +109,8 @@ const CreateQuizWizard: React.FC = () => {
   ];
 
   const questionTypes = [
-    { value: 'multiple-choice', label: 'Multiple Choice', description: 'Single correct answer from multiple options' },
-    { value: 'true-false', label: 'True/False', description: 'Simple true or false question' },
-    { value: 'fill-blank', label: 'Fill in Blank', description: 'Complete the sentence or word' }
+    { value: 'multiple-choice', label: 'Multiple Choice (Video)', description: 'Single correct answer from multiple options with video' },
+    { value: 'true-false', label: 'True/False', description: 'Simple true or false question' }
   ];
 
   const validateStep = (step: number): boolean => {
@@ -203,7 +202,7 @@ const CreateQuizWizard: React.FC = () => {
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
-  const addQuestion = (type: 'multiple-choice' | 'true-false' | 'fill-blank') => {
+  const addQuestion = (type: 'multiple-choice' | 'true-false') => {
     const newQuestion: QuizQuestion = {
       id: `question-${Date.now()}`,
       type,
@@ -337,24 +336,72 @@ const CreateQuizWizard: React.FC = () => {
         {steps.map((step, index) => (
           <div key={step.id} className="flex-1 flex items-center">
             <div className="flex items-center">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-medium ${
-                currentStep > step.id 
-                  ? 'bg-green-500 text-white' 
-                  : currentStep === step.id
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-200 text-gray-600'
-              }`}>
-                {currentStep > step.id ? <Check className="h-5 w-5" /> : step.id}
-              </div>
+              <motion.div 
+                className={`w-14 h-14 rounded-full flex items-center justify-center font-medium text-sm border-2 ${
+                  currentStep > step.id 
+                    ? 'bg-green-500 text-white shadow-lg border-green-500' 
+                    : currentStep === step.id
+                    ? 'bg-primary text-white shadow-lg ring-4 ring-primary/20 border-primary'
+                    : 'bg-white text-gray-600 border-gray-300 shadow-sm'
+                }`}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                style={{ 
+                  aspectRatio: '1/1',
+                  minWidth: '56px',
+                  minHeight: '56px'
+                }}
+              >
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ duration: 0.3, delay: index * 0.1 }}
+                >
+                  {currentStep > step.id ? (
+                    <motion.div
+                      initial={{ scale: 0, rotate: -180 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ duration: 0.4 }}
+                    >
+                      <Check className="h-6 w-6" />
+                    </motion.div>
+                  ) : (
+                    <span className="font-semibold">{step.id}</span>
+                  )}
+                </motion.div>
+              </motion.div>
               <div className="ml-3 hidden md:block">
-                <p className="text-sm font-medium text-gray-900">{step.title}</p>
-                <p className="text-xs text-gray-500">{step.description}</p>
+                <motion.p 
+                  className="text-sm font-medium text-gray-900"
+                  animate={{ 
+                    color: currentStep === step.id ? '#1f2937' : '#6b7280' 
+                  }}
+                >
+                  {step.title}
+                </motion.p>
+                <motion.p 
+                  className="text-xs text-gray-500"
+                  animate={{ 
+                    color: currentStep === step.id ? '#374151' : '#9ca3af' 
+                  }}
+                >
+                  {step.description}
+                </motion.p>
               </div>
             </div>
             {index < steps.length - 1 && (
-              <div className={`flex-1 h-0.5 mx-4 ${
-                currentStep > step.id ? 'bg-green-500' : 'bg-gray-200'
-              }`} />
+              <motion.div 
+                className={`flex-1 h-1 mx-4 rounded-full ${
+                  currentStep > step.id ? 'bg-green-500' : 'bg-gray-200'
+                }`}
+                initial={{ scaleX: 0 }}
+                animate={{ 
+                  scaleX: currentStep > step.id ? 1 : 0.3,
+                  backgroundColor: currentStep > step.id ? '#10b981' : '#e5e7eb'
+                }}
+                transition={{ duration: 0.5 }}
+              />
             )}
           </div>
         ))}
@@ -372,10 +419,6 @@ const CreateQuizWizard: React.FC = () => {
           <Card className="border-primary/20">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Step {currentStep}: {steps[currentStep - 1].title}</CardTitle>
-                  <CardDescription>{steps[currentStep - 1].description}</CardDescription>
-                </div>
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -385,6 +428,11 @@ const CreateQuizWizard: React.FC = () => {
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Back
                 </Button>
+                <div className="flex-1 text-center">
+                  <CardTitle>Step {currentStep}: {steps[currentStep - 1].title}</CardTitle>
+                  <CardDescription>{steps[currentStep - 1].description}</CardDescription>
+                </div>
+                <div className="w-20"></div> {/* Spacer for centering */}
               </div>
             </CardHeader>
             
@@ -576,7 +624,7 @@ const CreateQuizWizard: React.FC = () => {
                       {questionTypes.map(type => (
                         <Button
                           key={type.value}
-                          onClick={() => addQuestion(type.value as 'multiple-choice' | 'true-false' | 'fill-blank')}
+                          onClick={() => addQuestion(type.value as 'multiple-choice' | 'true-false')}
                           variant="outline"
                           size="sm"
                         >
@@ -730,22 +778,6 @@ const CreateQuizWizard: React.FC = () => {
                             </div>
                           )}
 
-                          {/* Fill in Blank */}
-                          {question.type === 'fill-blank' && (
-                            <div className="space-y-2">
-                              <Label>Correct Answer(s)</Label>
-                              <Input
-                                placeholder="Enter the correct answer (use | to separate multiple acceptable answers)"
-                                value={question.options[0]?.text || ''}
-                                onChange={(e) => updateQuestion(question.id, {
-                                  options: [{ id: '1', text: e.target.value, isCorrect: true }]
-                                })}
-                              />
-                              <p className="text-xs text-gray-500">
-                                Example: "cat|cats" allows both "cat" and "cats" as correct answers
-                              </p>
-                            </div>
-                          )}
 
                           <div className="space-y-2">
                             <Label>Explanation (Optional)</Label>

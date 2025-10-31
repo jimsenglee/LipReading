@@ -69,31 +69,28 @@ const QuizResult = () => {
   
   if (quizResultState) {
     // Use results from quiz taking interface
-    const { series, questions, answers, score, totalTime, correctAnswers } = quizResultState;
+    const { result, quizTitle } = quizResultState;
     
     quiz = {
       id: quizId,
-      quizName: series.title,
-      category: series.category,
-      score: score,
+      quizName: quizTitle,
+      category: 'Lip Reading Quiz',
+      score: result.score,
       completedDate: new Date(),
-      duration: formatTime(totalTime),
-      totalQuestions: questions.length,
-      correctAnswers: correctAnswers,
-      questions: questions.map((q, index) => {
-        const answer = answers.find(a => a.questionId === q.id);
-        return {
-          question: q.question,
-          userAnswer: answer?.answer || 'No answer',
-          correctAnswer: q.correctAnswer,
-          isCorrect: answer?.isCorrect || false,
-          explanation: q.explanation
-        };
-      })
+      duration: formatTime(result.timeSpent || 0),
+      totalQuestions: result.totalQuestions,
+      correctAnswers: result.correctAnswers,
+      questions: result.questionResults.map((q, index) => ({
+        question: q.questionText || `Question ${index + 1}`,
+        userAnswer: q.userAnswer || 'No answer',
+        correctAnswer: q.correctAnswer,
+        isCorrect: q.isCorrect,
+        explanation: q.explanation || 'No explanation available'
+      }))
     };
     
-    correctCount = correctAnswers;
-    incorrectCount = questions.length - correctAnswers;
+    correctCount = result.correctAnswers;
+    incorrectCount = result.totalQuestions - result.correctAnswers;
   } else {
     // use sample data
     quiz = sampleQuizData[quizId || 'quiz-001'] || sampleQuizData['quiz-001'];

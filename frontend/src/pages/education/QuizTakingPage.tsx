@@ -15,28 +15,28 @@ import {
   Award,
   Target,
   ChevronRight,
-  RefreshCw
+  RefreshCw,
+  Play,
+  Pause
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import { useToast } from '@/hooks/use-toast';
+import { useQuizForTaking, useSubmitQuiz } from '@/services';
 type QuizSeries = { id: string; title: string };
 
 interface QuizQuestion {
-  id: string;
-  type: 'multiple-choice' | 'true-false' | 'fill-blank';
-  question: string;
-  description?: string;
-  options?: string[];
-  correctAnswer: string;
-  explanation: string;
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
-  videoUrl?: string;
-  imageUrl?: string;
+  id: number;
+  questionType: 'video_mcq' | 'true_false';
+  questionText?: string;
+  videoClipPath?: string;
+  options: string[];
+  points: number;
+  explanation?: string;
 }
 
 interface UserAnswer {
-  questionId: string;
+  questionId: number;
   answer: string;
   timeSpent: number;
   isCorrect?: boolean;
@@ -56,84 +56,16 @@ const QuizTakingPage: React.FC = () => {
   const [questionStartTime, setQuestionStartTime] = useState<Date>(new Date());
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
 
-  // Find the quiz series
-  const series: QuizSeries | undefined = seriesId ? { id: seriesId, title: `Quiz ${seriesId}` } : undefined;
+  // API hooks
+  const quizId = seriesId ? parseInt(seriesId) : 0;
+  const { data: quizData, isLoading, error } = useQuizForTaking(quizId);
+  const submitQuizMutation = useSubmitQuiz();
 
-  // Quiz questions - will be fetched from API when implemented
-  const questions: QuizQuestion[] = [
-    {
-      id: 'q1',
-      type: 'multiple-choice',
-      question: 'What is the correct lip position for the vowel sound /i/ as in "see"?',
-      description: 'Observe the mouth position and select the correct description.',
-      options: [
-        'Lips rounded and pushed forward',
-        'Lips spread wide with corners pulled back',
-        'Lips in neutral position',
-        'Lips slightly parted with no tension'
-      ],
-      correctAnswer: 'Lips spread wide with corners pulled back',
-      explanation: 'For the /i/ sound, lips are spread wide with corners pulled back, creating a wide, tense mouth shape.',
-      difficulty: 'beginner',
-      imageUrl: 'https://via.placeholder.com/400x300/e2e8f0/64748b?text=Lip+Position+/i/'
-    },
-    {
-      id: 'q2',
-      type: 'multiple-choice',
-      question: 'Which mouth shape corresponds to the sound /o/ as in "go"?',
-      description: 'Study the lip formation for this vowel sound.',
-      options: [
-        'Lips spread and flat',
-        'Lips rounded and protruded',
-        'Lips pressed together',
-        'Lips slightly open in neutral position'
-      ],
-      correctAnswer: 'Lips rounded and protruded',
-      explanation: 'The /o/ sound requires rounded lips that are pushed forward (protruded) to create the proper resonance.',
-      difficulty: 'beginner',
-      imageUrl: 'https://via.placeholder.com/400x300/e2e8f0/64748b?text=Lip+Position+/o/'
-    },
-    {
-      id: 'q3',
-      type: 'true-false',
-      question: 'The consonant sound /p/ requires visible lip movement.',
-      description: 'Consider whether this sound involves noticeable lip action.',
-      correctAnswer: 'true',
-      explanation: 'The /p/ sound is a bilabial plosive, meaning both lips come together and then separate with a small puff of air.',
-      difficulty: 'intermediate'
-    },
-    {
-      id: 'q4',
-      type: 'multiple-choice',
-      question: 'What distinguishes the /th/ sound in "think" from /th/ in "this"?',
-      description: 'Both sounds use similar tongue position but differ in one key way.',
-      options: [
-        'Tongue position is completely different',
-        'One is voiced, the other is voiceless',
-        'Lip position changes significantly',
-        'Duration of the sound varies'
-      ],
-      correctAnswer: 'One is voiced, the other is voiceless',
-      explanation: 'The /th/ in "think" is voiceless (no vocal cord vibration), while /th/ in "this" is voiced (with vocal cord vibration).',
-      difficulty: 'intermediate'
-    },
-    {
-      id: 'q5',
-      type: 'multiple-choice',
-      question: 'How can you visually distinguish between /b/ and /p/ sounds?',
-      description: 'Both sounds have similar mouth positions but one key difference.',
-      options: [
-        'Lip position is different',
-        'You cannot distinguish them visually',
-        'Tongue position changes',
-        'Jaw movement varies significantly'
-      ],
-      correctAnswer: 'You cannot distinguish them visually',
-      explanation: 'Both /b/ and /p/ are bilabial sounds with identical mouth positions. The difference is that /b/ is voiced and /p/ is voiceless, which cannot be seen.',
-      difficulty: 'advanced'
-    }
-  ];
+  // Extract quiz info and questions from API response
+  const quiz = quizData?.data;
+  const questions: QuizQuestion[] = quiz?.questions || [];
 
   const currentQuestion = questions[currentQuestionIndex];
   const totalQuestions = questions.length;
@@ -143,7 +75,7 @@ const QuizTakingPage: React.FC = () => {
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Education', href: '/education' },
     { title: 'Quizzes', href: '/education' },
-    { title: series?.title || 'Quiz', href: `/education/quiz/${seriesId}` },
+    { title: quiz?.title || 'Quiz', href: `/education/quiz/${seriesId}` },
     { title: 'Take Quiz' }
   ];
 
@@ -161,12 +93,29 @@ const QuizTakingPage: React.FC = () => {
     setQuestionStartTime(new Date());
   }, [currentQuestionIndex]);
 
-  if (!series) {
+  // Loading state
+  if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Quiz Not Found</h1>
-          <p className="text-gray-600 mb-4">The quiz you're looking for doesn't exist.</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Loading Quiz...</h1>
+          <p className="text-gray-600">Please wait while we prepare your quiz.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !quiz) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Quiz Not Available</h1>
+          <p className="text-gray-600 mb-4">
+            {error?.message || 'The quiz you\'re looking for doesn\'t exist or is not available.'}
+          </p>
           <Button onClick={() => navigate('/education')} className="bg-primary hover:bg-primary/90">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Education
@@ -194,7 +143,7 @@ const QuizTakingPage: React.FC = () => {
       questionId: currentQuestion.id,
       answer: selectedAnswer,
       timeSpent: questionTime,
-      isCorrect: selectedAnswer === currentQuestion.correctAnswer
+      isCorrect: false // will be determined by backend
     };
 
     const updatedAnswers = [...userAnswers];
@@ -228,38 +177,49 @@ const QuizTakingPage: React.FC = () => {
   const handleSubmitQuiz = (answers: UserAnswer[]) => {
     setIsSubmitted(true);
     
-    // Calculate results
-    const correctAnswers = answers.filter(a => a.isCorrect).length;
-    const score = Math.round((correctAnswers / totalQuestions) * 100);
-    const totalTime = Math.floor((new Date().getTime() - quizStartTime.getTime()) / 1000);
+    // Convert answers to the format expected by backend
+    const answersForSubmission = answers.reduce((acc, answer) => {
+      acc[answer.questionId.toString()] = answer.answer;
+      return acc;
+    }, {} as Record<string, string>);
 
-    // Simulate saving results and navigate to results page
-    setTimeout(() => {
-      const quizId = `quiz-${Date.now()}`;
-      // In real app, save results to backend
-      navigate(`/quiz-result/${quizId}`, {
-        state: {
-          series,
-          questions: questions,
-          answers,
-          score,
-          totalTime,
-          correctAnswers
-        }
-      });
-    }, 2000);
+    submitQuizMutation.mutate({
+      quizId,
+      answers: answersForSubmission
+    }, {
+      onSuccess: (data) => {
+        const result = data.data;
+        toast({
+          title: "Quiz Completed!",
+          description: `You scored ${result.score}% (${result.earnedPoints}/${result.totalPoints} points)`,
+        });
+
+        // Navigate to results page with backend data
+        navigate('/quiz-result', {
+          state: {
+            result: result,
+            quizTitle: quiz?.title
+          }
+        });
+      },
+      onError: (error) => {
+        toast({
+          title: "Error",
+          description: "Failed to submit quiz. Please try again.",
+          variant: "destructive"
+        });
+      }
+    });
   };
 
   const getQuestionTypeIcon = (type: string) => {
     switch (type) {
-      case 'multiple-choice':
+      case 'video_mcq':
         return <Target className="h-4 w-4" />;
-      case 'true-false':
+      case 'true_false':
         return <CheckCircle className="h-4 w-4" />;
-      case 'fill-blank':
-        return <AlertCircle className="h-4 w-4" />;
       default:
-        return <Target className="h-4 w-4" />;
+        return <HelpCircle className="h-4 w-4" />;
     }
   };
 
@@ -299,7 +259,7 @@ const QuizTakingPage: React.FC = () => {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-xl">{series.title}</CardTitle>
+                <CardTitle className="text-xl">{quiz?.title || 'Quiz'}</CardTitle>
                 <CardDescription>
                   Question {currentQuestionIndex + 1} of {totalQuestions}
                 </CardDescription>
@@ -310,8 +270,8 @@ const QuizTakingPage: React.FC = () => {
                   <span className="font-mono">{formatTime(timeSpent)}</span>
                 </div>
                 <Badge variant="outline" className="flex items-center gap-1">
-                  {getQuestionTypeIcon(currentQuestion.type)}
-                  {currentQuestion.type.replace('-', ' ')}
+                  {getQuestionTypeIcon(currentQuestion.questionType)}
+                  {currentQuestion.questionType === 'video_mcq' ? 'Multiple Choice (Video)' : 'True/False'}
                 </Badge>
               </div>
             </div>
@@ -333,38 +293,54 @@ const QuizTakingPage: React.FC = () => {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle className="text-lg mb-2">{currentQuestion.question}</CardTitle>
-                    {currentQuestion.description && (
+                    <CardTitle className="text-lg mb-2">
+                      {currentQuestion.questionType === 'video_mcq' 
+                        ? 'Watch the video and select the correct answer'
+                        : currentQuestion.questionText
+                      }
+                    </CardTitle>
+                    {currentQuestion.questionType === 'video_mcq' && (
                       <CardDescription className="text-base">
-                        {currentQuestion.description}
+                        Observe the lip movement in the video and choose the correct answer from the options below.
                       </CardDescription>
                     )}
                   </div>
-                  <Badge className={
-                    currentQuestion.difficulty === 'beginner' ? 'bg-green-100 text-green-800' :
-                    currentQuestion.difficulty === 'intermediate' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }>
-                    {currentQuestion.difficulty}
+                  <Badge className="bg-blue-100 text-blue-800">
+                    {currentQuestion.points} point{currentQuestion.points !== 1 ? 's' : ''}
                   </Badge>
                 </div>
               </CardHeader>
               
               <CardContent>
-                {/* Image if available */}
-                {currentQuestion.imageUrl && (
+                {/* Video if available */}
+                {currentQuestion.questionType === 'video_mcq' && currentQuestion.videoClipPath && (
                   <div className="mb-6">
-                    <img 
-                      src={currentQuestion.imageUrl} 
-                      alt="Question illustration"
-                      className="w-full max-w-md mx-auto rounded-lg border"
-                    />
+                    <div className="relative w-full max-w-md mx-auto">
+                      <video 
+                        src={`/api${currentQuestion.videoClipPath}`}
+                        className="w-full rounded-lg border"
+                        controls
+                        muted
+                        loop
+                        autoPlay
+                        onPlay={() => setIsVideoPlaying(true)}
+                        onPause={() => setIsVideoPlaying(false)}
+                      />
+                      <div className="absolute top-2 right-2">
+                        <Badge variant="secondary" className="bg-black/50 text-white">
+                          {isVideoPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                        </Badge>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-600 text-center mt-2">
+                      Video will loop automatically. Watch carefully for lip movements.
+                    </p>
                   </div>
                 )}
 
                 {/* Answer Options */}
                 <div className="space-y-3">
-                  {currentQuestion.type === 'multiple-choice' && currentQuestion.options && (
+                  {currentQuestion.questionType === 'video_mcq' && currentQuestion.options && (
                     <>
                       {currentQuestion.options.map((option, index) => (
                         <motion.button
@@ -395,9 +371,9 @@ const QuizTakingPage: React.FC = () => {
                     </>
                   )}
 
-                  {currentQuestion.type === 'true-false' && (
+                  {currentQuestion.questionType === 'true_false' && (
                     <div className="grid grid-cols-2 gap-4">
-                      {['true', 'false'].map((option) => (
+                      {['True', 'False'].map((option) => (
                         <motion.button
                           key={option}
                           whileHover={{ scale: 1.02 }}

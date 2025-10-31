@@ -104,10 +104,7 @@ export const useContentOperations = (): ContentOperations => {
     type: 'tutorial' | 'quiz' | 'category',
     onSuccess: () => void
   ) => {
-    console.log('DEBUG: handleBulkDelete called', { selectedItems: Array.from(selectedItems), type });
-    
     if (selectedItems.size === 0) {
-      console.log('DEBUG: No items selected');
       toast({
         title: `No ${type}s Selected`,
         description: `Please select ${type}s to delete.`,
@@ -117,30 +114,20 @@ export const useContentOperations = (): ContentOperations => {
     }
 
     try {
-      console.log('DEBUG: Starting bulk delete process');
-      
       for (const itemId of selectedItems) {
-        console.log(`DEBUG: Deleting ${type} with ID:`, itemId);
         switch (type) {
           case 'tutorial':
-            console.log('DEBUG: Calling deleteTutorialMutation for ID:', itemId);
             await deleteTutorialMutation.mutateAsync(parseInt(itemId));
-            console.log('DEBUG: Tutorial delete successful for ID:', itemId);
             break;
           case 'quiz':
-            console.log('DEBUG: Calling deleteQuizMutation for ID:', itemId);
             await deleteQuizMutation.mutateAsync(parseInt(itemId));
-            console.log('DEBUG: Quiz delete successful for ID:', itemId);
             break;
           case 'category':
-            console.log('DEBUG: Calling deleteCategoryMutation for ID:', itemId);
             await deleteCategoryMutation.mutateAsync(parseInt(itemId));
-            console.log('DEBUG: Category delete successful for ID:', itemId);
             break;
         }
       }
       
-      console.log('DEBUG: All deletions completed successfully');
       toast({
         title: `${type === 'tutorial' ? 'Tutorials' : type === 'quiz' ? 'Quizzes' : 'Categories'} Deleted`,
         description: `${selectedItems.size} ${type}(s) have been deleted successfully.`,
@@ -148,7 +135,7 @@ export const useContentOperations = (): ContentOperations => {
       
       onSuccess();
     } catch (error) {
-      console.error('DEBUG: Bulk delete error:', error);
+      console.error('Bulk delete error:', error);
       toast({
         title: "Delete Failed",
         description: `Some ${type}s could not be deleted. Please try again.`,

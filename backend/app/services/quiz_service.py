@@ -8,8 +8,13 @@ from typing import Dict, Any
 from flask import current_app
 
 from ..extensions import db
-from ..models import Quiz, QuizQuestion
-from ..schemas.quiz_schemas import QuizCreateSchema, QuizUpdateSchema, QuizQuerySchema
+from ..models import Quiz, QuizQuestion, QuizAttempt
+from ..models.review import Review
+from ..models.account import Account
+from ..schemas.quiz_schemas import (
+    QuizCreateSchema, QuizUpdateSchema, QuizQuerySchema,
+    QuizQuestionSchema, QuizQuestionUpdateSchema, QuizSubmissionSchema
+)
 from ..services.response_service import ResponseService
 from ..services.error_service import APIError
 from ..utils.id_generator import generate_public_id
@@ -64,7 +69,7 @@ class QuizService:
             elif sort_by == 'views':
                 sort_column = Quiz.views
             elif sort_by == 'rating':
-                sort_column = Quiz.rating
+                sort_column = Quiz.created_at
             else:
                 sort_column = Quiz.created_at
             
@@ -101,10 +106,15 @@ class QuizService:
                     'author': q.author,
                     'thumbnailPath': q.thumbnail_path,
                     'views': q.views,
-                    'rating': float(q.rating) if q.rating else 0.0,
+                    'rating': float(db.session.scalar(sa.select(sa.func.coalesce(sa.func.avg(Review.rating), 0)).where(Review.target_type=='quiz', Review.target_id==q.id)) or 0.0),
                     'totalQuestions': q.total_questions,
                     'estimatedDuration': q.estimated_duration,
                     'tags': q.tags,
+                    'passingScore': q.passing_score,
+                    'maxAttempts': q.max_attempts,
+                    'shuffleQuestions': q.shuffle_questions,
+                    'shuffleAnswers': q.shuffle_answers,
+                    'showResultsImmediately': q.show_results_immediately,
                     'createdAt': q.created_at.isoformat() if q.created_at else None,
                     'updatedAt': q.updated_at.isoformat() if q.updated_at else None,
                 })
@@ -142,10 +152,15 @@ class QuizService:
                 'author': quiz.author,
                 'thumbnailPath': quiz.thumbnail_path,
                 'views': quiz.views,
-                'rating': float(quiz.rating) if quiz.rating else 0.0,
+                'rating': float(db.session.scalar(sa.select(sa.func.coalesce(sa.func.avg(Review.rating), 0)).where(Review.target_type=='quiz', Review.target_id==quiz.id)) or 0.0),
                 'totalQuestions': quiz.total_questions,
                 'estimatedDuration': quiz.estimated_duration,
                 'tags': quiz.tags,
+                'passingScore': quiz.passing_score,
+                'maxAttempts': quiz.max_attempts,
+                'shuffleQuestions': quiz.shuffle_questions,
+                'shuffleAnswers': quiz.shuffle_answers,
+                'showResultsImmediately': quiz.show_results_immediately,
                 'createdAt': quiz.created_at.isoformat() if quiz.created_at else None,
                 'updatedAt': quiz.updated_at.isoformat() if quiz.updated_at else None,
             })
@@ -184,8 +199,12 @@ class QuizService:
             quiz.total_questions = validated_data.get('total_questions', 0)
             quiz.estimated_duration = validated_data.get('estimated_duration', 0)
             quiz.tags = str(validated_data.get('tags', []))
+            quiz.passing_score = validated_data.get('passing_score', 70)
+            quiz.max_attempts = validated_data.get('max_attempts', 3)
+            quiz.shuffle_questions = validated_data.get('shuffle_questions', False)
+            quiz.shuffle_answers = validated_data.get('shuffle_answers', False)
+            quiz.show_results_immediately = validated_data.get('show_results_immediately', True)
             quiz.views = 0
-            quiz.rating = 0.0
             
             db.session.add(quiz)
             db.session.commit()
@@ -365,7 +384,6 @@ class QuizService:
                 quiz.estimated_duration = quiz_data.get('estimated_duration', 0)
                 quiz.tags = str(quiz_data.get('tags', []))
                 quiz.views = 0
-                quiz.rating = 0.0
                 
                 db.session.add(quiz)
             
@@ -431,7 +449,7 @@ class QuizService:
             elif sort_by == 'views':
                 sort_column = Quiz.views
             elif sort_by == 'rating':
-                sort_column = Quiz.rating
+                sort_column = Quiz.created_at
             else:
                 sort_column = Quiz.created_at
             
@@ -474,7 +492,7 @@ class QuizService:
                     'author': s.author,
                     'thumbnailPath': s.thumbnail_path,
                     'views': s.views,
-                    'rating': float(s.rating) if s.rating else 0.0,
+                    'rating': float(db.session.scalar(sa.select(sa.func.coalesce(sa.func.avg(Review.rating), 0)).where(Review.target_type=='quiz', Review.target_id==s.id)) or 0.0),
                     'quizCount': quiz_count,
                     'totalQuestions': s.total_questions,
                     'estimatedDuration': s.estimated_duration,
@@ -540,23 +558,35 @@ class QuizService:
             # execute query
             questions = db.session.scalars(query).all()
             
-            # format response
+            # format response with polymorphic fields
             question_list = []
             for q in questions:
-                # parse incorrect options (stored as JSON string)
-                try:
-                    import json
-                    incorrect_options = json.loads(q.incorrect_options) if q.incorrect_options else []
-                except:
-                    incorrect_options = []
+                # parse incorrect options (stored as JSON string) - only for video_mcq
+                incorrect_options = []
+                if q.question_type == 'video_mcq' and q.incorrect_options:
+                    try:
+                        import json
+                        incorrect_options = json.loads(q.incorrect_options)
+                    except:
+                        incorrect_options = []
                 
-                question_list.append({
+                question_data = {
                     'id': q.id,
                     'quizId': q.quiz_id,
-                    'videoClipPath': q.video_clip_path,
+                    'questionType': q.question_type,
+                    'points': q.points,
+                    'explanation': q.explanation,
                     'correctAnswer': q.correct_answer,
-                    'incorrectOptions': incorrect_options,
-                })
+                }
+                
+                # add type-specific fields
+                if q.question_type == 'video_mcq':
+                    question_data['videoClipPath'] = q.video_clip_path
+                    question_data['incorrectOptions'] = incorrect_options
+                elif q.question_type == 'true_false':
+                    question_data['questionText'] = q.question_text
+                
+                question_list.append(question_data)
             
             pagination = ResponseService.pagination_info(page, per_page, total or 0)
             return ResponseService.success_response(question_list, pagination=pagination)
@@ -568,13 +598,16 @@ class QuizService:
     
     @staticmethod
     def create_quiz_question(quiz_id: int, data: Dict[str, Any]):
-        """Create new question for a quiz"""
+        """Create new question for a quiz with polymorphic support"""
         try:
-            # validate input data
-            required_fields = ['video_clip_path', 'correct_answer', 'incorrect_options']
-            for field in required_fields:
-                if field not in data:
-                    raise APIError(f"Missing required field: {field}", 400)
+            # validate input data using schema
+            schema = QuizQuestionSchema()
+            try:
+                validated_data = schema.load(data)
+                if not isinstance(validated_data, dict):
+                    raise APIError("Invalid data format", 400)
+            except Exception as e:
+                raise APIError(f"Validation failed: {str(e)}", 400)
             
             # verify quiz exists
             quiz = db.session.scalar(
@@ -587,16 +620,23 @@ class QuizService:
             # create question
             question = QuizQuestion()
             question.quiz_id = quiz_id
-            question.video_clip_path = data['video_clip_path']
-            question.correct_answer = data['correct_answer']
+            question.question_type = validated_data['question_type']
+            question.points = validated_data.get('points', 1)
+            question.explanation = validated_data.get('explanation')
+            question.correct_answer = validated_data['correct_answer']
             
-            # handle incorrect options (should be a list)
-            incorrect_options = data['incorrect_options']
-            if isinstance(incorrect_options, list):
+            # handle type-specific fields
+            if validated_data['question_type'] == 'video_mcq':
+                question.video_clip_path = validated_data['video_clip_path']
+                incorrect_options = validated_data.get('incorrect_options', [])
                 import json
-                question.incorrect_options = json.dumps(incorrect_options)
-            else:
-                question.incorrect_options = str(incorrect_options)
+                if isinstance(incorrect_options, list):
+                    question.incorrect_options = json.dumps(incorrect_options)
+                else:
+                    question.incorrect_options = str(incorrect_options)
+            elif validated_data['question_type'] == 'true_false':
+                question.question_text = validated_data['question_text']
+                # video_clip_path and incorrect_options are None for true_false
             
             db.session.add(question)
             db.session.commit()
@@ -623,8 +663,17 @@ class QuizService:
     
     @staticmethod
     def update_quiz_question(quiz_id: int, question_id: int, data: Dict[str, Any]):
-        """Update existing quiz question"""
+        """Update existing quiz question with polymorphic support"""
         try:
+            # validate input data using schema
+            schema = QuizQuestionUpdateSchema()
+            try:
+                validated_data = schema.load(data)
+                if not isinstance(validated_data, dict):
+                    validated_data = {}
+            except Exception:
+                validated_data = {}
+            
             # verify quiz exists
             quiz = db.session.scalar(
                 sa.select(Quiz).where(Quiz.id == quiz_id)
@@ -641,18 +690,39 @@ class QuizService:
             if not question:
                 raise APIError("Quiz question not found", 404)
             
-            # update fields
-            if 'video_clip_path' in data:
-                question.video_clip_path = data['video_clip_path']
-            if 'correct_answer' in data:
-                question.correct_answer = data['correct_answer']
-            if 'incorrect_options' in data:
-                incorrect_options = data['incorrect_options']
-                if isinstance(incorrect_options, list):
+            # update common fields
+            if 'question_type' in validated_data:
+                question.question_type = validated_data['question_type']
+            if 'points' in validated_data:
+                question.points = validated_data['points']
+            if 'explanation' in validated_data:
+                question.explanation = validated_data['explanation']
+            if 'correct_answer' in validated_data:
+                question.correct_answer = validated_data['correct_answer']
+            
+            # update type-specific fields
+            updated_type = validated_data.get('question_type', question.question_type)
+            
+            if updated_type == 'video_mcq':
+                if 'video_clip_path' in validated_data:
+                    question.video_clip_path = validated_data['video_clip_path']
+                if 'incorrect_options' in validated_data:
+                    incorrect_options = validated_data['incorrect_options']
                     import json
-                    question.incorrect_options = json.dumps(incorrect_options)
-                else:
-                    question.incorrect_options = str(incorrect_options)
+                    if isinstance(incorrect_options, list):
+                        question.incorrect_options = json.dumps(incorrect_options)
+                    else:
+                        question.incorrect_options = str(incorrect_options)
+                # clear true_false fields if changing type
+                if 'question_type' in validated_data:
+                    question.question_text = None
+            elif updated_type == 'true_false':
+                if 'question_text' in validated_data:
+                    question.question_text = validated_data['question_text']
+                # clear video_mcq fields if changing type
+                if 'question_type' in validated_data:
+                    question.video_clip_path = None
+                    question.incorrect_options = None
             
             db.session.commit()
             
@@ -709,3 +779,230 @@ class QuizService:
         except Exception as e:
             db.session.rollback()
             raise APIError(f"Failed to delete quiz question: {str(e)}", 500)
+    
+    @staticmethod
+    def get_quiz_for_taking(quiz_id: int, user_id: int):
+        """get quiz for user to take (apply shuffling, check attempt limits)"""
+        try:
+            import random
+            import json
+            
+            # verify quiz exists and is active
+            quiz = db.session.scalar(
+                sa.select(Quiz).where(Quiz.id == quiz_id)
+                .where(Quiz.status == 'active')
+            )
+            if not quiz:
+                raise APIError("Quiz not found or not available", 404)
+            
+            # check attempt limits
+            if quiz.max_attempts > 0:
+                attempt_count = db.session.scalar(
+                    sa.select(sa.func.count()).select_from(QuizAttempt)
+                    .where(QuizAttempt.user_id == user_id)
+                    .where(QuizAttempt.quiz_id == quiz_id)
+                )
+                if attempt_count and attempt_count >= quiz.max_attempts:
+                    raise APIError(f"Maximum attempts ({quiz.max_attempts}) reached for this quiz", 403)
+            
+            # get all questions
+            questions_query = sa.select(QuizQuestion).where(QuizQuestion.quiz_id == quiz_id)
+            questions = list(db.session.scalars(questions_query).all())
+            
+            if not questions:
+                raise APIError("Quiz has no questions", 400)
+            
+            # shuffle questions if enabled
+            if quiz.shuffle_questions:
+                random.shuffle(questions)
+            
+            # format questions with answers handling
+            question_list = []
+            for q in questions:
+                question_data = {
+                    'id': q.id,
+                    'questionType': q.question_type,
+                    'points': q.points,
+                }
+                
+                if q.question_type == 'video_mcq':
+                    # parse incorrect options
+                    incorrect_options = []
+                    if q.incorrect_options:
+                        try:
+                            incorrect_options = json.loads(q.incorrect_options)
+                        except:
+                            incorrect_options = []
+                    
+                    # combine correct and incorrect for shuffle
+                    all_options = [q.correct_answer] + incorrect_options
+                    
+                    # shuffle answers if enabled
+                    if quiz.shuffle_answers:
+                        random.shuffle(all_options)
+                    
+                    question_data['videoClipPath'] = q.video_clip_path
+                    question_data['options'] = all_options
+                    # don't send correct answer to client
+                elif q.question_type == 'true_false':
+                    question_data['questionText'] = q.question_text
+                    # for true_false, options are always ['True', 'False']
+                    if quiz.shuffle_answers:
+                        tf_options = ['True', 'False']
+                        random.shuffle(tf_options)
+                        question_data['options'] = tf_options
+                    else:
+                        question_data['options'] = ['True', 'False']
+                    # don't send correct answer to client
+                
+                question_list.append(question_data)
+            
+            # return quiz data without correct answers
+            return ResponseService.success_response({
+                'id': quiz.id,
+                'publicId': quiz.public_id,
+                'title': quiz.title,
+                'description': quiz.description,
+                'totalQuestions': len(question_list),
+                'passingScore': quiz.passing_score,
+                'estimatedDuration': quiz.estimated_duration,
+                'questions': question_list
+            })
+            
+        except APIError:
+            raise
+        except Exception as e:
+            raise APIError(f"Failed to get quiz for taking: {str(e)}", 500)
+    
+    @staticmethod
+    def submit_quiz(quiz_id: int, user_id: int, data: Dict[str, Any]):
+        """submit quiz answers and grade"""
+        try:
+            import json
+            from datetime import datetime
+            
+            # validate submission data
+            schema = QuizSubmissionSchema()
+            try:
+                validated_data = schema.load(data)
+                if not isinstance(validated_data, dict):
+                    raise APIError("Invalid data format", 400)
+            except Exception as e:
+                raise APIError(f"Validation failed: {str(e)}", 400)
+            
+            # verify quiz exists
+            quiz = db.session.scalar(
+                sa.select(Quiz).where(Quiz.id == quiz_id)
+                .where(Quiz.status == 'active')
+            )
+            if not quiz:
+                raise APIError("Quiz not found", 404)
+            
+            # get all questions with correct answers for grading
+            questions_query = sa.select(QuizQuestion).where(QuizQuestion.quiz_id == quiz_id)
+            questions = list(db.session.scalars(questions_query).all())
+            
+            if not questions:
+                raise APIError("Quiz has no questions", 400)
+            
+            # create question lookup
+            question_map = {q.id: q for q in questions}
+            user_answers = validated_data.get('answers', {})
+            
+            # grade the quiz
+            total_points = sum(q.points for q in questions)
+            earned_points = 0
+            question_results = []
+            
+            for q in questions:
+                user_answer = user_answers.get(str(q.id), '').strip()
+                correct_answer = q.correct_answer.strip()
+                
+                # case-insensitive comparison for true/false
+                if q.question_type == 'true_false':
+                    is_correct = user_answer.lower() == correct_answer.lower()
+                else:
+                    is_correct = user_answer == correct_answer
+                
+                if is_correct:
+                    earned_points += q.points
+                
+                question_result = {
+                    'questionId': q.id,
+                    'questionType': q.question_type,
+                    'userAnswer': user_answer,
+                    'correctAnswer': correct_answer,
+                    'isCorrect': is_correct,
+                    'points': q.points,
+                    'earnedPoints': q.points if is_correct else 0,
+                    'explanation': q.explanation
+                }
+                
+                # add type-specific fields
+                if q.question_type == 'video_mcq':
+                    question_result['videoClipPath'] = q.video_clip_path
+                    # parse incorrect options for display
+                    incorrect_options = []
+                    if q.incorrect_options:
+                        try:
+                            incorrect_options = json.loads(q.incorrect_options)
+                        except:
+                            incorrect_options = []
+                    question_result['allOptions'] = [q.correct_answer] + incorrect_options
+                elif q.question_type == 'true_false':
+                    question_result['questionText'] = q.question_text
+                
+                question_results.append(question_result)
+            
+            # calculate score percentage
+            score = (earned_points / total_points * 100) if total_points > 0 else 0
+            passed = score >= quiz.passing_score
+            
+            # determine attempt number
+            attempt_count = db.session.scalar(
+                sa.select(sa.func.count()).select_from(QuizAttempt)
+                .where(QuizAttempt.user_id == user_id)
+                .where(QuizAttempt.quiz_id == quiz_id)
+            )
+            attempt_number = (attempt_count or 0) + 1
+            
+            # check attempt limits before saving
+            if quiz.max_attempts > 0 and attempt_number > quiz.max_attempts:
+                raise APIError(f"Maximum attempts ({quiz.max_attempts}) exceeded", 403)
+            
+            # save quiz attempt
+            attempt_public_id = generate_public_id(QuizAttempt, "QAT")
+            attempt = QuizAttempt()
+            attempt.public_id = attempt_public_id
+            attempt.user_id = user_id
+            attempt.quiz_id = quiz_id
+            attempt.attempt_number = attempt_number
+            attempt.score = score
+            attempt.passed = passed
+            attempt.answers_json = json.dumps(user_answers)
+            attempt.completion_date = datetime.utcnow()
+            
+            db.session.add(attempt)
+            db.session.commit()
+            
+            # return results
+            result_data = {
+                'attemptId': attempt.id,
+                'publicId': attempt.public_id,
+                'attemptNumber': attempt_number,
+                'score': round(score, 2),
+                'earnedPoints': earned_points,
+                'totalPoints': total_points,
+                'passed': passed,
+                'passingScore': quiz.passing_score,
+                'showResultsImmediately': quiz.show_results_immediately,
+                'questions': question_results
+            }
+            
+            return ResponseService.success_response(result_data)
+            
+        except APIError:
+            raise
+        except Exception as e:
+            db.session.rollback()
+            raise APIError(f"Failed to submit quiz: {str(e)}", 500)

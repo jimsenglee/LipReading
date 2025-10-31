@@ -441,15 +441,9 @@ const CreateTutorialSeriesWizard: React.FC = () => {
   };
 
   const handleSubmit = async (publishNow: boolean = false) => {
-    console.log('DEBUG: handleSubmit called', { publishNow, editMode, tutorialId });
-    
     const validationResult = validateStep(3);
-    console.log('DEBUG: validateStep(3) result:', validationResult);
     
     if (!validationResult) {
-      console.log('DEBUG: Validation failed, returning early');
-      console.log('DEBUG: Current errors:', errors);
-      console.log('DEBUG: Videos count:', tutorialSeries.videos.length);
       toast({
         title: "Validation Failed",
         description: "Please complete all required fields before publishing.",
@@ -480,7 +474,6 @@ const CreateTutorialSeriesWizard: React.FC = () => {
       };
       
       if (editMode && tutorialId) {
-        console.log('DEBUG: Edit mode - updating existing tutorial', { tutorialId, publishNow });
         // Update existing tutorial
         const result = await updateTutorialMutation.mutateAsync({
           id: tutorialId,
@@ -489,7 +482,6 @@ const CreateTutorialSeriesWizard: React.FC = () => {
             status: publishNow ? 'published' : 'draft'
           }
         });
-        console.log('DEBUG: Update result', result);
         
         if (result.success) {
           toast({
@@ -502,10 +494,8 @@ const CreateTutorialSeriesWizard: React.FC = () => {
           navigate('/admin/content');
         }
       } else {
-        console.log('DEBUG: Create mode - creating new tutorial', { publishNow });
         // Create new tutorial
         const result = await createTutorialSeriesMutation.mutateAsync(seriesData);
-        console.log('DEBUG: Create result', result);
         
         if (result.success) {
           toast({
@@ -582,7 +572,6 @@ const CreateTutorialSeriesWizard: React.FC = () => {
                   minHeight: '56px'
                 }}
                 onClick={editMode ? () => {
-                  console.log('DEBUG: Step clicked in edit mode', { stepId: step.id, currentStep });
                   setCurrentStep(step.id);
                 } : undefined}
               >

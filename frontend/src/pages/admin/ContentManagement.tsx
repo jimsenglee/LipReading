@@ -603,8 +603,10 @@ const ContentManagement: React.FC = () => {
       label: 'View',
       icon: <Eye className="h-4 w-4" />,
       onClick: (quiz) => {
-        // Navigate to quiz detail page
-        navigate(`/admin/content/quizzes/${quiz.id}`);
+        // Show preview modal instead of navigating to non-existent route
+        setPreviewItem(quiz);
+        setPreviewType('quiz');
+        setIsPreviewModalOpen(true);
       }
     },
     {
@@ -857,21 +859,21 @@ const ContentManagement: React.FC = () => {
             className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
           >
             <BookOpen className="h-4 w-4" />
-            Tutorial Series ({tutorialSeries.length})
+            Tutorial Series ({tutorialsResponse?.pagination?.total_count || 0})
           </TabsTrigger>
           <TabsTrigger 
             value="quizzes" 
             className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
           >
             <Brain className="h-4 w-4" />
-            Quiz Series ({quizSeries.length})
+            Quiz Series ({quizzesResponse?.pagination?.total_count || quizSeries.length || 0})
           </TabsTrigger>
           <TabsTrigger 
             value="categories" 
             className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
           >
             <Tag className="h-4 w-4" />
-            Categories ({categoryList.length})
+            Categories ({categoriesResponse?.pagination?.total_count || categoryList.length || 0})
           </TabsTrigger>
           {getDraftsCount() > 0 && (
             <TabsTrigger 
@@ -1142,18 +1144,13 @@ const ContentManagement: React.FC = () => {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction 
               onClick={async () => {
-                console.log('DEBUG: Individual delete clicked', { deleteType, deleteId });
                 try {
                   if (deleteType === 'tutorial') {
-                    console.log('DEBUG: Deleting tutorial with ID:', deleteId);
                     // Use API client for tutorial delete
                     const apiClient = (await import('@/lib/api')).default;
-                    console.log('DEBUG: Calling apiClient.deleteTutorial');
                     const result = await apiClient.deleteTutorial(parseInt(deleteId));
-                    console.log('DEBUG: Tutorial delete result:', result);
                     
                     if (result.success || (result.message && result.message.includes('successfully'))) {
-                      console.log('DEBUG: Tutorial delete successful');
                       toast({
                         title: "Tutorial Deleted",
                         description: "The tutorial has been successfully deleted."
@@ -1165,19 +1162,14 @@ const ContentManagement: React.FC = () => {
                         refetchTutorials();
                       }
                     } else {
-                      console.log('DEBUG: Tutorial delete failed:', result.message);
                       throw new Error(result.message || 'Failed to delete tutorial');
                     }
                   } else if (deleteType === 'quiz') {
-                    console.log('DEBUG: Deleting quiz with ID:', deleteId);
                     // Use API client for quiz delete
                     const apiClient = (await import('@/lib/api')).default;
-                    console.log('DEBUG: Calling apiClient.deleteQuiz');
                     const result = await apiClient.deleteQuiz(parseInt(deleteId));
-                    console.log('DEBUG: Quiz delete result:', result);
                     
                     if (result.message && result.message.includes('successfully')) {
-                      console.log('DEBUG: Quiz delete successful');
                       toast({
                         title: "Quiz Deleted",
                         description: "The quiz has been successfully deleted."
@@ -1185,19 +1177,14 @@ const ContentManagement: React.FC = () => {
                       // Refresh the data
                       refetchQuizzes();
                     } else {
-                      console.log('DEBUG: Quiz delete failed:', result.message);
                       throw new Error(result.message || 'Failed to delete quiz');
                     }
                   } else if (deleteType === 'category') {
-                    console.log('DEBUG: Deleting category with ID:', deleteId);
                     // Use API client for category delete
                     const apiClient = (await import('@/lib/api')).default;
-                    console.log('DEBUG: Calling apiClient.deleteCategory');
                     const result = await apiClient.deleteCategory(parseInt(deleteId));
-                    console.log('DEBUG: Category delete result:', result);
                     
                     if (result.message && result.message.includes('successfully')) {
-                      console.log('DEBUG: Category delete successful');
                       toast({
                         title: "Category Deleted",
                         description: "The category has been successfully deleted."
@@ -1205,12 +1192,11 @@ const ContentManagement: React.FC = () => {
                       // Refresh the data
                       refetchCategories();
                     } else {
-                      console.log('DEBUG: Category delete failed:', result.message);
                       throw new Error(result.message || 'Failed to delete category');
                     }
                   }
                 } catch (error) {
-                  console.error('DEBUG: Individual delete error:', error);
+                  console.error('Individual delete error:', error);
                   toast({
                     variant: "destructive",
                     title: "Delete Failed",
@@ -1241,7 +1227,6 @@ const ContentManagement: React.FC = () => {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
-                console.log('DEBUG: Multi-delete confirmed', { multiDeleteType });
                 try {
                   if (multiDeleteType === 'tutorial') {
                     await handleTutorialBulkDelete();
@@ -1258,7 +1243,7 @@ const ContentManagement: React.FC = () => {
 
                   setIsMultiDeleteModalOpen(false);
                 } catch (error) {
-                  console.error('DEBUG: Multi-delete error:', error);
+                  console.error('Multi-delete error:', error);
                   toast({
                     title: "Delete Failed",
                     description: `Failed to delete ${multiDeleteType}s. Please try again.`,

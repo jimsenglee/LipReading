@@ -161,3 +161,20 @@ export const useTutorialSeriesById = (seriesId: number) => {
     enabled: !!seriesId,
   });
 };
+
+// user-side quiz queries
+export const useQuizForTaking = (quizId: number) => {
+  return useQuery({
+    queryKey: ['quiz-taking', quizId],
+    queryFn: () => apiClient.getQuizForTaking(quizId),
+    enabled: !!quizId,
+  });
+};
+
+export const useQuizSeriesById = (quizId: number) => {
+  return useQuery({
+    queryKey: ['quiz-series', quizId],
+    queryFn: () => apiClient.getQuizById(quizId),
+    enabled: !!quizId,
+  });
+};

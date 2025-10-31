@@ -29,7 +29,6 @@ class Tutorial(db.Model):
     author: so.Mapped[str] = so.mapped_column(sa.String(255), nullable=False, default='System')
     thumbnail_path: so.Mapped[Optional[str]] = so.mapped_column(sa.String(255))
     views: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False, default=0)
-    rating: so.Mapped[Optional[float]] = so.mapped_column(sa.DECIMAL(3, 2), default=0.0)
     created_at: so.Mapped[datetime] = so.mapped_column(sa.DateTime, nullable=False, default=datetime.utcnow)
     updated_at: so.Mapped[datetime] = so.mapped_column(sa.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     

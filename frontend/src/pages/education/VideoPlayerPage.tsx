@@ -26,19 +26,11 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import { useToast } from '@/hooks/use-toast';
-type Video = { 
-  id: string; 
-  title: string; 
-  duration?: number; 
-  url?: string;
-  videoUrl?: string;
-  description?: string;
-  order?: number;
-  isAdvanced?: boolean;
-};
-type TutorialSeries = { id: number; title: string; description?: string; videos?: Video[] };
+import { useTutorialSeriesById } from '@/services/content/contentQueries';
+import { API_BASE_URL } from '@/lib/constants';
+import { Video, ApiTutorial } from '@/lib/api';
 const formatDuration = (n?: number) => (n ? `${Math.round(n/60)} min` : '0 min');
-const getProgressPercentage = (p: any, s: TutorialSeries) => {
+const getProgressPercentage = (p: any, s: ApiTutorial) => {
   if (!p || !s.videos) return 0;
   const completedCount = p.completedVideos?.length || 0;
   const total = s.videos.length || 1;
@@ -219,6 +211,9 @@ const VideoPlayerPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
+  // fetch series data from API
+  const seriesQuery = useTutorialSeriesById(Number(seriesId));
+  
   // Video player state
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -230,10 +225,10 @@ const VideoPlayerPage: React.FC = () => {
   const [showControls, setShowControls] = useState(true);
   const [isVideoCompleted, setIsVideoCompleted] = useState(false);
 
-  // Find series and video data - will be fetched from API when implemented
-  const series: TutorialSeries | undefined = undefined;
-  const video: Video | undefined = undefined;
-  const userProgress: any = undefined;
+  // get series and video data from API response
+  const series = seriesQuery.data;
+  const video = series?.videos?.find(v => v.id === Number(videoId));
+  const userProgress: any = undefined; // will implement later
 
   const markVideoCompleted = React.useCallback(async () => {
     try {
@@ -306,7 +301,7 @@ const VideoPlayerPage: React.FC = () => {
     );
   }
 
-  const currentVideoIndex = series.videos.findIndex(v => v.id === videoId);
+  const currentVideoIndex = series.videos.findIndex(v => v.id === Number(videoId));
   const previousVideo = currentVideoIndex > 0 ? series.videos[currentVideoIndex - 1] : null;
   const nextVideo = currentVideoIndex < series.videos.length - 1 ? series.videos[currentVideoIndex + 1] : null;
   const isVideoCompletedByUser = userProgress?.completedVideos.includes(videoId) || false;
@@ -402,7 +397,7 @@ const VideoPlayerPage: React.FC = () => {
                   <video
                     ref={videoRef}
                     className="w-full h-full object-contain"
-                    poster={`https://via.placeholder.com/1280x720/1e293b/e2e8f0?text=${encodeURIComponent(video.title)}`}
+                    poster={`${API_BASE_URL}${series?.thumbnailPath}`}
                     onLoadedMetadata={() => {
                       if (videoRef.current) {
                         setDuration(videoRef.current.duration);
@@ -411,7 +406,7 @@ const VideoPlayerPage: React.FC = () => {
                       }
                     }}
                   >
-                    <source src={video.videoUrl} type="video/mp4" />
+                    <source src={`${API_BASE_URL}${video?.videoPath}`} type="video/mp4" />
                     Your browser does not support the video tag.
                   </video>
 
@@ -486,8 +481,8 @@ const VideoPlayerPage: React.FC = () => {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Badge variant={video.isAdvanced ? "destructive" : "secondary"}>
-                        Video {video.order}
+                      <Badge variant="secondary">
+                        Video {video.videoOrder || 1}
                       </Badge>
                       {isVideoCompletedByUser && (
                         <Badge variant="outline" className="text-green-600 border-green-600">
@@ -498,7 +493,7 @@ const VideoPlayerPage: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-500">
                       <Clock className="h-4 w-4" />
-                      {formatDuration(video.duration)}
+                      {formatDuration(video.videoDuration)}
                     </div>
                   </div>
                   <CardTitle className="text-xl">{video.title}</CardTitle>
@@ -617,7 +612,7 @@ const VideoPlayerPage: React.FC = () => {
                   <div className="max-h-80 overflow-y-auto">
                     {series.videos.map((seriesVideo, index) => {
                       const isCompleted = userProgress?.completedVideos.includes(seriesVideo.id) || false;
-                      const isCurrent = seriesVideo.id === videoId;
+                      const isCurrent = seriesVideo.id === Number(videoId);
                       
                       return (
                         <div
@@ -645,11 +640,8 @@ const VideoPlayerPage: React.FC = () => {
                               </h4>
                               <div className="flex items-center justify-between mt-1">
                                 <span className="text-xs text-gray-500">
-                                  {formatDuration(seriesVideo.duration)}
+                                  {formatDuration(seriesVideo.videoDuration)}
                                 </span>
-                                {seriesVideo.isAdvanced && (
-                                  <Badge variant="outline" className="text-xs">Advanced</Badge>
-                                )}
                               </div>
                             </div>
                           </div>

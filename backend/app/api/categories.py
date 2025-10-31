@@ -16,18 +16,11 @@ from . import bp
 def list_categories():
     """Get paginated list of categories with filtering and sorting"""
     try:
-        print(f"DEBUG: list_categories called with args: {request.args}")
         result = CategoryService.get_categories(request.args)
-        print(f"DEBUG: CategoryService.get_categories returned: {type(result)}")
-        # Print the actual response data
-        if hasattr(result, 'data'):
-            print(f"DEBUG: Response data: {result.data}")
         return result
     except APIError as e:
-        print(f"DEBUG: APIError in list_categories: {e}")
         return handle_api_error(e)
     except Exception as e:
-        print(f"DEBUG: Exception in list_categories: {type(e).__name__}: {str(e)}")
         import traceback
         traceback.print_exc()
         return ResponseService.error_response(f"Failed to retrieve categories: {str(e)}", 500)

@@ -27,8 +27,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import { useToast } from '@/hooks/use-toast';
-import { useTutorialReviews, useUserReview } from '@/services/reviews/reviewQueries';
-import { useSubmitReview } from '@/services/reviews/reviewMutations';
+import { useQuizSeriesById } from '@/services/content/contentQueries';
+import { API_BASE_URL } from '@/lib/constants';
 type QuizSeries = {
   id: string;
   title: string;
@@ -148,34 +148,52 @@ const PrerequisitesModal: React.FC<PrerequisitesModalProps> = ({
   );
 };
 
+// helper: safely parse a DB field that may be a JSON array, plain array, or string
+const parseArrayField = (value: any, fallback: any[] = []) => {
+  if (!value) return fallback;
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(parsed) ? parsed : fallback;
+  } catch (e) {
+    console.debug('[QuizSeriesDetailPage] failed to parse array field', { value, e });
+    return fallback;
+  }
+};
+
+console.debug('[DEBUG MOUNT] QuizSeriesDetailPage is mounting');
+
 const QuizSeriesDetailPage: React.FC = () => {
+  // All hooks at the very top...
   const { seriesId } = useParams<{ seriesId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [showPrerequisitesModal, setShowPrerequisitesModal] = useState(false);
-  
-  // feedback state
   const [showWriteReview, setShowWriteReview] = useState(false);
   const [userRating, setUserRating] = useState(0);
   const [userReview, setUserReview] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const quizId = Number(seriesId) || 0;
+  // Query hooks
+  const quizSeriesQuery = useQuizSeriesById(quizId);
 
-  // real review data integration
-  const tutorialId = parseInt(seriesId || '1');
-  const reviewsQuery = useTutorialReviews(tutorialId);
-  const userReviewQuery = useUserReview(tutorialId);
-  const submitReviewMutation = useSubmitReview();
-
-  // find the series data - will be fetched from API when implemented
-  const series: QuizSeries | undefined = undefined;
-  const userProgress: UserQuizProgress | undefined = undefined;
-
-  if (!series) {
+  if (quizSeriesQuery.isLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Loading Quiz Series...</h1>
+          <p className="text-gray-600">Please wait while we load the quiz series data.</p>
+        </div>
+      </div>
+    );
+  }
+  if (quizSeriesQuery.isError || !quizSeriesQuery.data) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Quiz Series Not Found</h1>
-          <p className="text-gray-600 mb-4">The quiz series you're looking for doesn't exist.</p>
           <Button onClick={() => navigate('/education')} className="bg-primary hover:bg-primary/90">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Education
@@ -185,83 +203,77 @@ const QuizSeriesDetailPage: React.FC = () => {
     );
   }
 
-  const progressPercentage = userProgress ? getQuizProgressPercentage(userProgress, series) : 0;
-  const isStarted = userProgress && userProgress.status !== 'not-started';
-  const isCompleted = userProgress?.status === 'completed';
+  // Print the full query object and payload in the UI and console
+  console.debug('quizSeriesQuery full object:', quizSeriesQuery);
+  console.debug('quizSeriesQuery.data:', quizSeriesQuery.data);
 
-  const breadcrumbItems = [
-    { title: 'Dashboard', href: '/dashboard' },
-    { title: 'Education', href: '/education' },
-    { title: 'Quizzes', href: '/education/quizzes' },
-    { title: series.title }
-  ];
+  let quizRawDebug = '';
+  try {
+    quizRawDebug = JSON.stringify(quizSeriesQuery.data, null, 2);
+  } catch (e) {
+    quizRawDebug = '[Could not stringify quizSeriesQuery.data]';
+  }
 
-  const handleStartQuiz = async () => {
-    const skipWarnings = localStorage.getItem('skipPrerequisiteWarnings') === 'true';
-    
-    if (series.prerequisites && series.prerequisites.length > 0 && !skipWarnings && !isStarted) {
-      setShowPrerequisitesModal(true);
-    } else {
-      navigateToQuiz();
-    }
+  // after the early return guards, do NOT return; instead render a debug panel inline
+
+  const rawQuizData: any = quizSeriesQuery.data; // unwrapped quiz object
+  console.debug('quizSeriesQuery.data (unwrapped quiz):', rawQuizData);
+
+  // map fields from unwrapped data
+  const series: QuizSeries = {
+    id: String(rawQuizData.id),
+    title: rawQuizData.title || '',
+    difficulty: rawQuizData.difficulty || 'beginner',
+    category: String(rawQuizData.categoryId ?? rawQuizData.category ?? ''),
+    detailedDescription: rawQuizData.description ?? '',
+    totalQuestions: rawQuizData.totalQuestions ?? rawQuizData.total_questions ?? 0,
+    estimatedCompletionTime: rawQuizData.estimatedDuration ?? rawQuizData.estimated_duration ?? 'N/A',
+    rating: typeof rawQuizData.rating === 'object' ? { ...rawQuizData.rating }
+      : { average: rawQuizData.rating || 0, totalReviews: rawQuizData.views || 0 },
+    prerequisites: parseArrayField(rawQuizData.prerequisites),
+    learningObjectives: parseArrayField(rawQuizData.learningObjectives ?? rawQuizData.learning_objectives),
+    tags: parseArrayField(rawQuizData.tags),
+    thumbnailUrl: rawQuizData.thumbnailPath ? `${API_BASE_URL}${rawQuizData.thumbnailPath}` : (rawQuizData.thumbnail_url || ''),
   };
 
+  // navigation debug helpers
+  const debugNavPath = series?.id ? `/education/quiz/${series.id}/take` : '(invalid id)';
+  const debugNavOk = !!series?.id;
+
+  const userProgress: UserQuizProgress | undefined = undefined;
+  const progressPercentage = 0;
+  const isStarted = false;
+  const isCompleted = false;
+
   const navigateToQuiz = () => {
-    // In a real app, this would navigate to the quiz taking interface
+    if (!series?.id) return;
     navigate(`/education/quiz/${series.id}/take`);
+  };
+
+  const handleStartQuiz = () => {
+    if (!series?.id) return;
+    navigateToQuiz();
   };
 
   const handleModalContinue = () => {
     navigateToQuiz();
-    setShowPrerequisitesModal(false);
   };
 
-  // Feedback handling functions
+  // placeholder (no-op) for removed review submission
   const handleSubmitReview = async () => {
-    if (userRating === 0) {
-      toast({
-        variant: "destructive",
-        title: "Rating Required",
-        description: "Please provide a star rating for this quiz series.",
-      });
-      return;
-    }
-
-    setIsSubmittingReview(true);
-    
-    try {
-      // use real review submission API
-      await submitReviewMutation.mutateAsync({
-        tutorialId,
-        data: {
-          rating: userRating,
-          reviewText: userReview || undefined
-        }
-      });
-      
-      toast({
-        title: "Review Submitted!",
-        description: "Thank you for your feedback. It helps other learners.",
-      });
-      
-      // Reset form
-      setUserRating(0);
-      setUserReview('');
-      setShowWriteReview(false);
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Submission Failed",
-        description: "Please try again later.",
-      });
-    } finally {
-      setIsSubmittingReview(false);
-    }
+    toast({ title: 'Reviews for quizzes not yet implemented', description: 'Coming soon', variant: 'default' });
   };
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-6xl">
-      <AnimatedBreadcrumb items={breadcrumbItems} />
+      {/* breadcrumb and UI */}
+      <AnimatedBreadcrumb items={[
+        { title: 'Dashboard', href: '/dashboard' },
+        { title: 'Education', href: '/education' },
+        { title: 'Quizzes', href: '/education/quizzes' },
+        { title: series.title }
+      ]} />
+
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-6">
         {/* Main Content */}
@@ -272,24 +284,14 @@ const QuizSeriesDetailPage: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
           >
             <Card className="border-primary/20">
-              <div className="relative">
-                <img 
-                  src={series.thumbnailUrl} 
-                  alt={series.title}
-                  className="w-full h-64 object-cover rounded-t-lg"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = 'https://via.placeholder.com/600x300/e2e8f0/64748b?text=Quiz+Series';
-                  }}
-                />
-                <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1 rounded flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  {series.estimatedCompletionTime}
-                </div>
-                <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded flex items-center gap-2">
-                  <Brain className="h-4 w-4" />
-                  Quiz Series
-                </div>
+              {/* Thumbnail section in main content card: replace image with styled div */}
+              <div className="relative w-full h-64 bg-gradient-to-r from-violet-200 to-fuchsia-200 flex flex-col items-center justify-center rounded-t-lg border-b border-primary/10">
+                <span className="text-5xl font-black tracking-wide text-primary drop-shadow-md">
+                  {series.title || 'Quiz Series'}
+                </span>
+                <span className="mt-3 text-2xl font-medium text-gray-800 text-center px-6">
+                  {series.detailedDescription || 'Practice your lip reading skills with multiple questions!'}
+                </span>
               </div>
               
               <CardHeader>
@@ -326,8 +328,8 @@ const QuizSeriesDetailPage: React.FC = () => {
                   </div>
                   <div className="text-center">
                     <Users className="h-6 w-6 text-primary mx-auto mb-2" />
-                    <div className="text-lg font-semibold">{series.rating.totalReviews}</div>
-                    <div className="text-sm text-gray-600">Students</div>
+                    <div className="text-lg font-semibold">0</div>
+                    <div className="text-sm text-gray-600">Participants</div>
                   </div>
                   <div className="text-center">
                     <Award className="h-6 w-6 text-primary mx-auto mb-2" />
@@ -350,7 +352,7 @@ const QuizSeriesDetailPage: React.FC = () => {
                 )}
 
                 {/* Progress */}
-                {isStarted && (
+                {userProgress && (
                   <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-6">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium text-primary">Your Progress</span>
@@ -499,13 +501,13 @@ const QuizSeriesDetailPage: React.FC = () => {
                   <div className="text-center space-y-3">
                     <div className="flex items-center justify-center gap-2">
                       <RatingDisplay 
-                        rating={reviewsQuery.data?.averageRating || 0} 
-                        totalReviews={reviewsQuery.data?.totalReviews || 0}
+                        rating={series.rating.average} 
+                        totalReviews={series.rating.totalReviews}
                         size="lg"
                       />
                     </div>
                     <p className="text-sm text-gray-600">
-                      Based on {reviewsQuery.data?.totalReviews || 0} community reviews
+                      Based on {series.rating.totalReviews} community reviews
                     </p>
                     <Button 
                       onClick={() => setShowWriteReview(!showWriteReview)}

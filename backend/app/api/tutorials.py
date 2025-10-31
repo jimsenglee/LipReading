@@ -16,18 +16,11 @@ from . import bp
 def list_tutorials():
     """Get paginated list of tutorials with filtering and sorting"""
     try:
-        print(f"DEBUG: list_tutorials called with args: {request.args}")
         result = TutorialService.get_tutorials(request.args)
-        print(f"DEBUG: TutorialService.get_tutorials returned: {type(result)}")
-        # Print the actual response data
-        if hasattr(result, 'data'):
-            print(f"DEBUG: Response data: {result.data}")
         return result
     except APIError as e:
-        print(f"DEBUG: APIError in list_tutorials: {e}")
         return handle_api_error(e)
     except Exception as e:
-        print(f"DEBUG: Exception in list_tutorials: {type(e).__name__}: {str(e)}")
         import traceback
         traceback.print_exc()
         return ResponseService.error_response(f"Failed to retrieve tutorials: {str(e)}", 500)
@@ -180,15 +173,11 @@ def delete_tutorial_series(series_id: int):
 def get_tutorial_file_url(tutorial_id: int, file_type: str):
     """Get file URL for tutorial files (public endpoint for user education)"""
     try:
-        print(f"DEBUG: get_tutorial_file_url called with tutorial_id: {tutorial_id}, file_type: {file_type}")
         result = TutorialService.get_tutorial_file_url(tutorial_id, file_type)
-        print(f"DEBUG: TutorialService.get_tutorial_file_url returned: {type(result)}")
         return result
     except APIError as e:
-        print(f"DEBUG: APIError in get_tutorial_file_url: {e}")
         return handle_api_error(e)
     except Exception as e:
-        print(f"DEBUG: Exception in get_tutorial_file_url: {type(e).__name__}: {str(e)}")
         import traceback
         traceback.print_exc()
         return ResponseService.error_response(f"Failed to get tutorial file URL: {str(e)}", 500)

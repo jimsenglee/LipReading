@@ -10,6 +10,7 @@ from flask import current_app
 
 from ..extensions import db
 from ..models import Tutorial, Category
+from ..models.review import Review
 from ..schemas.tutorial_schemas import TutorialCreateSchema, TutorialUpdateSchema, TutorialQuerySchema
 from ..services.response_service import ResponseService
 from ..services.error_service import APIError, FileAccessError, ValidationError, create_file_access_error, create_validation_error
@@ -100,7 +101,7 @@ class TutorialService:
                     'author': t.author,
                     'thumbnailPath': t.thumbnail_path,
                     'views': t.views,
-                    'rating': float(t.rating) if t.rating else 0.0,
+                    'rating': float(db.session.scalar(sa.select(sa.func.coalesce(sa.func.avg(Review.rating), 0)).where(Review.target_type=='tutorial', Review.target_id==t.id)) or 0.0),
                     'createdAt': t.created_at.isoformat() if t.created_at else None,
                     'updatedAt': t.updated_at.isoformat() if t.updated_at else None,
                     'videoDuration': t.video_duration, # add video duration field
@@ -152,7 +153,7 @@ class TutorialService:
                 'seriesTitle': tutorial.video_title,
                 'orderInSeries': tutorial.video_order,
                 'views': tutorial.views,
-                'rating': float(tutorial.rating) if tutorial.rating else 0.0,
+                'rating': float(db.session.scalar(sa.select(sa.func.coalesce(sa.func.avg(Review.rating), 0)).where(Review.target_type=='tutorial', Review.target_id==tutorial.id)) or 0.0),
                 'createdAt': tutorial.created_at.isoformat() if tutorial.created_at else None,
                 'updatedAt': tutorial.updated_at.isoformat() if tutorial.updated_at else None,
             })
@@ -198,7 +199,6 @@ class TutorialService:
             tutorial.author = user_name
             tutorial.thumbnail_path = validated_data.get('thumbnail_path')
             tutorial.views = 0
-            tutorial.rating = 0.0
             
             db.session.add(tutorial)
             db.session.commit()
@@ -314,7 +314,6 @@ class TutorialService:
             series_tutorial.prerequisites = data.get('prerequisites', '[]')
             series_tutorial.tags = data.get('tags', '[]')
             series_tutorial.views = 0
-            series_tutorial.rating = 0.0
             
             db.session.add(series_tutorial)
             db.session.flush()  # Get the series ID
@@ -346,7 +345,6 @@ class TutorialService:
                 video_tutorial.tags = video_data.get('tags', '[]')
                 video_tutorial.is_preview = video_data.get('is_preview', False)
                 video_tutorial.views = 0
-                video_tutorial.rating = 0.0
                 
                 db.session.add(video_tutorial)
             
@@ -440,7 +438,7 @@ class TutorialService:
                     .where(Tutorial.status != 'deleted')
                 )
                 
-                series_list.append({
+            series_list.append({
                     'id': s.id,
                     'publicId': s.public_id,
                     'categoryId': s.category_id,
@@ -454,7 +452,7 @@ class TutorialService:
                     'author': s.author,
                     'thumbnailPath': s.thumbnail_path,
                     'views': s.views,
-                    'rating': float(s.rating) if s.rating else 0.0,
+                    'rating': float(db.session.scalar(sa.select(sa.func.coalesce(sa.func.avg(Review.rating), 0)).where(Review.target_type=='tutorial', Review.target_id==s.id)) or 0.0),
                     'videoCount': video_count,
                     'createdAt': s.created_at.isoformat() if s.created_at else None,
                     'updatedAt': s.updated_at.isoformat() if s.updated_at else None,
@@ -508,7 +506,7 @@ class TutorialService:
                     'videoDuration': v.video_duration,
                     'isPreview': v.is_preview,
                     'views': v.views,
-                    'rating': float(v.rating) if v.rating else 0.0,
+                    'rating': float(db.session.scalar(sa.select(sa.func.coalesce(sa.func.avg(Review.rating), 0)).where(Review.target_type=='tutorial', Review.target_id==v.id)) or 0.0),
                     'createdAt': v.created_at.isoformat() if v.created_at else None,
                     'updatedAt': v.updated_at.isoformat() if v.updated_at else None,
                 })
@@ -527,7 +525,7 @@ class TutorialService:
                 'author': series.author,
                 'thumbnailPath': series.thumbnail_path,
                 'views': series.views,
-                'rating': float(series.rating) if series.rating else 0.0,
+                'rating': float(db.session.scalar(sa.select(sa.func.coalesce(sa.func.avg(Review.rating), 0)).where(Review.target_type=='tutorial', Review.target_id==series.id)) or 0.0),
                 'videoCount': len(video_list),
                 'videos': video_list,
                 'learningObjectives': series.learning_objectives,

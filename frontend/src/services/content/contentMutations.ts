@@ -125,6 +125,21 @@ export const useDeleteQuiz = () => {
   });
 };
 
+// user-side quiz mutations
+export const useSubmitQuiz = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ quizId, answers }: { 
+      quizId: number; 
+      answers: Record<string, string> 
+    }) => apiClient.submitQuiz(quizId, answers),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quiz-taking'] });
+    },
+  });
+};
+
 export const useCreateCategory = () => {
   const queryClient = useQueryClient();
   

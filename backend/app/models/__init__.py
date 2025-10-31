@@ -18,5 +18,6 @@ from .transcription import Transcription  # noqa: F401
 from .practice_session import PracticeSession  # noqa: F401
 from .feedback import Feedback  # noqa: F401
 from .report import Report  # noqa: F401
+from .review import Review  # noqa: F401
 
 

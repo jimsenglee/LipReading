@@ -15,7 +15,6 @@ export interface UserData {
   last_active: string | null;
   profile_image_path: string | null;
   is_active: boolean;
-  sessions_count: number;
 }
 
 export interface UsersResponse {

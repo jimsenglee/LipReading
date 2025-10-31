@@ -16,15 +16,11 @@ from . import bp
 def list_quizzes():
     """Get paginated list of quizzes with filtering and sorting"""
     try:
-        print(f"DEBUG: list_quizzes called with args: {request.args}")
         result = QuizService.get_quizzes(request.args)
-        print(f"DEBUG: QuizService.get_quizzes returned: {type(result)}")
         return result
     except APIError as e:
-        print(f"DEBUG: APIError in list_quizzes: {e}")
         return handle_api_error(e)
     except Exception as e:
-        print(f"DEBUG: Exception in list_quizzes: {type(e).__name__}: {str(e)}")
         import traceback
         traceback.print_exc()
         return ResponseService.error_response(f"Failed to retrieve quizzes: {str(e)}", 500)
@@ -192,5 +188,42 @@ def get_quiz_file_url(quiz_id: int, file_type: str):
         return handle_api_error(e)
     except Exception as e:
         return ResponseService.error_response(f"Failed to get quiz file URL: {str(e)}", 500)
+
+
+# user-side quiz endpoints
+@bp.get('/quiz/<int:quiz_id>')
+@jwt_required()
+def get_quiz_for_taking(quiz_id: int):
+    """Get quiz for user to take (with shuffling, check attempt limits)"""
+    try:
+        current_user_id = get_jwt_identity()
+        if not current_user_id:
+            return ResponseService.error_response('Authentication required', 401)
+        
+        return QuizService.get_quiz_for_taking(quiz_id, current_user_id)
+    except APIError as e:
+        return handle_api_error(e)
+    except Exception as e:
+        return ResponseService.error_response(f"Failed to get quiz: {str(e)}", 500)
+
+
+@bp.post('/quiz/<int:quiz_id>/submit')
+@jwt_required()
+def submit_quiz(quiz_id: int):
+    """Submit quiz answers and get graded results"""
+    try:
+        current_user_id = get_jwt_identity()
+        if not current_user_id:
+            return ResponseService.error_response('Authentication required', 401)
+        
+        data = request.get_json()
+        if not data:
+            return ResponseService.error_response('No data provided', 400)
+        
+        return QuizService.submit_quiz(quiz_id, current_user_id, data)
+    except APIError as e:
+        return handle_api_error(e)
+    except Exception as e:
+        return ResponseService.error_response(f"Failed to submit quiz: {str(e)}", 500)
 
 
