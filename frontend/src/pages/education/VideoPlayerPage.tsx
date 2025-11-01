@@ -234,17 +234,8 @@ const VideoPlayerPage: React.FC = () => {
 
   // get series and video data from API response
   const series = seriesQuery.data;
-  const video = series?.videos?.find(v => v.id === Number(videoId));
+  const video = series?.videos?.find(v => v.videoOrder === Number(videoId));
   const userProgress: any = undefined; // will implement later
-
-  // DEBUG: Log data to console
-  React.useEffect(() => {
-    console.log('🔵 VideoPlayerPage DEBUG:');
-    console.log('seriesId:', seriesId, 'videoId:', videoId);
-    console.log('series:', series);
-    console.log('video:', video);
-    console.log('video?.videoPath:', video?.videoPath);
-  }, [series, video, seriesId, videoId]);
 
   const markVideoCompleted = React.useCallback(async () => {
     try {
@@ -393,8 +384,6 @@ const VideoPlayerPage: React.FC = () => {
                     onPause={() => setIsPlaying(false)}
                     onBuffer={() => setIsBuffering(true)}
                     onBufferEnd={() => setIsBuffering(false)}
-                    onReady={() => console.log('🔵 ReactPlayer ready, video loaded successfully')}
-                    onError={(error: any) => console.error('🔴 ReactPlayer error:', error)}
                     onEnded={() => {
                       setIsPlaying(false);
                       setIsVideoCompleted(true);
