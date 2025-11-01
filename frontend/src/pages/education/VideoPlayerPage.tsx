@@ -611,15 +611,15 @@ const VideoPlayerPage: React.FC = () => {
                 >
                   {/* ReactPlayer integration */}
                   {video && (
-                    <ReactPlayer
-                      ref={videoRef}
-                      src={video.videoPath}
-                      width="100%"
-                      height="100%"
-                      playing={isPlaying}
-                      volume={isMuted ? 0 : volume}
-                      playbackRate={playbackSpeed}
-                      {...({
+                    <>
+                      {(ReactPlayer as any)({
+                        ref: videoRef,
+                        src: video.videoPath,
+                        width: "100%",
+                        height: "100%",
+                        playing: isPlaying,
+                        volume: isMuted ? 0 : volume,
+                        playbackRate: playbackSpeed,
                         onProgress: (state: any) => {
                           console.log('🔍 onProgress fired:', state);
                           setCurrentTime(state.playedSeconds);
@@ -643,8 +643,8 @@ const VideoPlayerPage: React.FC = () => {
                           markVideoCompleted();
                         },
                         controls: false
-                      } as any)}
-                    />
+                      })}
+                    </>
                   )}
 
                   {/* Play button overlay */}
