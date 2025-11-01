@@ -53,10 +53,10 @@ export const useBookmarks = () => {
   return useQuery({
     queryKey: ['bookmarks'],
     queryFn: async (): Promise<BookmarkResponse> => {
-      const response = await apiClient.get<Bookmark[]>('/bookmarks');
+      const response = await apiClient.get<{ success: boolean, data: Bookmark[] }>('/bookmarks');
       return {
-        success: true,
-        data: response.data
+        success: response.data.success,
+        data: response.data.data
       };
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -67,10 +67,10 @@ export const useBookmarkCheck = (tutorialId: number) => {
   return useQuery({
     queryKey: ['bookmark-check', tutorialId],
     queryFn: async (): Promise<BookmarkCheckResponse> => {
-      const response = await apiClient.get<{ isBookmarked: boolean }>(`/bookmarks/${tutorialId}/check`);
+      const response = await apiClient.get<{ success: boolean, data: { isBookmarked: boolean } }>(`/bookmarks/${tutorialId}/check`);
       return {
-        success: true,
-        data: response.data
+        success: response.data.success,
+        data: response.data.data
       };
     },
     enabled: !!tutorialId,
