@@ -535,29 +535,31 @@ const VideoPlayerPage: React.FC = () => {
                       playing={isPlaying}
                       volume={isMuted ? 0 : volume}
                       playbackRate={playbackSpeed}
-                      onProgress={(state: any) => {
-                        console.log('🔍 onProgress fired:', state);
-                        setCurrentTime(state.playedSeconds);
-                      }}
-                      onDuration={(duration: any) => {
-                        console.log('🔍 onDuration fired:', duration);
-                        setDuration(duration);
-                      }}
-                      onPlay={() => {
-                        console.log('🔍 onPlay fired');
-                        setIsPlaying(true);
-                      }}
-                      onPause={() => {
-                        console.log('🔍 onPause fired');
-                        setIsPlaying(false);
-                      }}
-                      onEnded={() => {
-                        console.log('🔍 onEnded fired');
-                        setIsPlaying(false);
-                        setIsVideoCompleted(true);
-                        markVideoCompleted();
-                      }}
-                      controls={false}
+                      {...({
+                        onProgress: (state: any) => {
+                          console.log('🔍 onProgress fired:', state);
+                          setCurrentTime(state.playedSeconds);
+                        },
+                        onDuration: (duration: any) => {
+                          console.log('🔍 onDuration fired:', duration);
+                          setDuration(duration);
+                        },
+                        onPlay: () => {
+                          console.log('🔍 onPlay fired');
+                          setIsPlaying(true);
+                        },
+                        onPause: () => {
+                          console.log('🔍 onPause fired');
+                          setIsPlaying(false);
+                        },
+                        onEnded: () => {
+                          console.log('🔍 onEnded fired');
+                          setIsPlaying(false);
+                          setIsVideoCompleted(true);
+                          markVideoCompleted();
+                        },
+                        controls: false
+                      } as any)}
                     />
                   )}
 
