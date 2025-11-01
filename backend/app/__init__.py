@@ -25,10 +25,6 @@ def create_app() -> Flask:
     
     @app.route('/uploads/<path:filename>')
     def uploaded_file(filename):
-        # DEBUG: Log static file requests
-        print(f"🔵 Serving static file: /uploads/{filename}")
-        print(f"   Full path: {os.path.join(uploads_dir, filename)}")
-        print(f"   Exists: {os.path.exists(os.path.join(uploads_dir, filename))}")
         return send_from_directory(uploads_dir, filename)
 
     # import models so migrations can detect them

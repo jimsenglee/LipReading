@@ -511,14 +511,6 @@ class TutorialService:
                     'updatedAt': v.updated_at.isoformat() if v.updated_at else None,
                 })
             
-            # DEBUG: Log video data
-            print("\n🔵 Backend DEBUG: Tutorial Series Response")
-            print(f"Series ID: {series_id}")
-            print(f"Series title: {series.title}")
-            print(f"Number of videos: {len(video_list)}")
-            for i, vid in enumerate(video_list):
-                print(f"  Video {i+1}: {vid['title']}, path: {vid['videoPath']}")
-            
             return ResponseService.success_response({
                 'id': series.id,
                 'publicId': series.public_id,

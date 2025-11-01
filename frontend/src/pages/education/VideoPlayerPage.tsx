@@ -234,8 +234,23 @@ const VideoPlayerPage: React.FC = () => {
 
   // get series and video data from API response
   const series = seriesQuery.data;
-  const video = series?.videos?.find(v => v.videoOrder === Number(videoId));
+  const video = series?.videos?.find(v => v.id === Number(videoId));
   const userProgress: any = undefined; // will implement later
+
+  // DEBUG: Log series and video data
+  console.log('🔍 VideoPlayerPage Debug:', {
+    seriesLoaded: !!series,
+    seriesId: series?.id,
+    videoCount: series?.videos?.length,
+    video: video ? {
+      id: video.id,
+      title: video.title,
+      videoPath: video.videoPath,
+      subtitlePath: video.subtitlePath
+    } : null,
+    isLoading: seriesQuery.isLoading,
+    isError: seriesQuery.isError
+  });
 
   const markVideoCompleted = React.useCallback(async () => {
     try {
@@ -370,39 +385,28 @@ const VideoPlayerPage: React.FC = () => {
                   onMouseLeave={() => isPlaying && setShowControls(false)}
                 >
                   {/* ReactPlayer integration */}
-                  <ReactPlayer
-                    ref={videoRef}
-                    url={video?.videoPath ? `${API_BASE_URL}${video.videoPath}` : ''}
-                    width="100%"
-                    height="100%"
-                    playing={isPlaying}
-                    volume={isMuted ? 0 : volume}
-                    playbackRate={playbackSpeed}
-                    onProgress={(state: any) => setCurrentTime(state.playedSeconds)}
-                    onDuration={(duration: any) => setDuration(duration)}
-                    onPlay={() => setIsPlaying(true)}
-                    onPause={() => setIsPlaying(false)}
-                    onBuffer={() => setIsBuffering(true)}
-                    onBufferEnd={() => setIsBuffering(false)}
-                    onEnded={() => {
+                  {(ReactPlayer as any)({
+                    ref: videoRef,
+                    url: video?.videoPath ? `${API_BASE_URL}${video.videoPath}` : '',
+                    width: "100%",
+                    height: "100%",
+                    playing: isPlaying,
+                    volume: isMuted ? 0 : volume,
+                    playbackRate: playbackSpeed,
+                    onProgress: (state: any) => setCurrentTime(state.playedSeconds),
+                    onDuration: (duration: any) => setDuration(duration),
+                    onPlay: () => setIsPlaying(true),
+                    onPause: () => setIsPlaying(false),
+                    onBuffer: () => setIsBuffering(true),
+                    onBufferEnd: () => setIsBuffering(false),
+                    onEnded: () => {
                       setIsPlaying(false);
                       setIsVideoCompleted(true);
                       markVideoCompleted();
-                    }}
-                    config={{
-                      file: {
-                        tracks: video?.subtitlePath ? [{
-                          kind: 'subtitles',
-                          src: `${API_BASE_URL}${video.subtitlePath}`,
-                          srcLang: 'en',
-                          label: 'English',
-                          default: true
-                        }] : []
-                      }
-                    }}
-                    controls={false}
-                    light={series?.thumbnailPath ? `${API_BASE_URL}${series.thumbnailPath}` : false}
-                  />
+                    },
+                    controls: false,
+                    light: series?.thumbnailPath ? `${API_BASE_URL}${series.thumbnailPath}` : false
+                  })}
 
                   {/* Loading Spinner */}
                   {isBuffering && (
