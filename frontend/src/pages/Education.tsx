@@ -568,7 +568,7 @@ const Education = () => {
 
       {/* Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="h-10 items-center justify-center rounded-md p-1 text-muted-foreground grid w-full grid-cols-3 bg-primary/10">
+        <TabsList className={`h-10 items-center justify-center rounded-md p-1 text-muted-foreground grid w-full ${bookmarkedTutorials.length > 0 ? 'grid-cols-4' : 'grid-cols-3'} bg-primary/10`}>
           <TabsTrigger value="tutorial" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             <Video className="h-4 w-4 mr-2" />
             Tutorial
@@ -581,7 +581,12 @@ const Education = () => {
             <Target className="h-4 w-4 mr-2" />
             Practice
           </TabsTrigger>
-          {/* Bookmarked tab hidden by default - can be shown via bookmark icon */}
+          {bookmarkedTutorials.length > 0 && (
+            <TabsTrigger value="bookmarked" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+              <BookmarkCheck className="h-4 w-4 mr-2" />
+              Bookmarked
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="tutorial" className="space-y-6">
