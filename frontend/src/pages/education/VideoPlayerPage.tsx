@@ -32,6 +32,7 @@ import { useTutorialSeriesById } from '@/services/content/contentQueries';
 import { API_BASE_URL } from '@/lib/constants';
 import { Video, ApiTutorial } from '@/lib/api';
 import ReactPlayer from 'react-player';
+import SubtitleOverlay from '@/components/education/SubtitleOverlay';
 
 const formatDuration = (n?: number) => (n ? `${Math.round(n/60)} min` : '0 min');
 const formatTime = (seconds: number) => {
@@ -521,6 +522,15 @@ const VideoPlayerPage: React.FC = () => {
                         <Play className="h-8 w-8 ml-1" />
                       </Button>
                     </div>
+                  )}
+
+                  {/* Subtitle Overlay */}
+                  {hasSubtitles && (
+                    <SubtitleOverlay
+                      subtitleUrl={video?.subtitlePath ? `${API_BASE_URL}${video.subtitlePath}` : null}
+                      currentTime={currentTime}
+                      enabled={subtitlesEnabled}
+                    />
                   )}
 
                   {/* Video Controls */}
