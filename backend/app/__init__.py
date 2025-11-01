@@ -25,7 +25,14 @@ def create_app() -> Flask:
     
     @app.route('/uploads/<path:filename>')
     def uploaded_file(filename):
-        return send_from_directory(uploads_dir, filename)
+        response = send_from_directory(uploads_dir, filename)
+        
+        # Set proper MIME type for video files
+        if filename.endswith('.mp4'):
+            response.headers['Content-Type'] = 'video/mp4'
+            response.headers['Accept-Ranges'] = 'bytes'
+        
+        return response
 
     # import models so migrations can detect them
     # note: keep local import to avoid circulars during app creation

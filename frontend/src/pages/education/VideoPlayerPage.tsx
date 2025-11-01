@@ -244,6 +244,12 @@ const VideoPlayerPage: React.FC = () => {
   console.log('🔵 VideoPlayerPage - videoId from URL:', videoId);
   console.log('🔵 VideoPlayerPage - Full video URL:', video?.videoPath ? `${API_BASE_URL}${video.videoPath}` : 'NO URL');
   console.log('🔵 VideoPlayerPage - API_BASE_URL:', API_BASE_URL);
+  
+  // DEBUG: ReactPlayer props
+  const videoUrl = video?.videoPath ? `${API_BASE_URL}${video.videoPath}` : '';
+  const lightProp = series?.thumbnailPath ? `${API_BASE_URL}${series.thumbnailPath}` : false;
+  console.log('🔵 VideoPlayerPage - ReactPlayer url prop:', videoUrl);
+  console.log('🔵 VideoPlayerPage - ReactPlayer light prop:', lightProp);
 
   const markVideoCompleted = React.useCallback(async () => {
     try {
@@ -380,7 +386,7 @@ const VideoPlayerPage: React.FC = () => {
                   {/* ReactPlayer integration */}
                   <ReactPlayer
                     ref={videoRef}
-                    url={video?.videoPath ? `${API_BASE_URL}${video.videoPath}` : ''}
+                    url={videoUrl}
                     width="100%"
                     height="100%"
                     playing={isPlaying}
@@ -397,19 +403,6 @@ const VideoPlayerPage: React.FC = () => {
                       setIsVideoCompleted(true);
                       markVideoCompleted();
                     }}
-                    onReady={() => {
-                      console.log('✅ ReactPlayer Ready!');
-                      console.log('✅ Video duration:', duration);
-                    }}
-                    onError={(error: any) => {
-                      console.error('🔴 ReactPlayer Error:', error);
-                      console.error('🔴 Error Data:', error.data);
-                      toast({
-                        variant: "destructive",
-                        title: "Video Playback Error",
-                        description: "Failed to load video. Please try again.",
-                      });
-                    }}
                     config={{
                       file: {
                         tracks: video?.subtitlePath ? [{
@@ -422,7 +415,7 @@ const VideoPlayerPage: React.FC = () => {
                       }
                     }}
                     controls={false}
-                    light={series?.thumbnailPath ? `${API_BASE_URL}${series.thumbnailPath}` : false}
+                    light={lightProp}
                   />
 
                   {/* Loading Spinner */}
