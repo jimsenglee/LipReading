@@ -124,18 +124,18 @@ const Dashboard = () => {
           >
             <Link to={action.link}>
               <Card 
-                className={`${action.color} ${action.textColor} border-0 hover:shadow-lg transition-all duration-300 hover:scale-105 cursor-pointer focus:ring-2 focus:ring-primary/50 focus:outline-none`}
+                className={`${action.color} ${action.textColor} border-0 hover:shadow-lg transition-all duration-300 hover:scale-105 cursor-pointer focus:ring-2 focus:ring-primary/50 focus:outline-none h-full`}
                 tabIndex={0}
                 role="button"
                 aria-label={action.title}
               >
-                <CardContent className="p-6">
+                <CardContent className="p-6 h-full flex flex-col">
                   <div className="flex items-center justify-between mb-3">
                     <action.icon className="h-8 w-8" aria-hidden="true" />
                     <ChevronRight className="h-5 w-5 opacity-70" aria-hidden="true" />
                   </div>
                   <h3 className="font-bold text-lg mb-1">{action.title}</h3>
-                  <p className="text-sm opacity-90">{action.description}</p>
+                  <p className="text-sm opacity-90 line-clamp-2">{action.description}</p>
                 </CardContent>
               </Card>
             </Link>
