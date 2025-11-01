@@ -92,35 +92,6 @@ const QuizSeriesCard: React.FC<QuizSeriesCardProps> = ({
         className="h-full border-primary/20 hover:border-primary/40 transition-all duration-300 cursor-pointer group hover:shadow-lg"
         onClick={() => onClick(series)}
       >
-        <div className="relative">
-          <img 
-            src={series.thumbnailUrl} 
-            alt={series.title}
-            className="w-full h-48 object-cover rounded-t-lg group-hover:scale-105 transition-transform duration-300"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.src = 'https://via.placeholder.com/400x225/e2e8f0/64748b?text=Quiz+Series';
-            }}
-          />
-          <div className="absolute top-3 left-3 bg-black/70 text-white px-2 py-1 rounded text-sm flex items-center gap-1">
-            <Brain className="h-3 w-3" />
-            Quiz
-          </div>
-          {series.estimatedCompletionTime && (
-            <div className="absolute top-3 right-3 bg-black/70 text-white px-2 py-1 rounded text-sm flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {series.estimatedCompletionTime}
-            </div>
-          )}
-          {isCompleted && (
-            <div className="absolute bottom-3 right-3">
-              <div className="bg-green-500 text-white p-2 rounded-full">
-                <Trophy className="h-4 w-4" />
-              </div>
-            </div>
-          )}
-        </div>
-        
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between mb-2">
             <div className="space-y-1">

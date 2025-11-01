@@ -10,7 +10,8 @@ import {
   CheckCircle,
   Star,
   Users,
-  AlertTriangle
+  AlertTriangle,
+  Bookmark
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cardStyles, getDifficultyColor, ratingStyles, animationVariants } from '@/lib/education-styles';
@@ -108,42 +109,12 @@ const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
           }
         }}
       >
-        {/* Thumbnail Section */}
-        <div className={`relative ${isGridView ? 'w-full' : 'w-64 flex-shrink-0'}`}>
-          {(() => {
-            const thumbnailUrl = (series as any).thumbnail || 'https://via.placeholder.com/600x300/e2e8f0/64748b?text=Tutorial';
-            return (
-              <img 
-                src={thumbnailUrl}
-                alt={series.title}
-                className={`w-full object-cover ${
-                  isGridView ? 'h-40 rounded-t-lg' : 'h-full rounded-l-lg'
-                }`}
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.src = 'https://via.placeholder.com/400x225/e2e8f0/64748b?text=Tutorial+Series';
-                }}
-              />
-            );
-          })()}
-          
-          {/* Duration Badge */}
-          <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-sm flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            {duration}
-          </div>
-
-          {/* Prerequisites Warning */}
-          {hasPrerequisites && (
-            <div className="absolute top-2 right-2 bg-orange-500 text-white p-1 rounded">
-              <AlertTriangle className="h-3 w-3" />
-            </div>
-          )}
-
-        </div>
-        
         {/* Content Section */}
-        <div className={`p-4 ${isGridView ? 'flex-1' : 'flex-1'} flex flex-col justify-between`}>
+        <div className={`p-4 ${isGridView ? 'flex-1' : 'flex-1'} flex flex-col justify-between relative`}>
+          {/* Bookmark Icon */}
+          <div className="absolute top-4 right-4">
+            <Bookmark className="h-5 w-5 text-gray-400 hover:text-primary transition-colors" />
+          </div>
           {/* Header Info */}
           <div className="space-y-3">
             <div className="flex items-start justify-between">

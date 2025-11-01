@@ -174,7 +174,21 @@ export const useQuizForTaking = (quizId: number) => {
 export const useQuizSeriesById = (quizId: number) => {
   return useQuery({
     queryKey: ['quiz-series', quizId],
-    queryFn: () => apiClient.getQuizById(quizId),
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE_URL}/api/quizzes/${quizId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch quiz series: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      return result.data;
+    },
     enabled: !!quizId,
   });
 };

@@ -206,8 +206,6 @@ const Education = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedTutorials = filteredAndSortedTutorials.slice(startIndex, startIndex + itemsPerPage);
 
-  const bookmarkedTutorials = mappedTutorials.filter(tutorial => tutorial.isBookmarked);
-
   const breadcrumbItems = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Education' }
@@ -558,7 +556,7 @@ const Education = () => {
 
       {/* Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="h-10 items-center justify-center rounded-md p-1 text-muted-foreground grid w-full grid-cols-4 bg-primary/10">
+        <TabsList className="h-10 items-center justify-center rounded-md p-1 text-muted-foreground grid w-full grid-cols-3 bg-primary/10">
           <TabsTrigger value="tutorial" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             <Video className="h-4 w-4 mr-2" />
             Tutorial
@@ -570,10 +568,6 @@ const Education = () => {
           <TabsTrigger value="practice" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             <Target className="h-4 w-4 mr-2" />
             Practice
-          </TabsTrigger>
-          <TabsTrigger value="bookmarked" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-            <Bookmark className="h-4 w-4 mr-2" />
-            Bookmarked
           </TabsTrigger>
         </TabsList>
 
@@ -953,39 +947,6 @@ const Education = () => {
               Start Practice
             </Button>
           </motion.div>
-        </TabsContent>
-
-        <TabsContent value="bookmarked" className="space-y-6">
-          {bookmarkedTutorials.length > 0 ? (
-            <motion.div 
-              className={viewMode === 'grid' 
-                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
-                : 'space-y-4'
-              }
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
-              {bookmarkedTutorials.map((tutorial) => (
-                <TutorialCard 
-                  key={tutorial.id} 
-                  tutorial={tutorial} 
-                  isGridView={viewMode === 'grid'} 
-                  onBookmarkToggle={toggleBookmark}
-                  onPlay={() => navigate(`/education/tutorial/${tutorial.id}`)}
-                />
-              ))}
-            </motion.div>
-          ) : (
-            <motion.div 
-              className="text-center py-12"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
-              <Bookmark className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-500 mb-2">No bookmarked tutorials</h3>
-              <p className="text-gray-400">Start bookmarking tutorials to build your personal collection</p>
-            </motion.div>
-          )}
         </TabsContent>
       </Tabs>
     </div>
