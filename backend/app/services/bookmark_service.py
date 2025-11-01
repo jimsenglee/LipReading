@@ -10,6 +10,7 @@ from ..models.user_bookmark import user_bookmarks
 from ..models.tutorial import Tutorial
 from ..models.account import Account
 from ..models.category import Category
+from ..models.review import Review
 from ..schemas.bookmark_schemas import BookmarkCreateSchema, BookmarkProgressSchema, BookmarkReviewSchema, BookmarkQuerySchema
 from .error_service import APIError, BookmarkError, ProgressError, create_bookmark_error, create_progress_error
 from .response_service import ResponseService
@@ -103,6 +104,12 @@ class BookmarkService:
             
             bookmark_list = []
             for tutorial, bookmark, category in results:
+                # Calculate average rating from reviews
+                avg_rating = db.session.scalar(
+                    select(func.avg(Review.rating))
+                    .where(Review.target_type == 'tutorial', Review.target_id == tutorial.id)
+                )
+                
                 bookmark_list.append({
                     'id': tutorial.id,
                     'publicId': tutorial.public_id,
@@ -117,7 +124,7 @@ class BookmarkService:
                     'author': tutorial.author,
                     'thumbnailPath': tutorial.thumbnail_path,
                     'views': tutorial.views,
-                    'rating': float(tutorial.rating) if tutorial.rating else 0.0,
+                    'rating': float(avg_rating) if avg_rating else 0.0,
                     'createdAt': tutorial.created_at.isoformat() if tutorial.created_at else None,
                     'updatedAt': tutorial.updated_at.isoformat() if tutorial.updated_at else None,
                     'videoDuration': tutorial.video_duration,
@@ -661,6 +668,12 @@ class BookmarkService:
             
             bookmark_list = []
             for tutorial, bookmark, category in results:
+                # Calculate average rating from reviews
+                avg_rating = db.session.scalar(
+                    select(func.avg(Review.rating))
+                    .where(Review.target_type == 'tutorial', Review.target_id == tutorial.id)
+                )
+                
                 bookmark_list.append({
                     'id': tutorial.id,
                     'publicId': tutorial.public_id,
@@ -675,7 +688,7 @@ class BookmarkService:
                     'author': tutorial.author,
                     'thumbnailPath': tutorial.thumbnail_path,
                     'views': tutorial.views,
-                    'rating': float(tutorial.rating) if tutorial.rating else 0.0,
+                    'rating': float(avg_rating) if avg_rating else 0.0,
                     'createdAt': tutorial.created_at.isoformat() if tutorial.created_at else None,
                     'updatedAt': tutorial.updated_at.isoformat() if tutorial.updated_at else None,
                     'videoDuration': tutorial.video_duration,
