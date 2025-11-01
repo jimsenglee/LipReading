@@ -504,7 +504,7 @@ const VideoPlayerPage: React.FC = () => {
     if (video?.subtitlePath && subtitlesEnabled) {
       const loadSubtitles = async () => {
         try {
-          const response = await fetch(`${API_BASE_URL}${video.subtitlePath}`);
+          const response = await fetch(video.subtitlePath);
           const text = await response.text();
           const lines = parseVTT(text);
           setSubtitleLines(lines);
@@ -613,7 +613,7 @@ const VideoPlayerPage: React.FC = () => {
                   {video && (
                     <ReactPlayer
                       ref={videoRef}
-                      src={`${API_BASE_URL}${video.videoPath}`}
+                      src={video.videoPath}
                       width="100%"
                       height="100%"
                       playing={isPlaying}
