@@ -387,12 +387,37 @@ const VideoPlayerPage: React.FC = () => {
                     volume={isMuted ? 0 : volume}
                     playbackRate={playbackSpeed}
                     onProgress={(state: any) => setCurrentTime(state.playedSeconds)}
-                    onDuration={(duration: any) => setDuration(duration)}
-                    onPlay={() => setIsPlaying(true)}
-                    onPause={() => setIsPlaying(false)}
-                    onBuffer={() => setIsBuffering(true)}
-                    onBufferEnd={() => setIsBuffering(false)}
+                    onDuration={(duration: any) => {
+                      console.log('🔵 ReactPlayer - onDuration called:', duration);
+                      setDuration(duration);
+                    }}
+                    onPlay={() => {
+                      console.log('🔵 ReactPlayer - onPlay called');
+                      setIsPlaying(true);
+                    }}
+                    onPause={() => {
+                      console.log('🔵 ReactPlayer - onPause called');
+                      setIsPlaying(false);
+                    }}
+                    onBuffer={() => {
+                      console.log('🔵 ReactPlayer - onBuffer called');
+                      setIsBuffering(true);
+                    }}
+                    onBufferEnd={() => {
+                      console.log('🔵 ReactPlayer - onBufferEnd called');
+                      setIsBuffering(false);
+                    }}
+                    onReady={() => {
+                      console.log('🔵 ReactPlayer - onReady called');
+                    }}
+                    onError={(error: any) => {
+                      console.error('🔴 ReactPlayer - onError:', error);
+                    }}
+                    onStart={() => {
+                      console.log('🔵 ReactPlayer - onStart called');
+                    }}
                     onEnded={() => {
+                      console.log('🔵 ReactPlayer - onEnded called');
                       setIsPlaying(false);
                       setIsVideoCompleted(true);
                       markVideoCompleted();
