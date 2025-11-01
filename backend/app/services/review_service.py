@@ -647,10 +647,25 @@ class ReviewService:
 
     @staticmethod
     def _update_tutorial_rating(tutorial_id: int):
-        """update tutorial average rating - disabled since Tutorial model has no rating field"""
-        # Rating is now calculated dynamically from Review model in query
-        # No need to update Tutorial table with cached rating value
-        pass
+        """update tutorial average rating"""
+        try:
+            avg_rating = db.session.scalar(
+                select(func.avg(user_bookmarks.c.rating))
+                .where(
+                    and_(
+                        user_bookmarks.c.tutorial_id == tutorial_id,
+                        user_bookmarks.c.rating.isnot(None)
+                    )
+                )
+            )
+            
+            db.session.execute(
+                update(Tutorial).where(Tutorial.id == tutorial_id)
+                .values(rating=round(float(avg_rating), 2) if avg_rating else 0.0)
+            )
+            
+        except Exception as e:
+            current_app.logger.error(f"update tutorial rating error: {str(e)}")
 
     @staticmethod
     def _update_quiz_rating(quiz_id: int):

@@ -10,7 +10,6 @@ from ..models.user_bookmark import user_bookmarks
 from ..models.tutorial import Tutorial
 from ..models.account import Account
 from ..models.category import Category
-from ..models.review import Review
 from ..schemas.bookmark_schemas import BookmarkCreateSchema, BookmarkProgressSchema, BookmarkReviewSchema, BookmarkQuerySchema
 from .error_service import APIError, BookmarkError, ProgressError, create_bookmark_error, create_progress_error
 from .response_service import ResponseService
@@ -103,13 +102,10 @@ class BookmarkService:
             results = db.session.execute(bookmarks_query).all()
             
             bookmark_list = []
-            for tutorial, bookmark, category in results:
-                # Calculate average rating from reviews
-                avg_rating = db.session.scalar(
-                    select(func.avg(Review.rating))
-                    .where(Review.target_type == 'tutorial', Review.target_id == tutorial.id)
-                )
-                
+            for result in results:
+                tutorial = result[0]
+                bookmark = result[1]
+                category = result[2]
                 bookmark_list.append({
                     'id': tutorial.id,
                     'publicId': tutorial.public_id,
@@ -124,31 +120,33 @@ class BookmarkService:
                     'author': tutorial.author,
                     'thumbnailPath': tutorial.thumbnail_path,
                     'views': tutorial.views,
-                    'rating': float(avg_rating) if avg_rating else 0.0,
+                    'rating': float(tutorial.rating) if tutorial.rating else 0.0,
                     'createdAt': tutorial.created_at.isoformat() if tutorial.created_at else None,
                     'updatedAt': tutorial.updated_at.isoformat() if tutorial.updated_at else None,
                     'videoDuration': tutorial.video_duration,
                     'tags': tutorial.tags,
                     # progress tracking data
-                    'progressPercentage': bookmark.progress_percentage,
-                    'lastWatchedPosition': bookmark.last_watched_position,
-                    'totalWatchTime': bookmark.total_watch_time,
-                    'isCompleted': bookmark.is_completed,
-                    'completedAt': bookmark.completed_at.isoformat() if bookmark.completed_at else None,
-                    'enrolledAt': bookmark.enrolled_at.isoformat() if bookmark.enrolled_at else None,
-                    'lastAccessedAt': bookmark.last_accessed_at.isoformat() if bookmark.last_accessed_at else None,
+                    'progressPercentage': bookmark.progress_percentage if hasattr(bookmark, 'progress_percentage') else 0,
+                    'lastWatchedPosition': bookmark.last_watched_position if hasattr(bookmark, 'last_watched_position') else 0,
+                    'totalWatchTime': bookmark.total_watch_time if hasattr(bookmark, 'total_watch_time') else 0,
+                    'isCompleted': bookmark.is_completed if hasattr(bookmark, 'is_completed') else False,
+                    'completedAt': bookmark.completed_at.isoformat() if hasattr(bookmark, 'completed_at') and bookmark.completed_at else None,
+                    'enrolledAt': bookmark.enrolled_at.isoformat() if hasattr(bookmark, 'enrolled_at') and bookmark.enrolled_at else None,
+                    'lastAccessedAt': bookmark.last_accessed_at.isoformat() if hasattr(bookmark, 'last_accessed_at') and bookmark.last_accessed_at else None,
                     # review system data
-                    'userRating': bookmark.rating,
-                    'userReview': bookmark.review_text,
-                    'reviewedAt': bookmark.reviewed_at.isoformat() if bookmark.reviewed_at else None,
+                    'userRating': bookmark.rating if hasattr(bookmark, 'rating') else None,
+                    'userReview': bookmark.review_text if hasattr(bookmark, 'review_text') else None,
+                    'reviewedAt': bookmark.reviewed_at.isoformat() if hasattr(bookmark, 'reviewed_at') and bookmark.reviewed_at else None,
                 })
             
             pagination = ResponseService.pagination_info(page, per_page, total or 0)
             return ResponseService.success_response(bookmark_list, pagination=pagination)
             
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             current_app.logger.error(f"get user bookmarks error: {str(e)}")
-            raise APIError("internal server error", 500)
+            raise APIError(f"internal server error: {str(e)}", 500)
 
     @staticmethod
     def add_bookmark(user_id: int, tutorial_id: int):
@@ -668,12 +666,6 @@ class BookmarkService:
             
             bookmark_list = []
             for tutorial, bookmark, category in results:
-                # Calculate average rating from reviews
-                avg_rating = db.session.scalar(
-                    select(func.avg(Review.rating))
-                    .where(Review.target_type == 'tutorial', Review.target_id == tutorial.id)
-                )
-                
                 bookmark_list.append({
                     'id': tutorial.id,
                     'publicId': tutorial.public_id,
@@ -688,7 +680,7 @@ class BookmarkService:
                     'author': tutorial.author,
                     'thumbnailPath': tutorial.thumbnail_path,
                     'views': tutorial.views,
-                    'rating': float(avg_rating) if avg_rating else 0.0,
+                    'rating': float(tutorial.rating) if tutorial.rating else 0.0,
                     'createdAt': tutorial.created_at.isoformat() if tutorial.created_at else None,
                     'updatedAt': tutorial.updated_at.isoformat() if tutorial.updated_at else None,
                     'videoDuration': tutorial.video_duration,
