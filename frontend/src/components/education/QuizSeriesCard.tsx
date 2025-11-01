@@ -92,7 +92,29 @@ const QuizSeriesCard: React.FC<QuizSeriesCardProps> = ({
         className="h-full border-primary/20 hover:border-primary/40 transition-all duration-300 cursor-pointer group hover:shadow-lg"
         onClick={() => onClick(series)}
       >
-        <CardHeader className="pb-3">
+        {/* Header with title instead of thumbnail */}
+        <div className="relative w-full h-32 bg-gradient-to-r from-purple-200 to-purple-300 flex flex-col items-center justify-center rounded-t-lg border-b border-primary/10 px-4">
+          <div className="absolute top-3 left-3 bg-purple-600/80 text-white px-2 py-1 rounded text-sm flex items-center gap-1">
+            <Brain className="h-3 w-3" />
+            Quiz
+          </div>
+          {isCompleted && (
+            <div className="absolute top-3 right-3 bg-green-500 text-white p-2 rounded-full">
+              <Trophy className="h-4 w-4" />
+            </div>
+          )}
+          <CardTitle className="text-xl font-bold text-purple-900 text-center line-clamp-2">
+            {series.title}
+          </CardTitle>
+          {series.estimatedCompletionTime && (
+            <div className="absolute bottom-3 right-3 bg-purple-600/80 text-white px-2 py-1 rounded text-sm flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {series.estimatedCompletionTime}
+            </div>
+          )}
+        </div>
+        
+        <CardHeader className="pb-3 pt-4">
           <div className="flex items-start justify-between mb-2">
             <div className="space-y-1">
               <Badge className={getQuizDifficultyColor(series.difficulty)}>
@@ -108,9 +130,6 @@ const QuizSeriesCard: React.FC<QuizSeriesCardProps> = ({
             )}
           </div>
           
-          <CardTitle className="text-lg group-hover:text-primary transition-colors">
-            {series.title}
-          </CardTitle>
           <CardDescription className="line-clamp-2">
             {series.description}
           </CardDescription>

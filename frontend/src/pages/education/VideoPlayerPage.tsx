@@ -348,15 +348,22 @@ const VideoPlayerPage: React.FC = () => {
   }, []);
 
   const handleSeek = useCallback((time: number) => {
+    console.log('🔍 handleSeek called with time:', time);
+    console.log('🔍 videoRef.current:', videoRef.current);
+    console.log('🔍 videoRef.current keys:', videoRef.current ? Object.keys(videoRef.current) : 'null');
     if (videoRef.current) {
       if (videoRef.current.seekTo) {
+        console.log('🔍 Using seekTo method');
         videoRef.current.seekTo(time);
       } else if (videoRef.current.getInternalPlayer) {
+        console.log('🔍 Using getInternalPlayer method');
         const player = videoRef.current.getInternalPlayer();
+        console.log('🔍 Internal player:', player);
         if (player && 'currentTime' in player) {
           player.currentTime = time;
         }
       } else if (videoRef.current.currentTime !== undefined) {
+        console.log('🔍 Using direct currentTime property');
         videoRef.current.currentTime = time;
       }
     }

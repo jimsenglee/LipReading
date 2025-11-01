@@ -206,6 +206,8 @@ const Education = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedTutorials = filteredAndSortedTutorials.slice(startIndex, startIndex + itemsPerPage);
 
+  const bookmarkedTutorials = mappedTutorials.filter(tutorial => tutorial.isBookmarked);
+
   const breadcrumbItems = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Education' }
@@ -251,6 +253,15 @@ const Education = () => {
       toggleBookmarkMutation.mutate({
         tutorialId,
         isBookmarked: tutorial.isBookmarked
+      });
+    }
+  };
+
+  const toggleSeriesBookmark = (series: any) => {
+    if (series.id) {
+      toggleBookmarkMutation.mutate({
+        tutorialId: parseInt(series.id),
+        isBookmarked: series.isBookmarked
       });
     }
   };
@@ -311,6 +322,7 @@ const Education = () => {
         `${API_BASE_URL}${t.thumbnailPath}` :
         '/placeholder-video.jpg',
       rating: { average: t.rating || 0, totalReviews: Math.floor((t.rating || 0) * 10) },
+      isBookmarked: bookmarksQuery.data?.data.some(b => b.id === t.id) || false,
     }));
 
     // Search filter
@@ -389,7 +401,7 @@ const Education = () => {
     });
 
     return filtered;
-  }, [tutorialsQuery.data?.data, filters, sortBy]);
+  }, [tutorialsQuery.data?.data, filters, sortBy, bookmarksQuery.data?.data]);
 
   // Enhanced filtering and sorting for quiz series  
   const quizzesQuery = useQuizzes();
@@ -569,6 +581,7 @@ const Education = () => {
             <Target className="h-4 w-4 mr-2" />
             Practice
           </TabsTrigger>
+          {/* Bookmarked tab hidden by default - can be shown via bookmark icon */}
         </TabsList>
 
         <TabsContent value="tutorial" className="space-y-6">
@@ -765,7 +778,9 @@ const Education = () => {
                         isGridView={viewMode === 'grid'}
                         onViewDetails={(seriesId) => navigate(`/education/series/${seriesId}`)}
                         onEnroll={(seriesId) => navigate(`/education/series/${seriesId}`)}
-                          onClick={(series) => navigate(`/education/series/${series.id}`)}
+                        onClick={(series) => navigate(`/education/series/${series.id}`)}
+                        onBookmark={toggleSeriesBookmark}
+                        isBookmarked={series.isBookmarked}
                       />
                     </motion.div>
                   ))
@@ -947,6 +962,39 @@ const Education = () => {
               Start Practice
             </Button>
           </motion.div>
+        </TabsContent>
+
+        <TabsContent value="bookmarked" className="space-y-6">
+          {bookmarkedTutorials.length > 0 ? (
+            <motion.div 
+              className={viewMode === 'grid' 
+                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                : 'space-y-4'
+              }
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              {bookmarkedTutorials.map((tutorial) => (
+                <TutorialCard 
+                  key={tutorial.id} 
+                  tutorial={tutorial} 
+                  isGridView={viewMode === 'grid'} 
+                  onBookmarkToggle={toggleBookmark}
+                  onPlay={() => navigate(`/education/tutorial/${tutorial.id}`)}
+                />
+              ))}
+            </motion.div>
+          ) : (
+            <motion.div 
+              className="text-center py-12"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              <Bookmark className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-500 mb-2">No bookmarked tutorials</h3>
+              <p className="text-gray-400">Start bookmarking tutorials to build your personal collection</p>
+            </motion.div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

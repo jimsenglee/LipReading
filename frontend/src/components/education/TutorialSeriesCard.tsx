@@ -40,6 +40,8 @@ interface TutorialSeriesCardProps {
   onEnroll?: (seriesId: string) => void;
   isGridView?: boolean;
   onClick?: (series: TutorialSeries) => void;
+  onBookmark?: (series: TutorialSeries) => void;
+  isBookmarked?: boolean;
 }
 
 const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
@@ -47,7 +49,9 @@ const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
   onViewDetails,
   onEnroll,
   isGridView = true,
-  onClick
+  onClick,
+  onBookmark,
+  isBookmarked = false
 }) => {
   // no user progress yet - will be implemented when backend supports it
   const progress = undefined;
@@ -109,12 +113,53 @@ const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
           }
         }}
       >
-        {/* Content Section */}
-        <div className={`p-4 ${isGridView ? 'flex-1' : 'flex-1'} flex flex-col justify-between relative`}>
-          {/* Bookmark Icon */}
-          <div className="absolute top-4 right-4">
-            <Bookmark className="h-5 w-5 text-gray-400 hover:text-primary transition-colors" />
+        {/* Thumbnail Section */}
+        <div className={`relative ${isGridView ? 'w-full' : 'w-64 flex-shrink-0'}`}>
+          {(() => {
+            const thumbnailUrl = (series as any).thumbnail || 'https://via.placeholder.com/600x300/e2e8f0/64748b?text=Tutorial';
+            return (
+              <img 
+                src={thumbnailUrl}
+                alt={series.title}
+                className={`w-full object-cover ${
+                  isGridView ? 'h-40 rounded-t-lg' : 'h-full rounded-l-lg'
+                }`}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = 'https://via.placeholder.com/400x225/e2e8f0/64748b?text=Tutorial+Series';
+                }}
+              />
+            );
+          })()}
+          
+          {/* Duration Badge */}
+          <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-sm flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {duration}
           </div>
+
+          {/* Prerequisites Warning */}
+          {hasPrerequisites && (
+            <div className="absolute top-2 right-2 bg-orange-500 text-white p-1 rounded z-10">
+              <AlertTriangle className="h-3 w-3" />
+            </div>
+          )}
+
+          {/* Bookmark Icon */}
+          <div 
+            className={`absolute top-2 ${hasPrerequisites ? 'right-10' : 'right-2'} ${isBookmarked ? 'bg-purple-600' : 'bg-white/90 hover:bg-white'} ${isBookmarked ? 'text-white' : 'text-purple-600'} p-1.5 rounded-full cursor-pointer transition-colors z-10`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onBookmark?.(series);
+            }}
+          >
+            <Bookmark className={`h-3 w-3 ${isBookmarked ? 'fill-current' : ''}`} />
+          </div>
+
+        </div>
+        
+        {/* Content Section */}
+        <div className={`p-4 ${isGridView ? 'flex-1' : 'flex-1'} flex flex-col justify-between`}>
           {/* Header Info */}
           <div className="space-y-3">
             <div className="flex items-start justify-between">

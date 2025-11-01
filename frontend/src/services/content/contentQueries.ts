@@ -174,7 +174,7 @@ export const useQuizForTaking = (quizId: number) => {
 export const useQuizSeriesById = (quizId: number) => {
   return useQuery({
     queryKey: ['quiz-series', quizId],
-    queryFn: async () => {
+    queryFn: async (): Promise<ApiQuiz> => {
       const response = await fetch(`${API_BASE_URL}/api/quizzes/${quizId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
