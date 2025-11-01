@@ -80,8 +80,9 @@ class BookmarkService:
             bookmark_list = []
             for row in results:
                 tutorial = row[0]
-                bookmark = row[1]
-                category = row[2]
+                # row[1] = user_id, row[2] = tutorial_id, row[3] = created_at
+                bookmark_created_at = row[3]
+                category = row[4]  # Category object is at index 4
                 bookmark_list.append({
                     'id': tutorial.id,
                     'publicId': tutorial.public_id,
@@ -101,7 +102,7 @@ class BookmarkService:
                     'updatedAt': tutorial.updated_at.isoformat() if tutorial.updated_at else None,
                     'videoDuration': tutorial.video_duration,
                     'tags': tutorial.tags,
-                    'bookmarkedAt': bookmark.created_at.isoformat() if bookmark.created_at else None,
+                    'bookmarkedAt': bookmark_created_at.isoformat() if bookmark_created_at else None,
                 })
             
             pagination = ResponseService.pagination_info(page, per_page, total or 0)
@@ -379,8 +380,9 @@ class BookmarkService:
             bookmark_list = []
             for row in results:
                 tutorial = row[0]
-                bookmark = row[1]
-                category = row[2]
+                # row[1] = user_id, row[2] = tutorial_id, row[3] = created_at
+                bookmark_created_at = row[3]
+                category = row[4]  # Category object is at index 4
                 bookmark_list.append({
                     'id': tutorial.id,
                     'publicId': tutorial.public_id,
@@ -400,7 +402,7 @@ class BookmarkService:
                     'updatedAt': tutorial.updated_at.isoformat() if tutorial.updated_at else None,
                     'videoDuration': tutorial.video_duration,
                     'tags': tutorial.tags,
-                    'bookmarkedAt': bookmark.created_at.isoformat() if bookmark.created_at else None,
+                    'bookmarkedAt': bookmark_created_at.isoformat() if bookmark_created_at else None,
                 })
             
             pagination = ResponseService.pagination_info(page, per_page, total or 0)
