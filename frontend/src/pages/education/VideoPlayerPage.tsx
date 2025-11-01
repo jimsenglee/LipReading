@@ -521,6 +521,7 @@ const VideoPlayerPage: React.FC = () => {
                 <div 
                   ref={containerRef}
                   className="relative aspect-video bg-black group cursor-pointer"
+                  tabIndex={0}
                   onMouseMove={() => setShowControls(true)}
                   onMouseLeave={() => isPlaying && setShowControls(false)}
                 >
@@ -535,32 +536,28 @@ const VideoPlayerPage: React.FC = () => {
                       volume={isMuted ? 0 : volume}
                       playbackRate={playbackSpeed}
                       onProgress={(state: any) => {
+                        console.log('🔍 onProgress fired:', state);
                         setCurrentTime(state.playedSeconds);
-                        if (!duration && state.loadedSeconds) {
-                          console.log('🔍 Setting duration from loadedSeconds:', state.loadedSeconds);
-                          setDuration(state.loadedSeconds);
-                        }
                       }}
-                      onReady={() => {
-                        console.log('🔍 onReady fired, videoRef.current:', !!videoRef.current);
-                        // Try to get duration from internal player
-                        if (videoRef.current?.getInternalPlayer) {
-                          const internalPlayer = videoRef.current.getInternalPlayer();
-                          console.log('🔍 Internal player:', !!internalPlayer, 'duration:', internalPlayer?.duration);
-                          if (internalPlayer && internalPlayer.duration) {
-                            setDuration(internalPlayer.duration);
-                          }
-                        }
+                      onDuration={(duration: any) => {
+                        console.log('🔍 onDuration fired:', duration);
+                        setDuration(duration);
                       }}
-                      onPlay={() => setIsPlaying(true)}
-                      onPause={() => setIsPlaying(false)}
+                      onPlay={() => {
+                        console.log('🔍 onPlay fired');
+                        setIsPlaying(true);
+                      }}
+                      onPause={() => {
+                        console.log('🔍 onPause fired');
+                        setIsPlaying(false);
+                      }}
                       onEnded={() => {
+                        console.log('🔍 onEnded fired');
                         setIsPlaying(false);
                         setIsVideoCompleted(true);
                         markVideoCompleted();
                       }}
                       controls={false}
-                      light={series?.thumbnailPath ? `${API_BASE_URL}${series.thumbnailPath}` : false}
                     />
                   )}
 
