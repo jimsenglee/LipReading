@@ -236,20 +236,15 @@ const VideoPlayerPage: React.FC = () => {
   const series = seriesQuery.data;
   const video = series?.videos?.find(v => v.id === Number(videoId));
   const userProgress: any = undefined; // will implement later
-  
-  // DEBUG: Log video data
-  console.log('🔵 VideoPlayerPage - series:', series);
-  console.log('🔵 VideoPlayerPage - video:', video);
-  console.log('🔵 VideoPlayerPage - videoPath:', video?.videoPath);
-  console.log('🔵 VideoPlayerPage - videoId from URL:', videoId);
-  console.log('🔵 VideoPlayerPage - Full video URL:', video?.videoPath ? `${API_BASE_URL}${video.videoPath}` : 'NO URL');
-  console.log('🔵 VideoPlayerPage - API_BASE_URL:', API_BASE_URL);
-  
-  // DEBUG: ReactPlayer props
-  const videoUrl = video?.videoPath ? `${API_BASE_URL}${video.videoPath}` : '';
-  const lightProp = series?.thumbnailPath ? `${API_BASE_URL}${series.thumbnailPath}` : false;
-  console.log('🔵 VideoPlayerPage - ReactPlayer url prop:', videoUrl);
-  console.log('🔵 VideoPlayerPage - ReactPlayer light prop:', lightProp);
+
+  // DEBUG: Log data to console
+  React.useEffect(() => {
+    console.log('🔵 VideoPlayerPage DEBUG:');
+    console.log('seriesId:', seriesId, 'videoId:', videoId);
+    console.log('series:', series);
+    console.log('video:', video);
+    console.log('video?.videoPath:', video?.videoPath);
+  }, [series, video, seriesId, videoId]);
 
   const markVideoCompleted = React.useCallback(async () => {
     try {
@@ -386,7 +381,7 @@ const VideoPlayerPage: React.FC = () => {
                   {/* ReactPlayer integration */}
                   <ReactPlayer
                     ref={videoRef}
-                    url={videoUrl}
+                    url={video?.videoPath ? `${API_BASE_URL}${video.videoPath}` : ''}
                     width="100%"
                     height="100%"
                     playing={isPlaying}
@@ -398,6 +393,8 @@ const VideoPlayerPage: React.FC = () => {
                     onPause={() => setIsPlaying(false)}
                     onBuffer={() => setIsBuffering(true)}
                     onBufferEnd={() => setIsBuffering(false)}
+                    onReady={() => console.log('🔵 ReactPlayer ready, video loaded successfully')}
+                    onError={(error: any) => console.error('🔴 ReactPlayer error:', error)}
                     onEnded={() => {
                       setIsPlaying(false);
                       setIsVideoCompleted(true);
@@ -415,7 +412,7 @@ const VideoPlayerPage: React.FC = () => {
                       }
                     }}
                     controls={false}
-                    light={lightProp}
+                    light={series?.thumbnailPath ? `${API_BASE_URL}${series.thumbnailPath}` : false}
                   />
 
                   {/* Loading Spinner */}

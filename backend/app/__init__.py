@@ -25,14 +25,11 @@ def create_app() -> Flask:
     
     @app.route('/uploads/<path:filename>')
     def uploaded_file(filename):
-        response = send_from_directory(uploads_dir, filename)
-        
-        # Set proper MIME type for video files
-        if filename.endswith('.mp4'):
-            response.headers['Content-Type'] = 'video/mp4'
-            response.headers['Accept-Ranges'] = 'bytes'
-        
-        return response
+        # DEBUG: Log static file requests
+        print(f"🔵 Serving static file: /uploads/{filename}")
+        print(f"   Full path: {os.path.join(uploads_dir, filename)}")
+        print(f"   Exists: {os.path.exists(os.path.join(uploads_dir, filename))}")
+        return send_from_directory(uploads_dir, filename)
 
     # import models so migrations can detect them
     # note: keep local import to avoid circulars during app creation
