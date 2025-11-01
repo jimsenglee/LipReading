@@ -236,6 +236,14 @@ const VideoPlayerPage: React.FC = () => {
   const series = seriesQuery.data;
   const video = series?.videos?.find(v => v.id === Number(videoId));
   const userProgress: any = undefined; // will implement later
+  
+  // DEBUG: Log video data
+  console.log('🔵 VideoPlayerPage - series:', series);
+  console.log('🔵 VideoPlayerPage - video:', video);
+  console.log('🔵 VideoPlayerPage - videoPath:', video?.videoPath);
+  console.log('🔵 VideoPlayerPage - videoId from URL:', videoId);
+  console.log('🔵 VideoPlayerPage - Full video URL:', video?.videoPath ? `${API_BASE_URL}${video.videoPath}` : 'NO URL');
+  console.log('🔵 VideoPlayerPage - API_BASE_URL:', API_BASE_URL);
 
   const markVideoCompleted = React.useCallback(async () => {
     try {
