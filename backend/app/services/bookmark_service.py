@@ -21,7 +21,7 @@ class BookmarkService:
     def get_user_bookmarks(user_id: int, params: Dict[str, Any] | None = None):
         """get all bookmarks for a user with filtering"""
         try:
-            print(f"🔍 [DEBUG] get_user_bookmarks called for user_id: {user_id}")
+            print(f"[DEBUG] get_user_bookmarks called for user_id: {user_id}")
             
             # build base query
             bookmarks_query = select(Tutorial, user_bookmarks, Category).join(
@@ -72,7 +72,7 @@ class BookmarkService:
             # execute query
             results = db.session.execute(bookmarks_query).all()
             
-            print(f"🔍 [DEBUG] Found {len(results)} bookmarks")
+            print(f"[DEBUG] Found {len(results)} bookmarks")
             
             bookmark_list = []
             for tutorial, bookmark, category in results:
@@ -111,14 +111,14 @@ class BookmarkService:
     def add_bookmark(user_id: int, tutorial_id: int):
         """add a tutorial to user's bookmarks"""
         try:
-            print(f"🔍 [DEBUG] add_bookmark called for user_id: {user_id}, tutorial_id: {tutorial_id}")
+            print(f"[DEBUG] add_bookmark called for user_id: {user_id}, tutorial_id: {tutorial_id}")
             
             # check if tutorial exists
             tutorial = db.session.scalar(
                 select(Tutorial).where(Tutorial.id == tutorial_id)
             )
             if not tutorial:
-                print(f"❌ [DEBUG] Tutorial {tutorial_id} not found")
+                print(f"[DEBUG] Tutorial {tutorial_id} not found")
                 raise APIError("tutorial not found", 404)
             
             # check if already bookmarked
@@ -130,7 +130,7 @@ class BookmarkService:
             )
             
             if existing_bookmark:
-                print(f"⚠️ [DEBUG] Tutorial {tutorial_id} already bookmarked by user {user_id}")
+                print(f"[DEBUG] Tutorial {tutorial_id} already bookmarked by user {user_id}")
                 raise APIError("tutorial already bookmarked", 409)
             
             # add bookmark
@@ -142,7 +142,7 @@ class BookmarkService:
             )
             db.session.commit()
             
-            print(f"✅ [DEBUG] Successfully bookmarked tutorial {tutorial_id}")
+            print(f"[DEBUG] Successfully bookmarked tutorial {tutorial_id}")
             return {"message": "tutorial bookmarked successfully"}
             
         except APIError:
@@ -157,7 +157,7 @@ class BookmarkService:
     def remove_bookmark(user_id: int, tutorial_id: int):
         """remove a tutorial from user's bookmarks"""
         try:
-            print(f"🔍 [DEBUG] remove_bookmark called for user_id: {user_id}, tutorial_id: {tutorial_id}")
+            print(f"[DEBUG] remove_bookmark called for user_id: {user_id}, tutorial_id: {tutorial_id}")
             
             # check if bookmark exists
             existing_bookmark = db.session.scalar(
@@ -168,7 +168,7 @@ class BookmarkService:
             )
             
             if not existing_bookmark:
-                print(f"❌ [DEBUG] Bookmark not found for user {user_id}, tutorial {tutorial_id}")
+                print(f"[DEBUG] Bookmark not found for user {user_id}, tutorial {tutorial_id}")
                 raise APIError("bookmark not found", 404)
             
             # remove bookmark
@@ -180,7 +180,7 @@ class BookmarkService:
             )
             db.session.commit()
             
-            print(f"✅ [DEBUG] Successfully removed bookmark")
+            print(f"[DEBUG] Successfully removed bookmark")
             return {"message": "bookmark removed successfully"}
             
         except APIError:
