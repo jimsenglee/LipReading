@@ -70,90 +70,6 @@ def check_bookmark(tutorial_id):
         return ResponseService.error_response(f"Failed to check bookmark: {str(e)}", 500)
 
 
-@bookmark_bp.route("/bookmarks/<int:tutorial_id>/progress", methods=["PUT"])
-@jwt_required()
-def update_progress(tutorial_id):
-    """update user's progress for a tutorial"""
-    try:
-        current_user_id = get_jwt_identity()
-        data = request.get_json()
-        if not data:
-            return ResponseService.error_response("Request data is required", 400)
-        
-        result = BookmarkService.update_progress(current_user_id, tutorial_id, data)
-        return ResponseService.success_response(result)
-    except APIError as e:
-        return handle_api_error(e)
-    except Exception as e:
-        return ResponseService.error_response(f"Failed to update progress: {str(e)}", 500)
-
-
-@bookmark_bp.route("/bookmarks/<int:tutorial_id>/progress", methods=["GET"])
-@jwt_required()
-def get_progress(tutorial_id):
-    """get user's progress for a specific tutorial"""
-    try:
-        current_user_id = get_jwt_identity()
-        progress = BookmarkService.get_progress(current_user_id, tutorial_id)
-        return ResponseService.success_response(progress)
-    except APIError as e:
-        return handle_api_error(e)
-    except Exception as e:
-        return ResponseService.error_response(f"Failed to get progress: {str(e)}", 500)
-
-
-@bookmark_bp.route("/bookmarks/<int:tutorial_id>/review", methods=["POST"])
-@jwt_required()
-def submit_review(tutorial_id):
-    """submit a review for a tutorial"""
-    try:
-        current_user_id = get_jwt_identity()
-        data = request.get_json()
-        if not data:
-            return ResponseService.error_response("Request data is required", 400)
-        
-        rating = data.get('rating')
-        review_text = data.get('reviewText', '')
-        
-        if not rating:
-            return ResponseService.error_response("Rating is required", 400)
-        
-        result = BookmarkService.submit_review(current_user_id, tutorial_id, rating, review_text)
-        return ResponseService.success_response(result)
-    except APIError as e:
-        return handle_api_error(e)
-    except Exception as e:
-        return ResponseService.error_response(f"Failed to submit review: {str(e)}", 500)
-
-
-@bookmark_bp.route("/bookmarks/<int:tutorial_id>/review", methods=["GET"])
-@jwt_required()
-def get_user_review(tutorial_id):
-    """get user's review for a specific tutorial"""
-    try:
-        current_user_id = get_jwt_identity()
-        review = BookmarkService.get_user_review(current_user_id, tutorial_id)
-        return ResponseService.success_response(review)
-    except APIError as e:
-        return handle_api_error(e)
-    except Exception as e:
-        return ResponseService.error_response(f"Failed to get user review: {str(e)}", 500)
-
-
-@bookmark_bp.route("/bookmarks/statistics", methods=["GET"])
-@jwt_required()
-def get_bookmark_statistics():
-    """get bookmark statistics for the current user"""
-    try:
-        current_user_id = get_jwt_identity()
-        statistics = BookmarkService.get_bookmark_statistics(current_user_id)
-        return ResponseService.success_response(statistics)
-    except APIError as e:
-        return handle_api_error(e)
-    except Exception as e:
-        return ResponseService.error_response(f"Failed to get bookmark statistics: {str(e)}", 500)
-
-
 @bookmark_bp.route("/bookmarks/bulk", methods=["POST"])
 @jwt_required()
 def bulk_add_bookmarks():
@@ -206,15 +122,3 @@ def search_bookmarks():
         return handle_api_error(e)
     except Exception as e:
         return ResponseService.error_response(f"Failed to search bookmarks: {str(e)}", 500)
-
-
-@bookmark_bp.route("/tutorials/<int:tutorial_id>/reviews", methods=["GET"])
-def get_tutorial_reviews(tutorial_id):
-    """get all reviews for a tutorial (public endpoint)"""
-    try:
-        reviews = BookmarkService.get_tutorial_reviews(tutorial_id)
-        return ResponseService.success_response(reviews)
-    except APIError as e:
-        return handle_api_error(e)
-    except Exception as e:
-        return ResponseService.error_response(f"Failed to get tutorial reviews: {str(e)}", 500)
