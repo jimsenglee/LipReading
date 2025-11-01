@@ -385,28 +385,30 @@ const VideoPlayerPage: React.FC = () => {
                   onMouseLeave={() => isPlaying && setShowControls(false)}
                 >
                   {/* ReactPlayer integration */}
-                  {(ReactPlayer as any)({
-                    ref: videoRef,
-                    url: video?.videoPath ? `${API_BASE_URL}${video.videoPath}` : '',
-                    width: "100%",
-                    height: "100%",
-                    playing: isPlaying,
-                    volume: isMuted ? 0 : volume,
-                    playbackRate: playbackSpeed,
-                    onProgress: (state: any) => setCurrentTime(state.playedSeconds),
-                    onDuration: (duration: any) => setDuration(duration),
-                    onPlay: () => setIsPlaying(true),
-                    onPause: () => setIsPlaying(false),
-                    onBuffer: () => setIsBuffering(true),
-                    onBufferEnd: () => setIsBuffering(false),
-                    onEnded: () => {
-                      setIsPlaying(false);
-                      setIsVideoCompleted(true);
-                      markVideoCompleted();
-                    },
-                    controls: false,
-                    light: series?.thumbnailPath ? `${API_BASE_URL}${series.thumbnailPath}` : false
-                  })}
+                  {video && (
+                    <ReactPlayer
+                      ref={videoRef}
+                      src={`${API_BASE_URL}${video.videoPath}`}
+                      width="100%"
+                      height="100%"
+                      playing={isPlaying}
+                      volume={isMuted ? 0 : volume}
+                      playbackRate={playbackSpeed}
+                      onProgress={(state: any) => setCurrentTime(state.playedSeconds)}
+                      onDuration={(duration: any) => setDuration(duration)}
+                      onPlay={() => setIsPlaying(true)}
+                      onPause={() => setIsPlaying(false)}
+                      onBuffer={() => setIsBuffering(true)}
+                      onBufferEnd={() => setIsBuffering(false)}
+                      onEnded={() => {
+                        setIsPlaying(false);
+                        setIsVideoCompleted(true);
+                        markVideoCompleted();
+                      }}
+                      controls={false}
+                      light={series?.thumbnailPath ? `${API_BASE_URL}${series.thumbnailPath}` : false}
+                    />
+                  )}
 
                   {/* Loading Spinner */}
                   {isBuffering && (
