@@ -434,7 +434,6 @@ const VideoPlayerPage: React.FC = () => {
                       }
                     }}
                     controls={false}
-                    light={series?.thumbnailPath ? `${API_BASE_URL}${series.thumbnailPath}` : false}
                   />
 
                   {/* Loading Spinner */}
