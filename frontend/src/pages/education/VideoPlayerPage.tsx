@@ -41,6 +41,59 @@ const formatTime = (seconds: number) => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
+// Parse WebVTT format
+const parseVTT = (vttText: string): Array<{start: number, end: number, text: string}> => {
+  const lines = vttText.split('\n');
+  const subtitles: Array<{start: number, end: number, text: string}> = [];
+  let i = 0;
+  
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    
+    // Skip WEBVTT header and empty lines
+    if (line === '' || line === 'WEBVTT' || line.match(/^\d+$/)) {
+      i++;
+      continue;
+    }
+    
+    // Match timestamp line: "00:00:00.360 --> 00:00:03.240"
+    const timestampMatch = line.match(/(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/);
+    if (timestampMatch) {
+      const [, startStr, endStr] = timestampMatch;
+      const start = parseTimestamp(startStr);
+      const end = parseTimestamp(endStr);
+      
+      // Collect text lines until next timestamp or empty line
+      const textLines: string[] = [];
+      i++;
+      while (i < lines.length && lines[i].trim() !== '' && !lines[i].match(/\d{2}:\d{2}:\d{2}/)) {
+        textLines.push(lines[i].trim());
+        i++;
+      }
+      
+      if (textLines.length > 0) {
+        subtitles.push({
+          start,
+          end,
+          text: textLines.join(' ')
+        });
+      }
+    } else {
+      i++;
+    }
+  }
+  
+  return subtitles;
+};
+
+// Convert VTT timestamp "00:00:00.360" to seconds
+const parseTimestamp = (timestamp: string): number => {
+  const [hms, ms] = timestamp.split('.');
+  const [h, m, s] = hms.split(':').map(Number);
+  const milliseconds = parseInt(ms);
+  return h * 3600 + m * 60 + s + milliseconds / 1000;
+};
+
 const getProgressPercentage = (p: any, s: ApiTutorial) => {
   if (!p || !s.videos) return 0;
   const completedCount = p.completedVideos?.length || 0;
@@ -262,6 +315,8 @@ const VideoPlayerPage: React.FC = () => {
   const [isVideoCompleted, setIsVideoCompleted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(false);
+  const [subtitleLines, setSubtitleLines] = useState<Array<{start: number, end: number, text: string}>>([]);
+  const [currentSubtitle, setCurrentSubtitle] = useState<string>('');
 
   // get series and video data from API response
   const series = seriesQuery.data;
@@ -444,6 +499,36 @@ const VideoPlayerPage: React.FC = () => {
     isFullscreen
   ]);
 
+  // Load subtitles when video changes
+  useEffect(() => {
+    if (video?.subtitlePath && subtitlesEnabled) {
+      const loadSubtitles = async () => {
+        try {
+          const response = await fetch(`${API_BASE_URL}${video.subtitlePath}`);
+          const text = await response.text();
+          const lines = parseVTT(text);
+          setSubtitleLines(lines);
+        } catch (error) {
+          console.error('Failed to load subtitles:', error);
+        }
+      };
+      loadSubtitles();
+    }
+  }, [video?.subtitlePath, subtitlesEnabled]);
+
+  // Update current subtitle based on currentTime
+  useEffect(() => {
+    if (!subtitlesEnabled || subtitleLines.length === 0) {
+      setCurrentSubtitle('');
+      return;
+    }
+
+    const activeLine = subtitleLines.find(line => 
+      currentTime >= line.start && currentTime < line.end
+    );
+    setCurrentSubtitle(activeLine?.text || '');
+  }, [currentTime, subtitleLines, subtitlesEnabled]);
+
   useEffect(() => {
     if (video) {
       markVideoCompleted();
@@ -574,6 +659,15 @@ const VideoPlayerPage: React.FC = () => {
                       >
                         <Play className="h-8 w-8 ml-1" />
                       </Button>
+                    </div>
+                  )}
+
+                  {/* Subtitle Overlay */}
+                  {currentSubtitle && subtitlesEnabled && (
+                    <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-black/75 rounded-lg max-w-[80%]">
+                      <p className="text-white text-center text-lg font-medium">
+                        {currentSubtitle}
+                      </p>
                     </div>
                   )}
 
