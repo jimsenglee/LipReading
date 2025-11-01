@@ -387,40 +387,28 @@ const VideoPlayerPage: React.FC = () => {
                     volume={isMuted ? 0 : volume}
                     playbackRate={playbackSpeed}
                     onProgress={(state: any) => setCurrentTime(state.playedSeconds)}
-                    onDuration={(duration: any) => {
-                      console.log('🔵 ReactPlayer - onDuration called:', duration);
-                      setDuration(duration);
-                    }}
-                    onPlay={() => {
-                      console.log('🔵 ReactPlayer - onPlay called');
-                      setIsPlaying(true);
-                    }}
-                    onPause={() => {
-                      console.log('🔵 ReactPlayer - onPause called');
-                      setIsPlaying(false);
-                    }}
-                    onBuffer={() => {
-                      console.log('🔵 ReactPlayer - onBuffer called');
-                      setIsBuffering(true);
-                    }}
-                    onBufferEnd={() => {
-                      console.log('🔵 ReactPlayer - onBufferEnd called');
-                      setIsBuffering(false);
-                    }}
-                    onReady={() => {
-                      console.log('🔵 ReactPlayer - onReady called');
-                    }}
-                    onError={(error: any) => {
-                      console.error('🔴 ReactPlayer - onError:', error);
-                    }}
-                    onStart={() => {
-                      console.log('🔵 ReactPlayer - onStart called');
-                    }}
+                    onDuration={(duration: any) => setDuration(duration)}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    onBuffer={() => setIsBuffering(true)}
+                    onBufferEnd={() => setIsBuffering(false)}
                     onEnded={() => {
-                      console.log('🔵 ReactPlayer - onEnded called');
                       setIsPlaying(false);
                       setIsVideoCompleted(true);
                       markVideoCompleted();
+                    }}
+                    onReady={() => {
+                      console.log('✅ ReactPlayer Ready!');
+                      console.log('✅ Video duration:', duration);
+                    }}
+                    onError={(error: any) => {
+                      console.error('🔴 ReactPlayer Error:', error);
+                      console.error('🔴 Error Data:', error.data);
+                      toast({
+                        variant: "destructive",
+                        title: "Video Playback Error",
+                        description: "Failed to load video. Please try again.",
+                      });
                     }}
                     config={{
                       file: {
@@ -434,6 +422,7 @@ const VideoPlayerPage: React.FC = () => {
                       }
                     }}
                     controls={false}
+                    light={series?.thumbnailPath ? `${API_BASE_URL}${series.thumbnailPath}` : false}
                   />
 
                   {/* Loading Spinner */}
