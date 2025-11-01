@@ -73,9 +73,15 @@ class BookmarkService:
             results = db.session.execute(bookmarks_query).all()
             
             print(f"[DEBUG] Found {len(results)} bookmarks")
+            if len(results) > 0:
+                print(f"[DEBUG] First result columns: {len(results[0])}")
+                print(f"[DEBUG] First result: {results[0]}")
             
             bookmark_list = []
-            for tutorial, bookmark, category in results:
+            for row in results:
+                tutorial = row[0]
+                bookmark = row[1]
+                category = row[2]
                 bookmark_list.append({
                     'id': tutorial.id,
                     'publicId': tutorial.public_id,
@@ -371,7 +377,10 @@ class BookmarkService:
             results = db.session.execute(search_query).all()
             
             bookmark_list = []
-            for tutorial, bookmark, category in results:
+            for row in results:
+                tutorial = row[0]
+                bookmark = row[1]
+                category = row[2]
                 bookmark_list.append({
                     'id': tutorial.id,
                     'publicId': tutorial.public_id,
