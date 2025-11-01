@@ -585,7 +585,7 @@ const VideoPlayerPage: React.FC = () => {
     currentTime,
     duration,
     isPlaying,
-    videoSrc: video ? `${API_BASE_URL}${video.videoPath}` : 'no video',
+    videoSrc: video ? video.videoPath : 'no video',
     hasSubtitles
   });
 
