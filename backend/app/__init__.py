@@ -38,23 +38,23 @@ def create_app() -> Flask:
     # DEBUG: Print Colab configuration at startup
     colab_url = os.getenv('COLAB_SERVER_URL') or app.config.get('COLAB_SERVER_URL')
     print("\n" + "="*60)
-    print("🔍 AI SERVER CONFIGURATION")
+    print("AI SERVER CONFIGURATION")
     print("="*60)
     if colab_url:
-        print(f"✅ Colab URL configured: {colab_url}")
+        print(f"[OK] Colab URL configured: {colab_url}")
         
         # Test connection
         try:
             import requests
             response = requests.get(f"{colab_url}/health", timeout=5)
             if response.status_code == 200:
-                print(f"✅ Colab server is AVAILABLE and responding")
+                print(f"[OK] Colab server is AVAILABLE and responding")
             else:
-                print(f"⚠️ Colab server returned status: {response.status_code}")
+                print(f"[WARN] Colab server returned status: {response.status_code}")
         except Exception as e:
-            print(f"❌ Colab server is NOT accessible: {e}")
+            print(f"[ERROR] Colab server is NOT accessible: {e}")
     else:
-        print("❌ Colab URL NOT configured - AI transcription will fail!")
+        print("[ERROR] Colab URL NOT configured - AI transcription will fail!")
         print("   Add COLAB_SERVER_URL to backend/.flaskenv")
     print("="*60 + "\n")
 
