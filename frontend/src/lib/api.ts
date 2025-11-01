@@ -117,6 +117,21 @@ export interface ApiQuiz {
   showResultsImmediately?: boolean;
 }
 
+export interface ApiTranscription {
+  id: number;
+  publicId: string;
+  title: string;
+  contentText?: string;
+  timestampsJson?: string;
+  creationDate?: string;
+  videoSourcePath?: string;
+  processingStatus: 'pending' | 'processing' | 'completed' | 'failed';
+  gdriveFileId?: string;
+  colabJobId?: string;
+  processedAt?: string;
+  durationSeconds?: number;
+}
+
 class ApiClient {
   private baseURL: string;
 
@@ -517,6 +532,52 @@ class ApiClient {
 
   async deleteCategory(id: number): Promise<{ success: boolean; message: string }> {
     return this.request<{ success: boolean; message: string }>(`/categories/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Transcription methods
+  async uploadTranscription(videoFile: File, title: string): Promise<{ success: boolean; transcriptionId: number; transcription: string }> {
+    const formData = new FormData();
+    formData.append('video', videoFile);
+    formData.append('title', title);
+    
+    const response = await this.request<{ success: boolean; data: { transcriptionId: number; transcription: string }; message: string }>('/transcriptions/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    
+    // Transform response to expected format
+    return {
+      success: response.success,
+      transcriptionId: response.data.transcriptionId,
+      transcription: response.data.transcription
+    };
+  }
+
+  async getTranscriptions(params: { page?: number; per_page?: number; search?: string; status?: string; sort_by?: string; sort_order?: string } = {}): Promise<{ success: boolean; data: ApiTranscription[]; pagination: any }> {
+    const queryParams = new URLSearchParams();
+    
+    if (params.page) queryParams.append('page', params.page.toString());
+    if (params.per_page) queryParams.append('per_page', params.per_page.toString());
+    if (params.search) queryParams.append('search', params.search);
+    if (params.status) queryParams.append('status', params.status);
+    if (params.sort_by) queryParams.append('sort_by', params.sort_by);
+    if (params.sort_order) queryParams.append('sort_order', params.sort_order);
+    
+    return this.request<{ success: boolean; data: ApiTranscription[]; pagination: any }>(`/transcriptions?${queryParams.toString()}`, {
+      method: 'GET',
+    });
+  }
+
+  async getTranscription(id: number): Promise<{ success: boolean; data: ApiTranscription }> {
+    return this.request<{ success: boolean; data: ApiTranscription }>(`/transcriptions/${id}`, {
+      method: 'GET',
+    });
+  }
+
+  async deleteTranscription(id: number): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(`/transcriptions/${id}`, {
       method: 'DELETE',
     });
   }

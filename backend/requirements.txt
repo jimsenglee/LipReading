@@ -11,3 +11,4 @@ PyJWT==2.8.0
 Werkzeug==3.0.3
 email-validator==2.3.0
 marshmallow==3.23.1
+requests==2.31.0

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useFeedbackToast } from '@/components/ui/feedback-toast';
+import { useUploadTranscription } from '@/services/transcription';
 import { 
   Upload, 
   FileVideo, 
@@ -22,6 +23,7 @@ interface VideoFile {
   progress: number;
   error?: string;
   transcription?: string;
+  transcriptionId?: number;
   confidence?: number;
 }
 
@@ -34,6 +36,7 @@ const VideoUploadZone: React.FC<VideoUploadZoneProps> = ({ onTranscriptionComple
   const [dragOver, setDragOver] = useState(false);
   const feedbackToast = useFeedbackToast();
   const navigate = useNavigate();
+  const uploadMutation = useUploadTranscription();
 
   // File validation constants (moved outside to prevent re-creation)
   const MAX_FILE_SIZE = useMemo(() => 100 * 1024 * 1024, []); // 100MB
@@ -55,80 +58,81 @@ const VideoUploadZone: React.FC<VideoUploadZoneProps> = ({ onTranscriptionComple
   }, [ALLOWED_TYPES, MAX_FILE_SIZE]);
 
   // Process video file
-  const processVideoFile = useCallback(async (fileId: string) => {
+  const processVideoFile = useCallback(async (fileId: string, fileToProcess?: VideoFile) => {
+    console.log('🔵 processVideoFile called for fileId:', fileId);
+    
+    // If file not provided, try to find it in state
+    if (!fileToProcess) {
+      fileToProcess = videoFiles.find(f => f.id === fileId) || undefined;
+    }
+    
+    if (!fileToProcess) {
+      console.log('❌ File not found for fileId:', fileId);
+      console.log('Available IDs:', videoFiles.map(f => f.id));
+      return;
+    }
+    
+    console.log('📄 Processing file:', fileToProcess.file.name);
+    
+    // Update status to uploading
     setVideoFiles(prev => 
-      prev.map(f => f.id === fileId ? { ...f, status: 'uploading' } : f)
+      prev.map(f => f.id === fileId ? { ...f, status: 'uploading' as const } : f)
     );
 
     try {
-      // Simulate upload progress
-      for (let progress = 0; progress <= 100; progress += 10) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        setVideoFiles(prev => 
-          prev.map(f => f.id === fileId ? { ...f, progress } : f)
-        );
-      }
+      console.log('📤 Starting upload to backend...');
+      // Upload video to backend
+      const result = await uploadMutation.mutateAsync({
+        videoFile: fileToProcess.file,
+        title: fileToProcess.file.name
+      });
 
-      // Switch to analyzing
-      setVideoFiles(prev => 
-        prev.map(f => f.id === fileId ? { ...f, status: 'analyzing', progress: 0 } : f)
-      );
+      console.log('✅ Upload successful, result:', result);
 
-      // Simulate analysis progress
-      for (let progress = 0; progress <= 100; progress += 5) {
-        await new Promise(resolve => setTimeout(resolve, 300));
-        setVideoFiles(prev => 
-          prev.map(f => f.id === fileId ? { ...f, progress } : f)
-        );
-      }
-
-      // complete analysis
-      const sampleTranscription = "This is a sample transcription from your uploaded video file. The lip reading AI has analyzed the visual speech patterns and generated this text with high accuracy.";
-      const sampleConfidence = Math.floor(Math.random() * 15) + 85; // 85-100%
-
+      // Update file status
       setVideoFiles(prev => 
         prev.map(f => f.id === fileId ? { 
           ...f, 
           status: 'complete', 
           progress: 100,
-          transcription: sampleTranscription,
-          confidence: sampleConfidence
+          transcription: result.transcription,
+          transcriptionId: result.transcriptionId
         } : f)
       );
 
-      const file = videoFiles.find(f => f.id === fileId)?.file;
-      if (file) {
-        onTranscriptionComplete(sampleTranscription, file);
-      }
+      onTranscriptionComplete(result.transcription, fileToProcess.file);
 
       feedbackToast.success(
         "Analysis Complete",
         "Your video has been successfully processed."
       );
 
-    } catch (error) {
+    } catch (error: any) {
+      console.log('❌ Upload failed:', error);
       setVideoFiles(prev => 
         prev.map(f => f.id === fileId ? { 
           ...f, 
           status: 'error', 
-          error: "Processing failed. Please try again."
+          error: error?.message || "Processing failed. Please try again."
         } : f)
       );
       
       feedbackToast.error(
         "Processing Failed",
-        "An error occurred while processing your video."
+        error?.message || "An error occurred while processing your video."
       );
     }
-  }, [videoFiles, onTranscriptionComplete, feedbackToast]);
+  }, [videoFiles, uploadMutation, onTranscriptionComplete, feedbackToast]);
 
   // Handle file selection
   const handleFileSelect = useCallback((files: FileList | null) => {
+    console.log('🔵 handleFileSelect called, files count:', files?.length);
     if (!files) return;
 
     const newFiles: VideoFile[] = [];
     
     Array.from(files).forEach((file) => {
+      console.log('📄 Validating file:', file.name, file.size);
       const error = validateFile(file);
       
       const videoFile: VideoFile = {
@@ -144,19 +148,27 @@ const VideoUploadZone: React.FC<VideoUploadZoneProps> = ({ onTranscriptionComple
 
     setVideoFiles(prev => [...prev, ...newFiles]);
 
-    // Process valid files
+    // Process valid files - pass the file object directly
+    console.log('🔄 Processing', newFiles.filter(f => f.status === 'pending').length, 'pending files');
     newFiles.forEach(videoFile => {
       if (videoFile.status === 'pending') {
-        processVideoFile(videoFile.id);
+        console.log('▶️ Calling processVideoFile for:', videoFile.id);
+        processVideoFile(videoFile.id, videoFile);
       }
     });
   }, [processVideoFile, validateFile]);
 
   // View completed transcription
   const viewTranscription = (fileId: string) => {
-    // in a real app, this would use the actual transcription ID
-    // for now, we'll use the sample ID from TranscriptionResult page
-    navigate('/transcription-result/1');
+    console.log('🔵 viewTranscription called for fileId:', fileId);
+    const videoFile = videoFiles.find(f => f.id === fileId);
+    console.log('📄 Found videoFile:', videoFile);
+    if (videoFile?.transcriptionId) {
+      console.log('✅ Navigating to transcription result:', `/transcription-result/${videoFile.transcriptionId}`);
+      navigate(`/transcription-result/${videoFile.transcriptionId}`);
+    } else {
+      console.log('❌ No transcriptionId found for file');
+    }
   };
 
   // Remove file from queue

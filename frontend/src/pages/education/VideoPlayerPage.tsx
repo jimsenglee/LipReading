@@ -10,6 +10,7 @@ import {
   Volume2,
   VolumeX,
   Maximize,
+  Minimize,
   SkipBack,
   SkipForward,
   ArrowLeft,
@@ -29,6 +30,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useTutorialSeriesById } from '@/services/content/contentQueries';
 import { API_BASE_URL } from '@/lib/constants';
 import { Video, ApiTutorial } from '@/lib/api';
+import ReactPlayer from 'react-player';
 const formatDuration = (n?: number) => (n ? `${Math.round(n/60)} min` : '0 min');
 const getProgressPercentage = (p: any, s: ApiTutorial) => {
   if (!p || !s.videos) return 0;
@@ -50,6 +52,7 @@ interface VideoPlayerControlsProps {
   onFullscreen: () => void;
   playbackSpeed: number;
   onSpeedChange: (speed: number) => void;
+  isFullscreen: boolean;
 }
 
 const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
@@ -64,7 +67,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
   onMuteToggle,
   onFullscreen,
   playbackSpeed,
-  onSpeedChange
+  onSpeedChange,
+  isFullscreen
 }) => {
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
@@ -198,7 +202,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
             onClick={onFullscreen}
             className="text-white hover:bg-white/20 p-2"
           >
-            <Maximize className="h-4 w-4" />
+            {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
           </Button>
         </div>
       </div>
@@ -215,7 +219,8 @@ const VideoPlayerPage: React.FC = () => {
   const seriesQuery = useTutorialSeriesById(Number(seriesId));
   
   // Video player state
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -224,6 +229,8 @@ const VideoPlayerPage: React.FC = () => {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showControls, setShowControls] = useState(true);
   const [isVideoCompleted, setIsVideoCompleted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
 
   // get series and video data from API response
   const series = seriesQuery.data;
@@ -249,28 +256,10 @@ const VideoPlayerPage: React.FC = () => {
   }, [video?.title, toast]);
 
   useEffect(() => {
-    if (videoRef.current) {
-      const videoElement = videoRef.current;
-      
-      const handleTimeUpdate = () => setCurrentTime(videoElement.currentTime);
-      const handleDurationChange = () => setDuration(videoElement.duration);
-      const handleEnded = () => {
-        setIsPlaying(false);
-        setIsVideoCompleted(true);
-        markVideoCompleted();
-      };
-
-      videoElement.addEventListener('timeupdate', handleTimeUpdate);
-      videoElement.addEventListener('durationchange', handleDurationChange);
-      videoElement.addEventListener('ended', handleEnded);
-
-      return () => {
-        videoElement.removeEventListener('timeupdate', handleTimeUpdate);
-        videoElement.removeEventListener('durationchange', handleDurationChange);
-        videoElement.removeEventListener('ended', handleEnded);
-      };
+    if (video) {
+      markVideoCompleted();
     }
-  }, [videoId, markVideoCompleted]);
+  }, [videoId, markVideoCompleted, video]);
 
   // Hide controls after inactivity
   useEffect(() => {
@@ -314,28 +303,18 @@ const VideoPlayerPage: React.FC = () => {
   ];
 
   const handlePlayPause = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
+    setIsPlaying(!isPlaying);
   };
 
   const handleSeek = (time: number) => {
     if (videoRef.current) {
-      videoRef.current.currentTime = time;
+      videoRef.current.seekTo(time, 'seconds');
       setCurrentTime(time);
     }
   };
 
   const handleVolumeChange = (newVolume: number) => {
     setVolume(newVolume);
-    if (videoRef.current) {
-      videoRef.current.volume = newVolume;
-    }
     if (newVolume === 0) {
       setIsMuted(true);
     } else if (isMuted) {
@@ -345,26 +324,21 @@ const VideoPlayerPage: React.FC = () => {
 
   const handleMuteToggle = () => {
     setIsMuted(!isMuted);
-    if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
-    }
   };
 
   const handleSpeedChange = (speed: number) => {
     setPlaybackSpeed(speed);
-    if (videoRef.current) {
-      videoRef.current.playbackRate = speed;
-    }
   };
 
   const handleFullscreen = () => {
-    if (videoRef.current) {
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-      } else {
-        videoRef.current.requestFullscreen();
+    if (!isFullscreen) {
+      if (containerRef.current) {
+        containerRef.current.requestFullscreen();
       }
+    } else {
+      document.exitFullscreen();
     }
+    setIsFullscreen(!isFullscreen);
   };
 
   const navigateToVideo = (targetVideo: Video) => {
@@ -390,25 +364,56 @@ const VideoPlayerPage: React.FC = () => {
             >
               <Card className="overflow-hidden bg-black">
                 <div 
+                  ref={containerRef}
                   className="relative aspect-video bg-black group cursor-pointer"
                   onMouseMove={() => setShowControls(true)}
-                  onMouseLeave={() => setShowControls(false)}
+                  onMouseLeave={() => isPlaying && setShowControls(false)}
                 >
-                  <video
+                  {/* ReactPlayer integration */}
+                  <ReactPlayer
                     ref={videoRef}
-                    className="w-full h-full object-contain"
-                    poster={`${API_BASE_URL}${series?.thumbnailPath}`}
-                    onLoadedMetadata={() => {
-                      if (videoRef.current) {
-                        setDuration(videoRef.current.duration);
-                        videoRef.current.volume = volume;
-                        videoRef.current.playbackRate = playbackSpeed;
+                    url={video?.videoPath ? `${API_BASE_URL}${video.videoPath}` : ''}
+                    width="100%"
+                    height="100%"
+                    playing={isPlaying}
+                    volume={isMuted ? 0 : volume}
+                    playbackRate={playbackSpeed}
+                    onProgress={(state: any) => setCurrentTime(state.playedSeconds)}
+                    onDuration={(duration: any) => setDuration(duration)}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    onBuffer={() => setIsBuffering(true)}
+                    onBufferEnd={() => setIsBuffering(false)}
+                    onEnded={() => {
+                      setIsPlaying(false);
+                      setIsVideoCompleted(true);
+                      markVideoCompleted();
+                    }}
+                    config={{
+                      file: {
+                        tracks: video?.subtitlePath ? [{
+                          kind: 'subtitles',
+                          src: `${API_BASE_URL}${video.subtitlePath}`,
+                          srcLang: 'en',
+                          label: 'English',
+                          default: true
+                        }] : []
                       }
                     }}
-                  >
-                    <source src={`${API_BASE_URL}${video?.videoPath}`} type="video/mp4" />
-                    Your browser does not support the video tag.
-                  </video>
+                    controls={false}
+                    light={series?.thumbnailPath ? `${API_BASE_URL}${series.thumbnailPath}` : false}
+                  />
+
+                  {/* Loading Spinner */}
+                  {isBuffering && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        className="w-8 h-8 border-2 border-white border-t-transparent rounded-full"
+                      />
+                    </div>
+                  )}
 
                   {/* Play button overlay */}
                   {!isPlaying && (
@@ -447,6 +452,7 @@ const VideoPlayerPage: React.FC = () => {
                           onFullscreen={handleFullscreen}
                           playbackSpeed={playbackSpeed}
                           onSpeedChange={handleSpeedChange}
+                          isFullscreen={isFullscreen}
                         />
                       </motion.div>
                     )}

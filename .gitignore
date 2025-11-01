@@ -167,3 +167,6 @@ venv.bak/
 
 # Adobe and other system files
 .adobelicnotification
+
+# User uploads (videos and files)
+backend/uploads/transcriptions/

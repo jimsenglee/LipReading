@@ -353,7 +353,7 @@ def seed_programmatic() -> int:
         quiz.created_at = datetime.utcnow()
         quiz.updated_at = datetime.utcnow()
         quizzes.append(quiz)
-
+    
     db.session.add_all(quizzes)
     db.session.flush()
     print_marker(f"{len(quizzes)} quizzes created from video files")

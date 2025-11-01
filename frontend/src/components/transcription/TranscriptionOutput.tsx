@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useFeedbackToast } from '@/components/ui/feedback-toast';
+import { motion, AnimatePresence } from 'framer-motion';
+import ReactPlayer from 'react-player';
 import {
   Play,
   Pause,
@@ -56,9 +58,10 @@ const TranscriptionOutput: React.FC<TranscriptionOutputProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editedText, setEditedText] = useState('');
   
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<any>(null);
   const transcriptionRef = useRef<HTMLDivElement>(null);
   const feedbackToast = useFeedbackToast();
+  const [isBuffering, setIsBuffering] = useState(false);
 
   // Get current active segment based on video time
   const getCurrentSegmentIndex = () => {
@@ -87,11 +90,6 @@ const TranscriptionOutput: React.FC<TranscriptionOutputProps> = ({
   // Handle video play/pause
   const togglePlayPause = () => {
     if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
       setIsPlaying(!isPlaying);
     }
   };
@@ -99,31 +97,23 @@ const TranscriptionOutput: React.FC<TranscriptionOutputProps> = ({
   // Handle volume change
   const handleVolumeChange = (newVolume: number) => {
     setVolume(newVolume);
-    if (videoRef.current) {
-      videoRef.current.volume = newVolume;
-    }
+    setIsMuted(newVolume === 0);
   };
 
   // Toggle mute
   const toggleMute = () => {
     setIsMuted(!isMuted);
-    if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
-    }
   };
 
   // Handle playback speed change
   const handleSpeedChange = (speed: number) => {
     setPlaybackSpeed(speed);
-    if (videoRef.current) {
-      videoRef.current.playbackRate = speed;
-    }
   };
 
   // Seek to timestamp
   const seekToTimestamp = (timestamp: number) => {
     if (videoRef.current) {
-      videoRef.current.currentTime = timestamp;
+      videoRef.current.seekTo(timestamp);
       setCurrentTime(timestamp);
     }
   };
@@ -132,15 +122,15 @@ const TranscriptionOutput: React.FC<TranscriptionOutputProps> = ({
   const skipTime = (seconds: number) => {
     if (videoRef.current) {
       const newTime = Math.max(0, Math.min(duration, currentTime + seconds));
-      videoRef.current.currentTime = newTime;
+      videoRef.current.seekTo(newTime);
     }
   };
 
   // Toggle fullscreen
   const toggleFullscreen = () => {
     if (!isFullscreen) {
-      if (videoRef.current?.requestFullscreen) {
-        videoRef.current.requestFullscreen();
+      if (videoRef.current?.getInternalPlayer()?.requestFullscreen) {
+        videoRef.current.getInternalPlayer().requestFullscreen();
       }
     } else {
       if (document.exitFullscreen) {
@@ -237,29 +227,6 @@ const TranscriptionOutput: React.FC<TranscriptionOutputProps> = ({
     );
   };
 
-  // Video event handlers
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const handleTimeUpdate = () => setCurrentTime(video.currentTime);
-    const handleDurationChange = () => setDuration(video.duration);
-    const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
-
-    video.addEventListener('timeupdate', handleTimeUpdate);
-    video.addEventListener('durationchange', handleDurationChange);
-    video.addEventListener('play', handlePlay);
-    video.addEventListener('pause', handlePause);
-
-    return () => {
-      video.removeEventListener('timeupdate', handleTimeUpdate);
-      video.removeEventListener('durationchange', handleDurationChange);
-      video.removeEventListener('play', handlePlay);
-      video.removeEventListener('pause', handlePause);
-    };
-  }, []);
-
   // Fullscreen event handler
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -290,12 +257,35 @@ const TranscriptionOutput: React.FC<TranscriptionOutputProps> = ({
             <CardContent className="space-y-4">
               {/* Video Container */}
               <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-                <video
-                  ref={videoRef}
-                  src={videoSrc}
-                  className="w-full h-full object-contain"
-                  onClick={togglePlayPause}
-                />
+                {/* ReactPlayer integration */}
+                {(ReactPlayer as any)({
+                  ref: videoRef,
+                  url: videoSrc,
+                  width: "100%",
+                  height: "100%",
+                  playing: isPlaying,
+                  volume: isMuted ? 0 : volume,
+                  playbackRate: playbackSpeed,
+                  onProgress: (state: any) => setCurrentTime(state.playedSeconds),
+                  onDuration: (duration: any) => setDuration(duration),
+                  onPlay: () => setIsPlaying(true),
+                  onPause: () => setIsPlaying(false),
+                  onBuffer: () => setIsBuffering(true),
+                  onBufferEnd: () => setIsBuffering(false),
+                  onClick: togglePlayPause,
+                  controls: false
+                })}
+
+                {/* Loading Spinner */}
+                {isBuffering && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="w-8 h-8 border-2 border-white border-t-transparent rounded-full"
+                    />
+                  </div>
+                )}
                 
                 {/* Video Overlay Controls */}
                 <div className="absolute inset-0 bg-black/20 opacity-0 hover:opacity-100 transition-opacity">
@@ -328,7 +318,7 @@ const TranscriptionOutput: React.FC<TranscriptionOutputProps> = ({
                       onChange={(e) => {
                         const time = parseFloat(e.target.value);
                         if (videoRef.current) {
-                          videoRef.current.currentTime = time;
+                          videoRef.current.seekTo(time);
                         }
                       }}
                       className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer 

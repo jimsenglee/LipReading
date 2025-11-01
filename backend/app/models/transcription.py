@@ -20,6 +20,13 @@ class Transcription(db.Model):
     timestamps_json: so.Mapped[str | None] = so.mapped_column(sa.Text())
     creation_date: so.Mapped[datetime] = so.mapped_column(sa.DateTime(), nullable=False, default=datetime.utcnow)
     video_source_path: so.Mapped[str | None] = so.mapped_column(sa.String(255))
+    
+    # AI processing fields
+    processing_status: so.Mapped[str] = so.mapped_column(sa.String(20), nullable=False, default='pending', index=True)
+    gdrive_file_id: so.Mapped[str | None] = so.mapped_column(sa.String(255), index=True)
+    colab_job_id: so.Mapped[str | None] = so.mapped_column(sa.String(255), index=True)
+    processed_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime())
+    duration_seconds: so.Mapped[int | None] = so.mapped_column(sa.Integer)
 
     user: so.Mapped['User'] = so.relationship(back_populates='transcriptions')
 

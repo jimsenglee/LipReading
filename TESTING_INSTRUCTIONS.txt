@@ -1,0 +1,105 @@
+========================================================================
+AI MODEL INTEGRATION - TESTING INSTRUCTIONS
+========================================================================
+
+STEP 1: START COLAB AI SERVER
+========================================================================
+1. Open Google Colab: https://colab.research.google.com/
+2. Select "Runtime" -> "Change runtime type" -> "T4 GPU"
+3. Create new notebook
+4. Copy ENTIRE content from: COLAB_SERVER_CELL.txt
+5. Paste into ONE cell
+6. Run the cell (10-15 min first time)
+7. Wait for: "🎉 AI SERVER READY!"
+8. COPY the ngrok URL shown
+
+⚠️ KEEP COLAB TAB OPEN - URL changes if you restart Colab!
+⚠️ URL is NOT persistent - you'll need to update backend/.flaskenv each time!
+
+========================================================================
+STEP 2: CONFIGURE FLASK BACKEND
+========================================================================
+1. Open: backend/.flaskenv
+2. Add this line:
+   COLAB_SERVER_URL=https://your-ngrok-url-from-step1.ngrok-free.app
+3. Install requests: pip install requests
+
+========================================================================
+STEP 3: START SERVERS
+========================================================================
+
+Terminal 1 (Flask):
+cd backend
+flask run --port 5000
+
+Terminal 2 (React):
+cd frontend
+npm start
+
+========================================================================
+STEP 4: TEST VIDEO UPLOAD
+========================================================================
+1. Open: http://localhost:3000
+2. Login
+3. Go to: /transcription
+4. Click: "File Upload" tab
+5. Upload test video (MP4, <100MB)
+6. Wait for processing
+7. Click "View Result" button
+
+Expected Flow:
+- Video uploads → Flask saves → DB record created
+- Flask calls Colab AI → Colab processes with GPU
+- Transcription returned → Saved to DB
+- Frontend shows result → Navigate to result page
+
+========================================================================
+DEBUG OUTPUT
+========================================================================
+When you start Flask, you should see:
+
+🔍 AI SERVER CONFIGURATION
+============================================================
+✅ Colab URL configured: https://your-ngrok-url.ngrok-free.app
+✅ Colab server is AVAILABLE and responding
+============================================================
+
+When you upload a video, you should see:
+
+📹 VIDEO UPLOAD REQUEST RECEIVED
+============================================================
+📝 Title: ...
+📄 Filename: ...
+✅ File validation passed
+💾 Saved to: ...
+📊 Created transcription record ID: ...
+🔄 Updating status to 'processing'...
+🤖 Sending to Colab AI server...
+📥 Colab response: success=True
+✅ Transcription completed successfully!
+============================================================
+
+========================================================================
+TROUBLESHOOTING
+========================================================================
+"Colab URL NOT configured" → Add COLAB_SERVER_URL to backend/.flaskenv
+"Colab server NOT accessible" → Check Colab cell is running, verify ngrok URL
+"Cannot connect to AI server" → Keep Colab tab open, restart Flask
+"AI timeout" → Use shorter video (<30 seconds)
+"ngrok URL expired" → Restart Colab cell, get new URL, update .flaskenv, restart Flask
+
+========================================================================
+WHAT'S COMPLETE
+========================================================================
+✅ Backend API endpoints working
+✅ Flask → Colab communication
+✅ VideoUploadZone uses real API (no mocks)
+✅ TranscriptionResult uses real API (no mocks)
+✅ ReactPlayer integration (consistent across all pages)
+✅ VideoPlayerPage with ReactPlayer, subtitles, and fullscreen
+✅ All linter errors fixed
+
+========================================================================
+READY TO TEST NOW!
+========================================================================
+

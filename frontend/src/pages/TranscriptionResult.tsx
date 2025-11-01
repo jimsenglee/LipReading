@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useFeedbackToast } from '@/components/ui/feedback-toast';
+import { useTranscriptionById, useDeleteTranscription } from '@/services/transcription';
+import { API_BASE_URL } from '@/lib/constants';
 import {
   FileVideo,
   Calendar,
@@ -34,77 +36,15 @@ interface TranscriptionRecord {
   type: 'realtime' | 'upload';
 }
 
-// Sample data - will be replaced with API data
-const sampleTranscriptions: TranscriptionRecord[] = [
-  {
-    id: '1',
-    fileName: 'presentation_video.mp4',
-    videoSrc: '/placeholder.mp4', // Mock video source
-    transcriptionSegments: [
-        {
-          timestamp: 0,
-          text: "Welcome everyone to today's presentation on artificial intelligence and machine learning.",
-          confidence: 92
-        },
-        {
-          timestamp: 8,
-          text: "We'll be covering the latest developments in neural networks and deep learning algorithms.",
-          confidence: 88
-        },
-        {
-          timestamp: 16,
-          text: "First, let's discuss the fundamentals of natural language processing.",
-          confidence: 95
-        },
-        {
-          timestamp: 24,
-          text: "The accuracy of lip reading technology has improved significantly over the past few years.",
-          confidence: 91
-        },
-        {
-          timestamp: 32,
-          text: "Our system can now achieve over 90% accuracy in controlled environments.",
-          confidence: 89
-        }
-      ],
-      createdAt: new Date('2024-01-15T10:30:00'),
-      duration: 45,
-      overallConfidence: 91,
-      type: 'upload'
-    },
-    {
-      id: '2',
-      fileName: 'real_time_session_20240115',
-      transcriptionSegments: [
-        {
-          timestamp: 0,
-          text: "Hello, this is a real-time transcription test session.",
-          confidence: 87
-        },
-        {
-          timestamp: 5,
-          text: "The system is working well and capturing my speech accurately.",
-          confidence: 93
-        },
-        {
-          timestamp: 12,
-          text: "This technology has many applications in accessibility and communication.",
-          confidence: 89
-        }
-      ],
-      createdAt: new Date('2024-01-15T14:20:00'),
-      duration: 20,
-      overallConfidence: 89,
-      type: 'realtime'
-    }
-  ];
-
 const TranscriptionResult = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [transcription, setTranscription] = useState<TranscriptionRecord | null>(null);
-  const [loading, setLoading] = useState(true);
   const feedbackToast = useFeedbackToast();
+  
+  // Use real API hook
+  const { data: transcriptionData, isLoading: loading, error } = useTranscriptionById(Number(id));
+  const deleteMutation = useDeleteTranscription();
 
   const breadcrumbItems = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -113,17 +53,28 @@ const TranscriptionResult = () => {
     { title: 'Result' }
   ];
 
+  // Transform API data to component format
   useEffect(() => {
-    // Frontend-only: Direct data loading without API simulation
-    const found = sampleTranscriptions.find(t => t.id === id);
-    if (found) {
-      setTranscription(found);
-    } else {
-      // For frontend demo, always show the first transcription if ID not found
-      setTranscription(sampleTranscriptions[0]);
+    if (transcriptionData) {
+      // Parse transcription text into segments (simple split by sentences for now)
+      const transcriptionText = transcriptionData.contentText || '';
+      const segments: TranscriptionSegment[] = transcriptionText.split('. ').map((text, idx) => ({
+        timestamp: idx * 8,
+        text: text.trim(),
+      })).filter(s => s.text.length > 0);
+      
+      setTranscription({
+        id: transcriptionData.id.toString(),
+        fileName: transcriptionData.title || 'Untitled Transcription',
+        videoSrc: transcriptionData.videoSourcePath ? `${API_BASE_URL}${transcriptionData.videoSourcePath}` : undefined,
+        transcriptionSegments: segments,
+        createdAt: transcriptionData.creationDate ? new Date(transcriptionData.creationDate) : new Date(),
+        duration: transcriptionData.durationSeconds || 0,
+        overallConfidence: 0,
+        type: 'upload'
+      });
     }
-    setLoading(false);
-  }, [id]);
+  }, [transcriptionData]);
 
   const handleTranscriptionUpdate = (segments: TranscriptionSegment[]) => {
     if (transcription) {
@@ -134,13 +85,22 @@ const TranscriptionResult = () => {
     }
   };
 
-  const handleDelete = () => {
-    // Simulate deletion
-    feedbackToast.success(
-      "Transcription Deleted",
-      "The transcription has been removed from your history."
-    );
-    navigate('/transcription-history');
+  const handleDelete = async () => {
+    if (!id) return;
+    
+    try {
+      await deleteMutation.mutateAsync(Number(id));
+      feedbackToast.success(
+        "Transcription Deleted",
+        "The transcription has been removed from your history."
+      );
+      navigate('/transcription-history');
+    } catch (error: any) {
+      feedbackToast.error(
+        "Delete Failed",
+        error?.message || "Failed to delete transcription"
+      );
+    }
   };
 
   const handleShare = () => {

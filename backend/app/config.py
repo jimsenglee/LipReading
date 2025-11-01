@@ -23,5 +23,9 @@ class Config:
     
     # default profile image path (relative to UPLOAD_FOLDER)
     DEFAULT_PROFILE_IMAGE_PATH = 'profiles/avatar.jpg'
+    
+    # Colab AI server configuration
+    COLAB_SERVER_URL = os.getenv('COLAB_SERVER_URL', None)
+    MAX_VIDEO_SIZE_MB = int(os.getenv('MAX_VIDEO_SIZE_MB', 100))
 
 
