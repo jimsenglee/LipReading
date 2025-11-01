@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,8 @@ import {
   MessageSquare,
   Star,
   FileText,
-  Download
+  Download,
+  Subtitles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
@@ -31,7 +32,14 @@ import { useTutorialSeriesById } from '@/services/content/contentQueries';
 import { API_BASE_URL } from '@/lib/constants';
 import { Video, ApiTutorial } from '@/lib/api';
 import ReactPlayer from 'react-player';
+
 const formatDuration = (n?: number) => (n ? `${Math.round(n/60)} min` : '0 min');
+const formatTime = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
 const getProgressPercentage = (p: any, s: ApiTutorial) => {
   if (!p || !s.videos) return 0;
   const completedCount = p.completedVideos?.length || 0;
@@ -53,6 +61,9 @@ interface VideoPlayerControlsProps {
   playbackSpeed: number;
   onSpeedChange: (speed: number) => void;
   isFullscreen: boolean;
+  hasSubtitles: boolean;
+  subtitlesEnabled: boolean;
+  onToggleSubtitles: () => void;
 }
 
 const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
@@ -68,7 +79,10 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
   onFullscreen,
   playbackSpeed,
   onSpeedChange,
-  isFullscreen
+  isFullscreen,
+  hasSubtitles,
+  subtitlesEnabled,
+  onToggleSubtitles
 }) => {
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
@@ -111,14 +125,29 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
           </Button>
 
           <div className="flex items-center gap-2 text-sm">
-            <span>{formatDuration(currentTime)}</span>
+            <span>{formatTime(currentTime)}</span>
             <span>/</span>
-            <span>{formatDuration(duration)}</span>
+            <span>{formatTime(duration)}</span>
           </div>
         </div>
 
         {/* Right Controls */}
         <div className="flex items-center gap-3">
+          {/* Subtitle Control */}
+          {hasSubtitles && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleSubtitles}
+              className={`text-white hover:bg-white/20 p-2 ${
+                subtitlesEnabled ? 'bg-primary/30' : ''
+              }`}
+              title="Toggle Subtitles (C)"
+            >
+              <Subtitles className="h-4 w-4" />
+            </Button>
+          )}
+
           {/* Volume Control */}
           <div 
             className="relative"
@@ -130,6 +159,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
               size="sm"
               onClick={onMuteToggle}
               className="text-white hover:bg-white/20 p-2"
+              title="Toggle Mute (M)"
             >
               {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
             </Button>
@@ -167,6 +197,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
               variant="ghost"
               size="sm"
               className="text-white hover:bg-white/20 p-2 text-xs font-medium min-w-[40px]"
+              title="Change Speed"
             >
               {playbackSpeed}x
             </Button>
@@ -201,6 +232,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
             size="sm"
             onClick={onFullscreen}
             className="text-white hover:bg-white/20 p-2"
+            title="Fullscreen (F)"
           >
             {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
           </Button>
@@ -230,36 +262,22 @@ const VideoPlayerPage: React.FC = () => {
   const [showControls, setShowControls] = useState(true);
   const [isVideoCompleted, setIsVideoCompleted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isBuffering, setIsBuffering] = useState(false);
+  const [subtitlesEnabled, setSubtitlesEnabled] = useState(false);
 
   // get series and video data from API response
   const series = seriesQuery.data;
   const video = series?.videos?.find(v => v.id === Number(videoId));
   const userProgress: any = undefined; // will implement later
 
-  // DEBUG: Log series and video data
-  console.log('🔍 VideoPlayerPage Debug:', {
-    seriesLoaded: !!series,
-    seriesId: series?.id,
-    videoCount: series?.videos?.length,
-    video: video ? {
-      id: video.id,
-      title: video.title,
-      videoPath: video.videoPath,
-      subtitlePath: video.subtitlePath
-    } : null,
-    isLoading: seriesQuery.isLoading,
-    isError: seriesQuery.isError
-  });
+  // Check if video has subtitles
+  const hasSubtitles = Boolean(video?.subtitlePath);
 
-  const markVideoCompleted = React.useCallback(async () => {
+  const markVideoCompleted = useCallback(async () => {
     try {
-      // Simulate API call to mark video as completed
       await new Promise(resolve => setTimeout(resolve, 500));
-      
       toast({
         title: "Progress Saved!",
-        description: `"${video.title}" marked as completed.`,
+        description: `"${video?.title}" marked as completed.`,
       });
     } catch (error) {
       toast({
@@ -269,6 +287,69 @@ const VideoPlayerPage: React.FC = () => {
       });
     }
   }, [video?.title, toast]);
+
+  // Keyboard controls
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Don't trigger if typing in input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (e.key.toLowerCase()) {
+        case ' ':
+        case 'k':
+          e.preventDefault();
+          setIsPlaying(!isPlaying);
+          break;
+        case 'm':
+          e.preventDefault();
+          setIsMuted(!isMuted);
+          break;
+        case 'f':
+          e.preventDefault();
+          handleFullscreen();
+          break;
+        case 'arrowleft':
+          e.preventDefault();
+          skipToTime(-10);
+          break;
+        case 'arrowright':
+          e.preventDefault();
+          skipToTime(10);
+          break;
+        case 'arrowup':
+          e.preventDefault();
+          handleVolumeChange(Math.min(1, volume + 0.1));
+          break;
+        case 'arrowdown':
+          e.preventDefault();
+          handleVolumeChange(Math.max(0, volume - 0.1));
+          break;
+        case 'c':
+          if (hasSubtitles) {
+            e.preventDefault();
+            setSubtitlesEnabled(!subtitlesEnabled);
+          }
+          break;
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+          e.preventDefault();
+          const targetTime = (parseInt(e.key) / 5) * duration;
+          handleSeek(targetTime);
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [isPlaying, isMuted, volume, duration, hasSubtitles, subtitlesEnabled]);
 
   useEffect(() => {
     if (video) {
@@ -321,21 +402,21 @@ const VideoPlayerPage: React.FC = () => {
     setIsPlaying(!isPlaying);
   };
 
-  const handleSeek = (time: number) => {
-    if (videoRef.current) {
+  const handleSeek = useCallback((time: number) => {
+    if (videoRef.current?.seekTo) {
       videoRef.current.seekTo(time, 'seconds');
-      setCurrentTime(time);
     }
-  };
+    setCurrentTime(time);
+  }, []);
 
-  const handleVolumeChange = (newVolume: number) => {
+  const handleVolumeChange = useCallback((newVolume: number) => {
     setVolume(newVolume);
     if (newVolume === 0) {
       setIsMuted(true);
     } else if (isMuted) {
       setIsMuted(false);
     }
-  };
+  }, [isMuted]);
 
   const handleMuteToggle = () => {
     setIsMuted(!isMuted);
@@ -354,6 +435,14 @@ const VideoPlayerPage: React.FC = () => {
       document.exitFullscreen();
     }
     setIsFullscreen(!isFullscreen);
+  };
+
+  const handleToggleSubtitles = () => {
+    setSubtitlesEnabled(!subtitlesEnabled);
+    toast({
+      title: subtitlesEnabled ? 'Subtitles Off' : 'Subtitles On',
+      description: 'Subtitles have been toggled.',
+    });
   };
 
   const navigateToVideo = (targetVideo: Video) => {
@@ -394,12 +483,23 @@ const VideoPlayerPage: React.FC = () => {
                       playing={isPlaying}
                       volume={isMuted ? 0 : volume}
                       playbackRate={playbackSpeed}
-                      onProgress={(state: any) => setCurrentTime(state.playedSeconds)}
-                      onDuration={(duration: any) => setDuration(duration)}
+                      onProgress={(state: any) => {
+                        setCurrentTime(state.playedSeconds);
+                        if (!duration && state.loadedSeconds) {
+                          setDuration(state.loadedSeconds);
+                        }
+                      }}
+                      onReady={() => {
+                        // Try to get duration from internal player
+                        if (videoRef.current?.getInternalPlayer) {
+                          const internalPlayer = videoRef.current.getInternalPlayer();
+                          if (internalPlayer && internalPlayer.duration) {
+                            setDuration(internalPlayer.duration);
+                          }
+                        }
+                      }}
                       onPlay={() => setIsPlaying(true)}
                       onPause={() => setIsPlaying(false)}
-                      onBuffer={() => setIsBuffering(true)}
-                      onBufferEnd={() => setIsBuffering(false)}
                       onEnded={() => {
                         setIsPlaying(false);
                         setIsVideoCompleted(true);
@@ -408,17 +508,6 @@ const VideoPlayerPage: React.FC = () => {
                       controls={false}
                       light={series?.thumbnailPath ? `${API_BASE_URL}${series.thumbnailPath}` : false}
                     />
-                  )}
-
-                  {/* Loading Spinner */}
-                  {isBuffering && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                        className="w-8 h-8 border-2 border-white border-t-transparent rounded-full"
-                      />
-                    </div>
                   )}
 
                   {/* Play button overlay */}
@@ -459,6 +548,9 @@ const VideoPlayerPage: React.FC = () => {
                           playbackSpeed={playbackSpeed}
                           onSpeedChange={handleSpeedChange}
                           isFullscreen={isFullscreen}
+                          hasSubtitles={hasSubtitles}
+                          subtitlesEnabled={subtitlesEnabled}
+                          onToggleSubtitles={handleToggleSubtitles}
                         />
                       </motion.div>
                     )}
@@ -471,6 +563,7 @@ const VideoPlayerPage: React.FC = () => {
                       size="sm"
                       onClick={() => skipToTime(-10)}
                       className="text-white hover:bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Skip -10s (←)"
                     >
                       <SkipBack className="h-5 w-5" />
                     </Button>
@@ -481,6 +574,7 @@ const VideoPlayerPage: React.FC = () => {
                       size="sm"
                       onClick={() => skipToTime(10)}
                       className="text-white hover:bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Skip +10s (→)"
                     >
                       <SkipForward className="h-5 w-5" />
                     </Button>
