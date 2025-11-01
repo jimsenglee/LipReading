@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Slider } from '@/components/ui/slider';
 import { 
   Play, 
   Pause,
@@ -170,17 +171,15 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-black/90 p-2 rounded"
+                  className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-black/90 p-3 rounded flex items-center justify-center"
                 >
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={volume}
-                    onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
-                    className="w-20 h-1 accent-primary"
-                    style={{ writingMode: 'vertical-lr' as const }}
+                  <Slider
+                    value={[volume]}
+                    onValueChange={(value) => onVolumeChange(value[0])}
+                    min={0}
+                    max={1}
+                    step={0.1}
+                    className="w-24"
                   />
                 </motion.div>
               )}
