@@ -211,10 +211,8 @@ const FeedbackSubmission = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Form */}
-          <div className="lg:col-span-2">
-            <Card className="border-primary/20 shadow-lg">
+        <div className="max-w-3xl mx-auto">
+          <Card className="border-primary/20 shadow-lg">
               <CardHeader className="bg-gradient-to-r from-primary/5 to-secondary/5">
                 <CardTitle className="text-primary flex items-center gap-2">
                   <MessageSquare className="h-6 w-6" />
@@ -242,28 +240,19 @@ const FeedbackSubmission = () => {
                         <SelectItem value="general">
                           <div className="flex items-center gap-3 p-2">
                             <MessageSquare className="h-5 w-5 text-blue-600" />
-                            <div>
-                              <div className="font-medium">General Feedback</div>
-                              <div className="text-sm text-gray-500">Share your thoughts and suggestions</div>
-                            </div>
+                            <div className="font-medium">General Feedback</div>
                           </div>
                         </SelectItem>
                         <SelectItem value="bug">
                           <div className="flex items-center gap-3 p-2">
                             <Bug className="h-5 w-5 text-red-600" />
-                            <div>
-                              <div className="font-medium">Bug Report</div>
-                              <div className="text-sm text-gray-500">Report issues or unexpected behavior</div>
-                            </div>
+                            <div className="font-medium">Bug Report</div>
                           </div>
                         </SelectItem>
                         <SelectItem value="feature">
                           <div className="flex items-center gap-3 p-2">
                             <Lightbulb className="h-5 w-5 text-yellow-600" />
-                            <div>
-                              <div className="font-medium">Feature Suggestion</div>
-                              <div className="text-sm text-gray-500">Suggest new features or improvements</div>
-                            </div>
+                            <div className="font-medium">Feature Suggestion</div>
                           </div>
                         </SelectItem>
                       </SelectContent>
@@ -417,73 +406,6 @@ const FeedbackSubmission = () => {
                 </form>
               </CardContent>
             </Card>
-          </div>
-
-          {/* Sidebar with Information */}
-          <div className="space-y-6">
-            {/* Feedback Guidelines */}
-            <Card className="border-blue-200 bg-blue-50">
-              <CardHeader>
-                <CardTitle className="text-blue-800 flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Feedback Guidelines
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5" />
-                  <p className="text-sm text-blue-700">Be specific and descriptive</p>
-                </div>
-                <div className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5" />
-                  <p className="text-sm text-blue-700">Include steps to reproduce issues</p>
-                </div>
-                <div className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5" />
-                  <p className="text-sm text-blue-700">Attach relevant screenshots or videos</p>
-                </div>
-                <div className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5" />
-                  <p className="text-sm text-blue-700">Mention your device and browser</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Response Time */}
-            <Card className="border-green-200 bg-green-50">
-              <CardHeader>
-                <CardTitle className="text-green-800 flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5" />
-                  Response Time
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-green-700">
-                  We typically respond to feedback within <strong>24-48 hours</strong>. 
-                  Critical bugs are prioritized and addressed as soon as possible.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Contact Info */}
-            <Card className="border-purple-200 bg-purple-50">
-              <CardHeader>
-                <CardTitle className="text-purple-800 flex items-center gap-2">
-                  <HelpCircle className="h-5 w-5" />
-                  Need Immediate Help?
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-purple-700 mb-2">
-                  For urgent issues, you can also contact us directly:
-                </p>
-                <p className="text-sm text-purple-700">
-                  📧 support@lipreading.app<br />
-                  📞 +1 (555) 123-4567
-                </p>
-              </CardContent>
-            </Card>
-          </div>
         </div>
       </motion.div>
     </div>
