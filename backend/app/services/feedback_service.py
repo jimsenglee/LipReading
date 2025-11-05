@@ -1,115 +1,73 @@
 """
-Feedback business logic service
+Feedback service for managing user feedback submissions
 Following README.txt separation of concerns
 """
-import sqlalchemy as sa
-from typing import Dict, Any
 from flask import current_app
-from werkzeug.datastructures import FileStorage
-
+from sqlalchemy import select, func, and_, or_
+from typing import Dict, Any
+from datetime import datetime
 from ..extensions import db
 from ..models.feedback import Feedback
-from ..schemas.feedback_schemas import FeedbackCreateSchema, FeedbackUpdateSchema, FeedbackQuerySchema
-from ..services.response_service import ResponseService
-from ..services.error_service import APIError
+from ..models.account import Account
+from ..schemas.feedback_schemas import FeedbackSubmissionSchema, FeedbackQuerySchema, FeedbackUpdateSchema
+from .error_service import APIError
+from .response_service import ResponseService
 from ..utils.id_generator import generate_public_id
 from ..utils.file_handler import FileHandler
 
 
 class FeedbackService:
-    """Feedback business logic service"""
+    """Service for managing user feedback submissions"""
 
-    # File upload configuration
-    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-    ALLOWED_FILE_TYPES = [
-        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
-        'video/mp4', 'video/webm', 'video/mov', 'video/avi'
-    ]
-    
     @staticmethod
-    def create_feedback(user_id: int, data: Dict[str, Any], file: FileStorage = None):
-        """Create new feedback with optional file attachment"""
+    def submit_feedback(user_id: int, feedback_data: Dict[str, Any]):
+        """Submit feedback from a user"""
         try:
-            print(f"[DEBUG] create_feedback called for user_id: {user_id}, type: {data.get('feedback_type')}")
-            
-            # Validate input data
-            schema = FeedbackCreateSchema()
+            # validate input data
+            schema = FeedbackSubmissionSchema()
             try:
-                validated_data = schema.load(data)
+                validated_data = schema.load(feedback_data)
                 if not isinstance(validated_data, dict):
-                    validated_data = {}
+                    raise APIError("invalid feedback data", 400)
             except Exception as e:
-                print(f"[DEBUG] Validation error: {str(e)}")
-                raise APIError(f"Invalid feedback data: {str(e)}", 400)
+                raise APIError("invalid feedback data", 400)
             
-            # Handle file upload if provided
-            attached_file_path = None
-            if file and file.filename:
-                print(f"[DEBUG] Processing file upload: {file.filename}")
-                
-                # Validate file type
-                if file.content_type not in FeedbackService.ALLOWED_FILE_TYPES:
-                    raise APIError("Unsupported file type. Please upload an image or video file.", 400)
-                
-                # Validate file size
-                if file.content_length and file.content_length > FeedbackService.MAX_FILE_SIZE:
-                    raise APIError(f"File size exceeds maximum limit of {FeedbackService.MAX_FILE_SIZE / 1024 / 1024} MB.", 400)
-                
-                # Create feedback upload directory
-                upload_dir = FileHandler.create_upload_directory("uploads/feedback")
-                
-                # Generate unique filename
-                unique_filename = FileHandler.generate_unique_filename(file.filename, prefix="feedback")
-                
-                # Save file
-                file_path = FileHandler.save_uploaded_file(file, upload_dir, unique_filename)
-                
-                # Get relative path for database storage
-                attached_file_path = FileHandler.get_relative_path(file_path)
-                print(f"[DEBUG] File saved to: {attached_file_path}")
+            # generate public id
+            public_id = generate_public_id(Feedback, "FEED")
             
-            # Create feedback record
+            # create feedback record
             feedback = Feedback()
-            feedback.public_id = generate_public_id(Feedback, 'FB')
+            feedback.public_id = public_id
             feedback.submitted_by_user_id = user_id
             feedback.feedback_type = validated_data['feedback_type']
             feedback.description = validated_data['description']
-            feedback.attached_file_path = attached_file_path
+            feedback.attached_file_path = validated_data.get('attached_file_path')
+            feedback.submission_date = datetime.utcnow()
             feedback.status = 'New'
             
             db.session.add(feedback)
             db.session.commit()
             
-            print(f"[DEBUG] Successfully created feedback with public_id: {feedback.public_id}")
-            
-            return {
-                "message": "Feedback submitted successfully",
-                "data": {
-                    "publicId": feedback.public_id,
-                    "feedbackType": feedback.feedback_type,
-                    "description": feedback.description,
-                    "status": feedback.status,
-                    "submissionDate": feedback.submission_date.isoformat() if feedback.submission_date else None
-                }
-            }
+            return ResponseService.success_response({
+                "message": "feedback submitted successfully",
+                "feedbackId": feedback.id,
+                "publicId": public_id
+            })
             
         except APIError:
-            db.session.rollback()
             raise
         except Exception as e:
             db.session.rollback()
-            current_app.logger.error(f"create feedback error: {str(e)}")
+            current_app.logger.error(f"submit feedback error: {str(e)}")
             import traceback
             traceback.print_exc()
             raise APIError("internal server error", 500)
 
     @staticmethod
-    def get_feedbacks(params: Dict[str, Any] | None = None, user_id: int = None, is_admin: bool = False):
-        """Get paginated list of feedbacks with filtering and sorting"""
+    def get_user_feedback(user_id: int, params: Dict[str, Any] | None = None):
+        """Get all feedback submitted by a specific user"""
         try:
-            print(f"[DEBUG] get_feedbacks called, user_id: {user_id}, is_admin: {is_admin}")
-            
-            # Validate query parameters
+            # validate query parameters
             if params:
                 schema = FeedbackQuerySchema()
                 try:
@@ -121,32 +79,34 @@ class FeedbackService:
             else:
                 validated_params = {}
             
-            # Build base query
-            query = sa.select(Feedback)
+            # build base query
+            feedback_query = select(Feedback).where(
+                Feedback.submitted_by_user_id == user_id
+            )
             
-            # Apply user filter if not admin
-            if not is_admin and user_id:
-                query = query.where(Feedback.submitted_by_user_id == user_id)
-            
-            # Apply filters
+            # apply filters if provided
             if validated_params.get('search'):
                 search_term = validated_params['search']
-                query = query.where(
-                    sa.or_(
+                feedback_query = feedback_query.where(
+                    or_(
                         Feedback.description.ilike(f'%{search_term}%'),
                         Feedback.feedback_type.ilike(f'%{search_term}%')
                     )
                 )
             
             if validated_params.get('feedback_type') and validated_params['feedback_type'] != 'all':
-                query = query.where(Feedback.feedback_type == validated_params['feedback_type'])
+                feedback_query = feedback_query.where(
+                    Feedback.feedback_type == validated_params['feedback_type']
+                )
             
             if validated_params.get('status') and validated_params['status'] != 'all':
-                query = query.where(Feedback.status == validated_params['status'])
+                feedback_query = feedback_query.where(
+                    Feedback.status == validated_params['status']
+                )
             
-            # Apply sorting
-            sort_by = validated_params.get('sort_by', 'submission_date')
-            sort_order = validated_params.get('sort_order', 'desc')
+            # apply sorting
+            sort_by = validated_params.get('sort_by', 'submission_date') if validated_params else 'submission_date'
+            sort_order = validated_params.get('sort_order', 'desc') if validated_params else 'desc'
             
             if sort_by == 'id':
                 sort_column = Feedback.id
@@ -160,173 +120,173 @@ class FeedbackService:
                 sort_column = Feedback.submission_date
             
             if sort_order.lower() == 'desc':
-                query = query.order_by(sa.desc(sort_column))
+                feedback_query = feedback_query.order_by(sort_column.desc())
             else:
-                query = query.order_by(sa.asc(sort_column))
+                feedback_query = feedback_query.order_by(sort_column.asc())
             
-            # Get total count
-            count_query = sa.select(sa.func.count()).select_from(query.subquery())
+            # get total count
+            count_query = select(func.count()).select_from(feedback_query.subquery())
             total = db.session.scalar(count_query)
             
-            # Apply pagination
-            page = validated_params.get('page', 1)
-            per_page = validated_params.get('per_page', 10)
+            # apply pagination
+            page = validated_params.get('page', 1) if validated_params else 1
+            per_page = validated_params.get('per_page', 10) if validated_params else 10
             offset = (page - 1) * per_page
-            query = query.offset(offset).limit(per_page)
+            feedback_query = feedback_query.offset(offset).limit(per_page)
             
-            # Execute query
-            feedbacks = db.session.scalars(query).all()
+            # execute query
+            results = db.session.scalars(feedback_query).all()
             
-            print(f"[DEBUG] Found {len(feedbacks)} feedback entries")
-            
-            # Format response
             feedback_list = []
-            for f in feedbacks:
+            for feedback in results:
                 feedback_list.append({
-                    'id': f.id,
-                    'publicId': f.public_id,
-                    'submittedByUserId': f.submitted_by_user_id,
-                    'feedbackType': f.feedback_type,
-                    'description': f.description,
-                    'attachedFilePath': f.attached_file_path,
-                    'submissionDate': f.submission_date.isoformat() if f.submission_date else None,
-                    'status': f.status,
-                    'reviewedByAdminId': f.reviewed_by_admin_id,
+                    'id': feedback.id,
+                    'publicId': feedback.public_id,
+                    'feedbackType': feedback.feedback_type,
+                    'description': feedback.description,
+                    'attachedFilePath': feedback.attached_file_path,
+                    'submissionDate': feedback.submission_date.isoformat() if feedback.submission_date else None,
+                    'status': feedback.status,
                 })
             
             pagination = ResponseService.pagination_info(page, per_page, total or 0)
             return ResponseService.success_response(feedback_list, pagination=pagination)
             
         except Exception as e:
-            current_app.logger.error(f"get feedbacks error: {str(e)}")
+            current_app.logger.error(f"get user feedback error: {str(e)}")
             import traceback
             traceback.print_exc()
             raise APIError("internal server error", 500)
 
     @staticmethod
-    def get_feedback(feedback_id: int, user_id: int = None, is_admin: bool = False):
-        """Get single feedback by ID"""
+    def get_feedback_by_id(feedback_id: int, user_id: int):
+        """Get a specific feedback item by ID (only if user owns it)"""
         try:
-            print(f"[DEBUG] get_feedback called for feedback_id: {feedback_id}, user_id: {user_id}")
-            
             feedback = db.session.scalar(
-                sa.select(Feedback).where(Feedback.id == feedback_id)
+                select(Feedback).where(
+                    and_(
+                        Feedback.id == feedback_id,
+                        Feedback.submitted_by_user_id == user_id
+                    )
+                )
             )
             
             if not feedback:
-                raise APIError("Feedback not found", 404)
+                raise APIError("feedback not found", 404)
             
-            # Check permissions
-            if not is_admin and feedback.submitted_by_user_id != user_id:
-                raise APIError("Access denied", 403)
-            
-            return {
+            return ResponseService.success_response({
                 'id': feedback.id,
                 'publicId': feedback.public_id,
-                'submittedByUserId': feedback.submitted_by_user_id,
                 'feedbackType': feedback.feedback_type,
                 'description': feedback.description,
                 'attachedFilePath': feedback.attached_file_path,
                 'submissionDate': feedback.submission_date.isoformat() if feedback.submission_date else None,
                 'status': feedback.status,
-                'reviewedByAdminId': feedback.reviewed_by_admin_id,
+            })
+            
+        except APIError:
+            raise
+        except Exception as e:
+            current_app.logger.error(f"get feedback by id error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise APIError("internal server error", 500)
+
+    @staticmethod
+    def get_feedback_statistics(user_id: int):
+        """Get feedback statistics for a user"""
+        try:
+            # get total feedback
+            total_feedback = db.session.scalar(
+                select(func.count()).select_from(Feedback)
+                .where(Feedback.submitted_by_user_id == user_id)
+            )
+            
+            # get by type
+            general_count = db.session.scalar(
+                select(func.count()).select_from(Feedback)
+                .where(and_(
+                    Feedback.submitted_by_user_id == user_id,
+                    Feedback.feedback_type == 'general'
+                ))
+            )
+            
+            bug_count = db.session.scalar(
+                select(func.count()).select_from(Feedback)
+                .where(and_(
+                    Feedback.submitted_by_user_id == user_id,
+                    Feedback.feedback_type == 'bug'
+                ))
+            )
+            
+            feature_count = db.session.scalar(
+                select(func.count()).select_from(Feedback)
+                .where(and_(
+                    Feedback.submitted_by_user_id == user_id,
+                    Feedback.feedback_type == 'feature'
+                ))
+            )
+            
+            return {
+                'totalFeedback': total_feedback or 0,
+                'generalFeedback': general_count or 0,
+                'bugReports': bug_count or 0,
+                'featureSuggestions': feature_count or 0,
             }
             
-        except APIError:
-            raise
         except Exception as e:
-            current_app.logger.error(f"get feedback error: {str(e)}")
+            current_app.logger.error(f"get feedback statistics error: {str(e)}")
             import traceback
             traceback.print_exc()
             raise APIError("internal server error", 500)
 
     @staticmethod
-    def update_feedback_status(feedback_id: int, data: Dict[str, Any], admin_id: int):
-        """Update feedback status (admin only)"""
+    def update_feedback(feedback_id: int, feedback_data: Dict[str, Any]):
+        """Update feedback (admin only)"""
         try:
-            print(f"[DEBUG] update_feedback_status called for feedback_id: {feedback_id}")
+            from flask_jwt_extended import get_jwt_identity
             
-            # Validate input data
+            # validate input data
             schema = FeedbackUpdateSchema()
             try:
-                validated_data = schema.load(data)
+                validated_data = schema.load(feedback_data)
                 if not isinstance(validated_data, dict):
-                    validated_data = {}
+                    raise APIError("invalid feedback data", 400)
             except Exception as e:
-                print(f"[DEBUG] Validation error: {str(e)}")
-                raise APIError(f"Invalid feedback data: {str(e)}", 400)
+                raise APIError("invalid feedback data", 400)
             
-            # Get feedback
+            # get feedback
             feedback = db.session.scalar(
-                sa.select(Feedback).where(Feedback.id == feedback_id)
+                select(Feedback).where(Feedback.id == feedback_id)
             )
             
             if not feedback:
-                raise APIError("Feedback not found", 404)
+                raise APIError("feedback not found", 404)
             
-            # Update fields
+            # update fields
             if 'status' in validated_data:
                 feedback.status = validated_data['status']
+            
+            if 'admin_response' in validated_data:
+                feedback.admin_response = validated_data['admin_response']
+            
+            # set reviewed_by_admin_id to current admin
+            admin_id = get_jwt_identity()
             feedback.reviewed_by_admin_id = admin_id
+            feedback.updated_at = datetime.utcnow()
             
             db.session.commit()
             
-            print(f"[DEBUG] Successfully updated feedback status")
-            
-            return {"message": "Feedback status updated successfully"}
+            return ResponseService.success_response({
+                "message": "feedback updated successfully",
+                "feedbackId": feedback.id
+            })
             
         except APIError:
-            db.session.rollback()
             raise
         except Exception as e:
             db.session.rollback()
-            current_app.logger.error(f"update feedback status error: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            raise APIError("internal server error", 500)
-
-    @staticmethod
-    def delete_feedback(feedback_id: int, user_id: int, is_admin: bool = False):
-        """Delete feedback"""
-        try:
-            print(f"[DEBUG] delete_feedback called for feedback_id: {feedback_id}")
-            
-            feedback = db.session.scalar(
-                sa.select(Feedback).where(Feedback.id == feedback_id)
-            )
-            
-            if not feedback:
-                raise APIError("Feedback not found", 404)
-            
-            # Check permissions
-            if not is_admin and feedback.submitted_by_user_id != user_id:
-                raise APIError("Access denied", 403)
-            
-            # Delete attached file if exists
-            if feedback.attached_file_path:
-                try:
-                    from ..utils.file_handler import FileHandler
-                    import os
-                    full_path = os.path.join(current_app.root_path, '..', feedback.attached_file_path)
-                    if os.path.exists(full_path):
-                        os.remove(full_path)
-                        print(f"[DEBUG] Deleted attached file: {full_path}")
-                except Exception as e:
-                    print(f"[DEBUG] Error deleting file: {str(e)}")
-            
-            db.session.delete(feedback)
-            db.session.commit()
-            
-            print(f"[DEBUG] Successfully deleted feedback")
-            
-            return {"message": "Feedback deleted successfully"}
-            
-        except APIError:
-            db.session.rollback()
-            raise
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f"delete feedback error: {str(e)}")
+            current_app.logger.error(f"update feedback error: {str(e)}")
             import traceback
             traceback.print_exc()
             raise APIError("internal server error", 500)

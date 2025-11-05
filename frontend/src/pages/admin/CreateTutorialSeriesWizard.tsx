@@ -33,7 +33,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
 import { useCreateTutorialSeries, useUpdateTutorial } from '@/services/content/contentMutations';
-import { useCategories, useTutorialById } from '@/services/content/contentQueries';
+import { useCategories, useTutorialSeriesById } from '@/services/content/contentQueries';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 interface TutorialVideo {
@@ -72,7 +72,10 @@ const CreateTutorialSeriesWizard: React.FC = () => {
   
   // Check if we're in edit mode
   const editMode = location.state?.editMode || false;
-  const tutorialId = location.state?.tutorialId;
+  // parse tutorialId as number (could be string from navigation state)
+  const tutorialId = editMode && location.state?.tutorialId 
+    ? parseInt(String(location.state.tutorialId), 10) || 0
+    : 0;
   
   const [tutorialSeries, setTutorialSeries] = useState<TutorialSeries>({
     title: '',
@@ -90,39 +93,47 @@ const CreateTutorialSeriesWizard: React.FC = () => {
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
-  // API hooks
-  const { data: categoriesData } = useCategories();
-  const { data: tutorialData, isLoading: isLoadingTutorial } = useTutorialById(tutorialId || 0);
+  // API hooks - fetch all categories for dropdown (no pagination limit)
+  const { data: categoriesData } = useCategories({ per_page: 100, status: 'active' });
+  // Only fetch series data if we're in edit mode and have a valid tutorialId
+  const { data: seriesData, isLoading: isLoadingSeries } = useTutorialSeriesById(editMode && tutorialId > 0 ? tutorialId : 0);
   
   // Mutations
   const createTutorialSeriesMutation = useCreateTutorialSeries();
   const updateTutorialMutation = useUpdateTutorial();
   
-  // Populate form when tutorial data is loaded (edit mode)
+  // Populate form when tutorial series data is loaded (edit mode)
   useEffect(() => {
-    if (editMode && tutorialData) {
-      setTutorialSeries({
-        title: tutorialData.title || '',
-        description: tutorialData.description || '',
-        category: tutorialData.categoryId?.toString() || '',
-        difficulty: (tutorialData.difficulty as 'beginner' | 'intermediate' | 'advanced') || 'beginner',
-        tags: tutorialData.tags ? JSON.parse(tutorialData.tags) : [],
-        learningObjectives: tutorialData.learningObjectives ? JSON.parse(tutorialData.learningObjectives) : [''],
-        prerequisites: tutorialData.prerequisites ? JSON.parse(tutorialData.prerequisites) : [],
-        videos: tutorialData.videoPath ? [{
-          id: '1',
-          title: tutorialData.title || 'Video 1',
-          description: tutorialData.description || '',
+    if (editMode && seriesData) {
+      // Parse videos from series data
+      const seriesVideos: TutorialVideo[] = [];
+      if (seriesData.videos && Array.isArray(seriesData.videos)) {
+        seriesVideos.push(...seriesData.videos.map((video: any, index: number) => ({
+          id: video.id?.toString() || String(index + 1),
+          title: video.title || '',
+          description: video.description || '',
           videoFile: undefined, // File object not available in edit mode
-          videoUrl: tutorialData.videoPath, // Use existing video path
-          duration: tutorialData.videoDuration?.toString() || '',
-          order: 1,
-          isPreview: tutorialData.isPreview || false
-        }] : [],
-        status: (tutorialData.status as 'draft' | 'published') || 'draft'
+          videoUrl: video.videoPath || video.videoUrl, // Use existing video path
+          duration: video.videoDuration?.toString() || '',
+          order: video.videoOrder || index + 1,
+          isPreview: video.isPreview || false
+        })));
+      }
+      
+      setTutorialSeries({
+        title: seriesData.title || '',
+        description: seriesData.description || '',
+        category: seriesData.categoryId?.toString() || '',
+        difficulty: (seriesData.difficulty as 'beginner' | 'intermediate' | 'advanced') || 'beginner',
+        tags: seriesData.tags ? (typeof seriesData.tags === 'string' ? JSON.parse(seriesData.tags) : seriesData.tags) : [],
+        learningObjectives: seriesData.learningObjectives ? (typeof seriesData.learningObjectives === 'string' ? JSON.parse(seriesData.learningObjectives) : seriesData.learningObjectives) : [''],
+        prerequisites: seriesData.prerequisites ? (typeof seriesData.prerequisites === 'string' ? JSON.parse(seriesData.prerequisites) : seriesData.prerequisites) : [],
+        videos: seriesVideos.length > 0 ? seriesVideos : [],
+        status: (seriesData.status as 'draft' | 'published') || 'draft',
+        thumbnailUrl: seriesData.thumbnailPath || undefined
       });
     }
-  }, [editMode, tutorialData]);
+  }, [editMode, seriesData]);
 
   // Track changes to detect unsaved changes
   useEffect(() => {
@@ -522,7 +533,7 @@ const CreateTutorialSeriesWizard: React.FC = () => {
   };
 
   // Show loading state when fetching tutorial data in edit mode
-  if (editMode && isLoadingTutorial) {
+  if (editMode && isLoadingSeries) {
     return (
       <div className="space-y-6 max-w-4xl mx-auto">
         <AnimatedBreadcrumb items={breadcrumbItems} />

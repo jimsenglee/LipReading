@@ -5,25 +5,31 @@ import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/lib/api';
 
 export interface Review {
+  id: number;
   userId: number;
   userName: string;
   userEmail: string;
+  tutorialId: number;
+  tutorialTitle: string;
   rating: number;
   reviewText?: string;
   reviewedAt?: string;
+  isVerified?: boolean;
 }
 
 export interface UserReview {
+  hasReview: boolean;
   rating?: number;
   reviewText?: string;
-  reviewedAt?: string;
+  reviewedAt?: string | null;
 }
 
 export interface ReviewResponse {
   success: boolean;
-  data: Review[];
+  reviews: Review[];
   averageRating: number;
   totalReviews: number;
+  pagination?: any;
 }
 
 export interface UserReviewResponse {
@@ -31,25 +37,36 @@ export interface UserReviewResponse {
   data: UserReview;
 }
 
-// phase 4: review queries for React Query
-export const useTutorialReviews = (tutorialId: number) => {
+// review queries for React Query
+export const useTutorialReviews = (tutorialId: number, params?: any) => {
   return useQuery({
-    queryKey: ['tutorial-reviews', tutorialId],
+    queryKey: ['tutorial-reviews', tutorialId, params],
     queryFn: async (): Promise<ReviewResponse> => {
-      const response = await apiClient.get<Review[]>(`/tutorials/${tutorialId}/reviews`);
-      const reviews = response.data;
+      // build query string from params
+      const queryParams = new URLSearchParams();
+      if (params) {
+        Object.keys(params).forEach(key => {
+          if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
+            queryParams.append(key, params[key].toString());
+          }
+        });
+      }
+      const queryString = queryParams.toString();
+      const url = `/tutorials/${tutorialId}/reviews${queryString ? `?${queryString}` : ''}`;
       
-      // calculate average rating and total reviews
-      const totalReviews = reviews.length;
-      const averageRating = totalReviews > 0 
-        ? reviews.reduce((sum, review) => sum + review.rating, 0) / totalReviews 
-        : 0;
+      const response = await apiClient.get<any>(url);
+      
+      // apiClient returns {data: backendResponse}
+      // backend returns: {success: True, data: {reviews, averageRating, totalReviews}, pagination: {...}}
+      // so response.data is the backendResponse
+      const backendData = response.data.data;
       
       return {
         success: true,
-        data: reviews,
-        averageRating: Math.round(averageRating * 10) / 10, // round to 1 decimal place
-        totalReviews
+        reviews: backendData?.reviews || [],
+        averageRating: backendData?.averageRating || 0,
+        totalReviews: backendData?.totalReviews || 0,
+        pagination: response.data.pagination
       };
     },
     enabled: !!tutorialId,
@@ -61,7 +78,7 @@ export const useUserReview = (tutorialId: number) => {
   return useQuery({
     queryKey: ['user-review', tutorialId],
     queryFn: async (): Promise<UserReviewResponse> => {
-      const response = await apiClient.get<UserReview>(`/bookmarks/${tutorialId}/review`);
+      const response = await apiClient.get<UserReview>(`/reviews/tutorials/${tutorialId}/user`);
       return {
         success: true,
         data: response.data

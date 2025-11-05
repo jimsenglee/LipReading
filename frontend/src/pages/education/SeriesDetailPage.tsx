@@ -21,14 +21,18 @@ import {
   ThumbsUp,
   Heart,
   Edit3,
-  Send
+  Send,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import { useToast } from '@/hooks/use-toast';
 import { useTutorialReviews, useUserReview } from '@/services/reviews/reviewQueries';
 import { useSubmitReview } from '@/services/reviews/reviewMutations';
-import { useTutorialSeriesById } from '@/services/content/contentQueries';
+import { useTutorialSeriesById, useSeriesProgress } from '@/services/content/contentQueries';
+import { useBookmarkCheck } from '@/services/bookmarks/bookmarkQueries';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Video } from '@/lib/api';
 type TutorialSeries = { 
   id: number; 
@@ -143,15 +147,46 @@ const SeriesDetailPage: React.FC = () => {
   const [userRating, setUserRating] = useState(0);
   const [userReview, setUserReview] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  
+  // review pagination and filtering
+  const [reviewPage, setReviewPage] = useState(1);
+  const [reviewPerPage, setReviewPerPage] = useState(5);
+  const [reviewSortBy, setReviewSortBy] = useState<'created_at' | 'rating'>('created_at');
+  const [reviewSortOrder, setReviewSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [reviewRatingFilter, setReviewRatingFilter] = useState<string>('all');
 
   // real review data integration
   const tutorialId = parseInt(seriesId || '1');
-  const reviewsQuery = useTutorialReviews(tutorialId);
+  const bookmarkCheckQuery = useBookmarkCheck(tutorialId);
+  const isEnrolledInSeries = bookmarkCheckQuery.data?.data?.isBookmarked || false;
+  
+  // build review query params
+  const reviewParams: any = {
+    page: reviewPage,
+    per_page: reviewPerPage,
+    sort_by: reviewSortBy,
+    sort_order: reviewSortOrder
+  };
+  if (reviewRatingFilter !== 'all') {
+    const rating = parseInt(reviewRatingFilter);
+    reviewParams.rating_min = rating;
+    reviewParams.rating_max = rating;
+  }
+  
+  const reviewsQuery = useTutorialReviews(tutorialId, reviewParams);
   const userReviewQuery = useUserReview(tutorialId);
   const submitReviewMutation = useSubmitReview();
 
   // fetch tutorial series data from API
   const seriesQuery = useTutorialSeriesById(tutorialId);
+  
+  // fetch user progress for this series (only if enrolled)
+  const progressQuery = useSeriesProgress(isEnrolledInSeries ? tutorialId : 0);
+  const userProgress: UserProgress | undefined = progressQuery.data ? {
+    progressPercentage: progressQuery.data.progressPercentage || 0,
+    status: progressQuery.data.status || 'in-progress',
+    completedVideos: progressQuery.data.completedVideos || []
+  } : undefined;
   
   // find the series data from API response
   const series: TutorialSeries | undefined = seriesQuery.data ? {
@@ -166,15 +201,13 @@ const SeriesDetailPage: React.FC = () => {
       `${API_BASE_URL}${seriesQuery.data.thumbnailPath}` : 
       undefined,
     rating: { 
-      average: seriesQuery.data.rating || 0, 
-      totalReviews: 0 
+      average: reviewsQuery.data?.averageRating || seriesQuery.data.rating || 0, 
+      totalReviews: reviewsQuery.data?.totalReviews || 0 
     },
     estimatedCompletionTime: seriesQuery.data.estimatedDuration ? `${Math.floor(seriesQuery.data.estimatedDuration / 60)} min` : '0 min',
     prerequisites: seriesQuery.data.prerequisites ? JSON.parse(seriesQuery.data.prerequisites) : [],
     learningObjectives: seriesQuery.data.learningObjectives ? JSON.parse(seriesQuery.data.learningObjectives) : []
   } : undefined;
-  
-  const userProgress: UserProgress | undefined = undefined;
 
   if (!series) {
     if (seriesQuery.isLoading) {
@@ -220,7 +253,7 @@ const SeriesDetailPage: React.FC = () => {
 
   const progressPercentage = userProgress ? getProgressPercentage(userProgress, series) : 0;
   const duration = getTotalSeriesDuration(series);
-  const isEnrolled = userProgress && userProgress.status !== 'not-started';
+  const isEnrolled = isEnrolledInSeries; // use bookmark check for enrollment status
 
   const breadcrumbItems = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -294,6 +327,26 @@ const SeriesDetailPage: React.FC = () => {
 
   // Feedback handling functions
   const handleSubmitReview = async () => {
+    // check enrollment before allowing submission
+    if (!isEnrolledInSeries) {
+      toast({
+        variant: "destructive",
+        title: "Enrollment Required",
+        description: "You must enroll in this series before you can submit a review. Please enroll first.",
+      });
+      return;
+    }
+    
+    // check if series is completed (all videos must be completed)
+    if (!userProgress || userProgress.status !== 'completed') {
+      toast({
+        variant: "destructive",
+        title: "Series Not Completed",
+        description: "You must complete all videos in this series before submitting a review.",
+      });
+      return;
+    }
+    
     if (userRating === 0) {
       toast({
         variant: "destructive",
@@ -320,15 +373,18 @@ const SeriesDetailPage: React.FC = () => {
         description: "Thank you for your feedback. It helps other learners.",
       });
       
-      // Reset form
+      // Reset form and refresh reviews
       setUserRating(0);
       setUserReview('');
       setShowWriteReview(false);
-    } catch (error) {
+      reviewsQuery.refetch();
+      userReviewQuery.refetch();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.error || error?.message || "Please try again later.";
       toast({
         variant: "destructive",
         title: "Submission Failed",
-        description: "Please try again later.",
+        description: errorMessage,
       });
     } finally {
       setIsSubmittingReview(false);
@@ -588,14 +644,55 @@ const SeriesDetailPage: React.FC = () => {
                     <p className="text-sm text-gray-600">
                       Based on {reviewsQuery.data?.totalReviews || 0} community reviews
                     </p>
-                    <Button 
-                      onClick={() => setShowWriteReview(!showWriteReview)}
-                      className="bg-primary hover:bg-primary/90"
-                      size="sm"
-                    >
-                      <Edit3 className="h-4 w-4 mr-2" />
-                      Write Your Review
-                    </Button>
+                    {userReviewQuery.data?.data?.hasReview ? (
+                      <Button 
+                        onClick={() => setShowWriteReview(!showWriteReview)}
+                        className="bg-primary hover:bg-primary/90"
+                        size="sm"
+                        disabled={!isEnrolledInSeries || userProgress?.status !== 'completed'}
+                      >
+                        <Edit3 className="h-4 w-4 mr-2" />
+                        Edit Your Review
+                      </Button>
+                    ) : (
+                      <Button 
+                        onClick={() => {
+                          if (!isEnrolledInSeries) {
+                            toast({
+                              variant: "destructive",
+                              title: "Enrollment Required",
+                              description: "Please enroll in this series first to write a review.",
+                            });
+                            return;
+                          }
+                          if (!userProgress || userProgress.status !== 'completed') {
+                            toast({
+                              variant: "destructive",
+                              title: "Series Not Completed",
+                              description: "You must complete all videos in this series before writing a review.",
+                            });
+                            return;
+                          }
+                          setShowWriteReview(!showWriteReview);
+                        }}
+                        className="bg-primary hover:bg-primary/90"
+                        size="sm"
+                        disabled={!isEnrolledInSeries || !userProgress || userProgress.status !== 'completed'}
+                      >
+                        <Edit3 className="h-4 w-4 mr-2" />
+                        Write Your Review
+                      </Button>
+                    )}
+                    {!isEnrolledInSeries && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        Enroll in this series to write a review
+                      </p>
+                    )}
+                    {isEnrolledInSeries && userProgress && userProgress.status !== 'completed' && (
+                      <p className="text-xs text-orange-600 mt-2">
+                        Complete all videos to write a review
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -683,94 +780,174 @@ const SeriesDetailPage: React.FC = () => {
                   )}
                 </AnimatePresence>
 
-                {/* Recent Reviews */}
+                {/* Reviews List with Filtering and Pagination */}
                 <div className="space-y-4">
-                  <h4 className="font-medium text-gray-900 flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Recent Reviews
-                  </h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-gray-900 flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Reviews ({reviewsQuery.data?.totalReviews || 0})
+                    </h4>
+                    
+                    {/* Filter and Sort Controls */}
+                    {(reviewsQuery.data?.totalReviews ?? 0) > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Select value={reviewRatingFilter} onValueChange={(value) => {
+                          setReviewRatingFilter(value);
+                          setReviewPage(1); // reset to first page on filter change
+                        }}>
+                          <SelectTrigger className="w-[140px] h-8 text-xs">
+                            <SelectValue placeholder="All Ratings" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Ratings</SelectItem>
+                            <SelectItem value="5">5 Stars</SelectItem>
+                            <SelectItem value="4">4 Stars</SelectItem>
+                            <SelectItem value="3">3 Stars</SelectItem>
+                            <SelectItem value="2">2 Stars</SelectItem>
+                            <SelectItem value="1">1 Star</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        
+                        <Select value={`${reviewSortBy}_${reviewSortOrder}`} onValueChange={(value) => {
+                          const [sortBy, sortOrder] = value.split('_');
+                          setReviewSortBy(sortBy as 'created_at' | 'rating');
+                          setReviewSortOrder(sortOrder as 'asc' | 'desc');
+                          setReviewPage(1);
+                        }}>
+                          <SelectTrigger className="w-[140px] h-8 text-xs">
+                            <SelectValue placeholder="Sort by" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="created_at_desc">Newest First</SelectItem>
+                            <SelectItem value="created_at_asc">Oldest First</SelectItem>
+                            <SelectItem value="rating_desc">Highest Rated</SelectItem>
+                            <SelectItem value="rating_asc">Lowest Rated</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
                   
-                  {/* Sample Reviews */}
+                  {/* Real Reviews from Database */}
                   <div className="space-y-4">
-                    <div className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium text-primary">JS</span>
-                          </div>
-                          <div>
-                            <p className="font-medium text-sm text-gray-900">John Smith</p>
-                            <div className="flex items-center gap-1">
-                              <StarRating rating={5} onRatingChange={() => {}} readonly size="sm" />
-                              <span className="text-xs text-gray-500 ml-1">2 days ago</span>
+                    {reviewsQuery.isLoading ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                        <p className="text-sm text-gray-600 mt-2">Loading reviews...</p>
+                      </div>
+                    ) : reviewsQuery.data?.reviews && reviewsQuery.data.reviews.length > 0 ? (
+                      reviewsQuery.data.reviews.map((review) => {
+                        // extract initials from name
+                        const initials = review.userName
+                          .split(' ')
+                          .map(n => n[0])
+                          .join('')
+                          .toUpperCase()
+                          .slice(0, 2);
+                        
+                        // format date
+                        const reviewDate = review.reviewedAt 
+                          ? new Date(review.reviewedAt).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric',
+                              year: 'numeric'
+                            })
+                          : '';
+                        
+                        return (
+                          <div key={review.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                                  <span className="text-sm font-medium text-primary">{initials}</span>
+                                </div>
+                                <div>
+                                  <p className="font-medium text-sm text-gray-900">{review.userName}</p>
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <StarRating rating={review.rating} onRatingChange={() => {}} readonly size="sm" />
+                                    <span className="text-xs text-gray-500 ml-1">{reviewDate}</span>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
+                            {review.reviewText && (
+                              <p className="text-sm text-gray-700 leading-relaxed mt-2">{review.reviewText}</p>
+                            )}
                           </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <ThumbsUp className="h-4 w-4 text-gray-400" />
-                          <span className="text-xs text-gray-500">12</span>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border-2 border-dashed border-gray-300">
+                        <div className="flex flex-col items-center">
+                          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                            <MessageSquare className="h-8 w-8 text-primary/60" />
+                          </div>
+                          <h5 className="font-semibold text-gray-900 mb-1">No Reviews Yet</h5>
+                          <p className="text-sm text-gray-600 mb-4 max-w-sm">
+                            Be the first to share your experience! Your feedback helps other learners discover great content.
+                          </p>
+                          {isEnrolledInSeries && userProgress && userProgress.status === 'completed' && (
+                            <Button 
+                              onClick={() => setShowWriteReview(true)}
+                              className="bg-primary hover:bg-primary/90"
+                              size="sm"
+                            >
+                              <Edit3 className="h-4 w-4 mr-2" />
+                              Write the First Review
+                            </Button>
+                          )}
                         </div>
                       </div>
-                      <p className="text-sm text-gray-700 leading-relaxed">
-                        Excellent tutorial series! The explanations are clear and the examples are practical. Really helped me understand the concepts better.
-                      </p>
-                    </div>
-
-                    <div className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium text-primary">MW</span>
-                          </div>
-                          <div>
-                            <p className="font-medium text-sm text-gray-900">Maria Wilson</p>
-                            <div className="flex items-center gap-1">
-                              <StarRating rating={4} onRatingChange={() => {}} readonly size="sm" />
-                              <span className="text-xs text-gray-500 ml-1">1 week ago</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <ThumbsUp className="h-4 w-4 text-gray-400" />
-                          <span className="text-xs text-gray-500">8</span>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-700 leading-relaxed">
-                        Great content overall. Some videos could be a bit more detailed, but the progression is logical and easy to follow.
-                      </p>
-                    </div>
-
-                    <div className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium text-primary">AD</span>
-                          </div>
-                          <div>
-                            <p className="font-medium text-sm text-gray-900">Alex Davis</p>
-                            <div className="flex items-center gap-1">
-                              <StarRating rating={5} onRatingChange={() => {}} readonly size="sm" />
-                              <span className="text-xs text-gray-500 ml-1">2 weeks ago</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <ThumbsUp className="h-4 w-4 text-gray-400" />
-                          <span className="text-xs text-gray-500">15</span>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-700 leading-relaxed">
-                        Perfect for beginners! The instructor explains everything step by step. Highly recommend this series.
-                      </p>
-                    </div>
+                    )}
                   </div>
-
-                  {/* Load More Reviews Button */}
-                  <div className="text-center pt-2">
-                    <Button variant="outline" size="sm">
-                      Load More Reviews
-                    </Button>
-                  </div>
+                  
+                  {/* Pagination Controls */}
+                  {reviewsQuery.data?.pagination && reviewsQuery.data.pagination.total_pages > 1 && (
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">Show</span>
+                        <Select value={reviewPerPage.toString()} onValueChange={(value) => {
+                          setReviewPerPage(parseInt(value));
+                          setReviewPage(1);
+                        }}>
+                          <SelectTrigger className="w-[70px] h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="5">5</SelectItem>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="20">20</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <span className="text-sm text-gray-600">per page</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">
+                          Page {reviewsQuery.data.pagination.current_page} of {reviewsQuery.data.pagination.total_pages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setReviewPage(p => Math.max(1, p - 1))}
+                          disabled={reviewPage <= 1}
+                          className="h-8"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setReviewPage(p => Math.min(reviewsQuery.data.pagination.total_pages, p + 1))}
+                          disabled={reviewPage >= reviewsQuery.data.pagination.total_pages}
+                          className="h-8"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

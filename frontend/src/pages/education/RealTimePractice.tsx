@@ -14,21 +14,15 @@ import {
   Mic,
   AlertCircle,
   CheckCircle,
-  Volume2
+  Volume2,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import { useToast } from '@/hooks/use-toast';
-
-interface PracticeWord {
-  id: number;
-  word: string;
-  category: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
-  videoUrl: string;
-  phonetics: string;
-  description: string;
-}
+import { usePracticeWords, PracticeWord as ApiPracticeWord } from '@/services';
+import { API_BASE_URL } from '@/lib/constants';
+import ReactPlayer from 'react-player';
 
 interface FeedbackIndicator {
   aspect: string;
@@ -42,8 +36,8 @@ const RealTimePractice = () => {
   const userVideoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   
-  const [selectedCategory, setSelectedCategory] = useState('Basic Words');
-  const [selectedWord, setSelectedWord] = useState<PracticeWord | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedWord, setSelectedWord] = useState<ApiPracticeWord | null>(null);
   const [isPracticing, setIsPracticing] = useState(false);
   const [webcamEnabled, setWebcamEnabled] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackIndicator[]>([]);
@@ -54,64 +48,16 @@ const RealTimePractice = () => {
     timeSpent: 0
   });
 
-  const categories = [
-    'Basic Words',
-    'Greetings',
-    'Numbers',
-    'Colors',
-    'Family',
-    'Food',
-    'Actions',
-    'Emotions'
-  ];
-
-  const practiceWords: PracticeWord[] = [
-    {
-      id: 1,
-      word: 'Hello',
-      category: 'Greetings',
-      difficulty: 'Easy',
-      videoUrl: '/api/placeholder/video/hello.mp4',
-      phonetics: '/həˈloʊ/',
-      description: 'A common greeting used when meeting someone'
-    },
-    {
-      id: 2,
-      word: 'Thank You',
-      category: 'Greetings',
-      difficulty: 'Easy',
-      videoUrl: '/api/placeholder/video/thankyou.mp4',
-      phonetics: '/θæŋk juː/',
-      description: 'Expression of gratitude'
-    },
-    {
-      id: 3,
-      word: 'Beautiful',
-      category: 'Basic Words',
-      difficulty: 'Medium',
-      videoUrl: '/api/placeholder/video/beautiful.mp4',
-      phonetics: '/ˈbjuːtɪfəl/',
-      description: 'Describing something aesthetically pleasing'
-    },
-    {
-      id: 4,
-      word: 'Computer',
-      category: 'Basic Words',
-      difficulty: 'Hard',
-      videoUrl: '/api/placeholder/video/computer.mp4',
-      phonetics: '/kəmˈpjuːtər/',
-      description: 'Electronic device for processing data'
-    },
-    {
-      id: 5,
-      word: 'Excellent',
-      category: 'Basic Words',
-      difficulty: 'Hard',
-      videoUrl: '/api/placeholder/video/excellent.mp4',
-      phonetics: '/ˈɛksələnt/',
-      description: 'Extremely good; outstanding'
-    }
-  ];
+  // fetch practice words from api
+  const { data: practiceWordsData, isLoading: isLoadingWords } = usePracticeWords({
+    status: 'active',
+    per_page: 100  // get all active words
+  });
+  
+  const apiWords: ApiPracticeWord[] = practiceWordsData?.data || [];
+  
+  // extract unique categories from api words
+  const categories = ['All', ...Array.from(new Set(apiWords.map(w => w.category)))];
 
   const breadcrumbItems = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -119,7 +65,7 @@ const RealTimePractice = () => {
     { title: 'Real-Time Practice' }
   ];
 
-  const filteredWords = practiceWords.filter(word => 
+  const filteredWords = apiWords.filter(word => 
     selectedCategory === 'All' || word.category === selectedCategory
   );
 
@@ -168,11 +114,11 @@ const RealTimePractice = () => {
     setIsPracticing(false);
   };
 
-  const selectWord = (word: PracticeWord) => {
+  const selectWord = (word: ApiPracticeWord) => {
     setSelectedWord(word);
     setIsPracticing(false);
     setPracticeProgress(0);
-    // Reset feedback
+    // reset feedback
     setFeedback([
       { aspect: 'Lip Position', status: 'needs-work', description: 'Position your lips correctly' },
       { aspect: 'Mouth Opening', status: 'needs-work', description: 'Adjust mouth opening' },
@@ -325,11 +271,11 @@ const RealTimePractice = () => {
                         <p className="text-xs text-gray-500">{word.phonetics}</p>
                       </div>
                       <Badge 
-                        variant={word.difficulty === 'Easy' ? 'secondary' : 
-                                word.difficulty === 'Medium' ? 'default' : 'destructive'}
+                        variant={word.difficulty === 'beginner' ? 'secondary' : 
+                                word.difficulty === 'intermediate' ? 'default' : 'destructive'}
                         className="text-xs"
                       >
-                        {word.difficulty}
+                        {word.difficulty.charAt(0).toUpperCase() + word.difficulty.slice(1)}
                       </Badge>
                     </div>
                   </motion.div>
@@ -359,16 +305,17 @@ const RealTimePractice = () => {
                   <h3 className="text-lg font-medium">Reference Video</h3>
                   <div className="relative bg-black rounded-lg overflow-hidden">
                     {selectedWord ? (
-                      <video
-                        ref={videoRef}
-                        className="w-full aspect-video"
-                        controls
-                        loop
-                        poster="/api/placeholder/400/240"
-                      >
-                        <source src={selectedWord.videoUrl} type="video/mp4" />
-                        Your browser does not support the video tag.
-                      </video>
+                      <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                        {(ReactPlayer as any)({
+                          ref: videoRef,
+                          url: `${API_BASE_URL}${selectedWord.videoPath}`,
+                          width: "100%",
+                          height: "100%",
+                          playing: true,
+                          controls: true,
+                          loop: true
+                        })}
+                      </div>
                     ) : (
                       <div className="aspect-video flex items-center justify-center bg-gray-100">
                         <p className="text-gray-500">Select a word to see reference video</p>

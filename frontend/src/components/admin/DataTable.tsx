@@ -61,6 +61,7 @@ export interface DataTableProps<T> {
   onExport?: () => void;
   onBulkDelete?: () => void;
   showHeaderActions?: boolean;
+  onRowClick?: (item: T) => void;
 }
 
 const DataTable = <T,>({
@@ -88,7 +89,8 @@ const DataTable = <T,>({
   className = "",
   onExport,
   onBulkDelete,
-  showHeaderActions = false
+  showHeaderActions = false,
+  onRowClick
 }: DataTableProps<T>) => {
   // get sort icon for column
   const getSortIcon = (field: string) => {
@@ -176,7 +178,7 @@ const DataTable = <T,>({
                 <tr className="border-b border-gray-200">
                   {/* select all checkbox */}
                   {onItemSelect && onSelectAll && (
-                    <th className="text-left py-3 px-4">
+                    <th className="text-left py-3 px-4" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={selectedItems.size === data.length && data.length > 0}
                         onCheckedChange={onSelectAll}
@@ -235,10 +237,23 @@ const DataTable = <T,>({
                     rowNumber = index + 1;
                   }
                   return (
-                    <tr key={itemId} className="border-b border-gray-100 hover:bg-gray-50">
+                    <tr 
+                      key={itemId} 
+                      className={`border-b border-gray-100 hover:bg-gray-50 ${onRowClick ? 'cursor-pointer' : ''}`}
+                      onClick={(e) => {
+                        // Only trigger row click if not clicking on interactive elements
+                        const target = e.target as HTMLElement;
+                        const isCheckbox = target.closest('button[role="checkbox"]') || target.closest('[role="checkbox"]');
+                        const isButton = target.closest('button');
+                        const isSelect = target.closest('[role="combobox"]');
+                        if (!isCheckbox && !isButton && !isSelect && onRowClick) {
+                          onRowClick(item);
+                        }
+                      }}
+                    >
                       {/* select checkbox */}
                       {onItemSelect && (
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                           <Checkbox
                             checked={selectedItems.has(itemId)}
                             onCheckedChange={(checked) => onItemSelect(itemId, checked as boolean)}
@@ -260,14 +275,17 @@ const DataTable = <T,>({
                       
                       {/* action buttons */}
                       {actions.length > 0 && (
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-2">
                             {actions.map((action) => (
                               <Button
                                 key={action.key}
                                 variant={action.variant || 'ghost'}
                                 size="sm"
-                                onClick={() => action.onClick(item)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  action.onClick(item);
+                                }}
                                 className={`h-8 w-8 p-0 ${action.className || ''}`}
                                 title={action.label}
                               >

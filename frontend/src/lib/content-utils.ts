@@ -31,9 +31,9 @@ export const mapTutorialData = (tutorial: any, index: number): ContentItem => {
     id: tutorialId,
     title: tutorial.title || 'Untitled Tutorial',
     description: tutorial.description || '',
-    category: 'General', // TODO: Get from category relationship
-    status: 'published', // TODO: Get from API
-    createdDate: new Date().toISOString().split('T')[0] // TODO: Get from API
+    category: tutorial.category?.category_name || tutorial.category_name || 'General',
+    status: tutorial.status || 'published',
+    createdDate: tutorial.created_at ? new Date(tutorial.created_at).toISOString().split('T')[0] : (tutorial.createdDate || new Date().toISOString().split('T')[0])
   };
 };
 
@@ -42,10 +42,10 @@ export const mapQuizData = (quiz: any, index: number): ContentItem => {
   return {
     id: quizId,
     title: quiz.title || 'Untitled Quiz',
-    description: '', // TODO: Get from API
-    category: 'General', // TODO: Get from category relationship
-    status: 'published', // TODO: Get from API
-    createdDate: new Date().toISOString().split('T')[0] // TODO: Get from API
+    description: quiz.description || quiz.short_description || '',
+    category: quiz.category?.category_name || quiz.category_name || 'General',
+    status: quiz.status || 'published',
+    createdDate: quiz.created_at ? new Date(quiz.created_at).toISOString().split('T')[0] : (quiz.createdDate || new Date().toISOString().split('T')[0])
   };
 };
 
@@ -53,11 +53,11 @@ export const mapCategoryData = (category: any, index: number): ContentItem => {
   const categoryId = category.id?.toString() || `category-${index}`;
   return {
     id: categoryId,
-    title: category.name || 'Untitled Category',
-    description: '', // TODO: Get from API
+    title: category.category_name || category.name || 'Untitled Category',
+    description: category.description || '',
     category: 'General',
-    status: 'active', // TODO: Get from API
-    createdDate: new Date().toISOString().split('T')[0] // TODO: Get from API
+    status: category.status || 'active',
+    createdDate: category.created_at ? new Date(category.created_at).toISOString().split('T')[0] : (category.createdDate || new Date().toISOString().split('T')[0])
   };
 };
 

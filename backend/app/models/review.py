@@ -23,6 +23,11 @@ class Review(db.Model):
     created_at: so.Mapped[datetime] = so.mapped_column(sa.DateTime, nullable=False, default=datetime.utcnow)
     updated_at: so.Mapped[datetime] = so.mapped_column(sa.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # admin response fields
+    admin_response: so.Mapped[str | None] = so.mapped_column(sa.Text())
+    admin_responded_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime())
+    reviewed_by_admin_id: so.Mapped[int | None] = so.mapped_column(sa.ForeignKey('accounts.id'))
+
     __table_args__ = (
         sa.UniqueConstraint('user_id', 'target_type', 'target_id', name='uq_review_user_target'),
         sa.CheckConstraint("rating >= 1 AND rating <= 5", name='ck_review_rating_range'),

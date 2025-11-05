@@ -19,6 +19,7 @@ import {
   UserCog,
   FolderKanban,
   PieChart,
+  TrendingDown,
   X
 } from 'lucide-react';
 
@@ -92,15 +93,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
       description: 'Tutorials, quizzes & categories'
     },
     { 
-      name: 'System Analytics', 
-      href: '/admin/analytics', 
-      icon: Activity,
-      description: 'System performance metrics'
-    },
-    { 
       name: 'User Learning Analytics', 
       href: '/admin/user-analytics', 
-      icon: TrendingUp,
+      icon: TrendingDown,
       description: 'Learning performance insights'
     },
     { 
@@ -148,7 +143,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
         className={cn(
           "fixed left-0 top-16 h-[calc(100vh-4rem)] w-72 z-50",
           "bg-background/95 backdrop-blur-md shadow-xl border-r border-border",
-          "overflow-hidden"
+          "flex flex-col"
         )}
         initial={false}
         animate={isOpen ? "open" : "closed"}
@@ -162,7 +157,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
         }}
       >
         {/* Sidebar Header */}
-        <div className="flex items-center justify-between p-4 border-b border-primary/10">
+        <div className="flex items-center justify-between p-4 border-b border-primary/10 flex-shrink-0">
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: isOpen ? 1 : 0, y: isOpen ? 0 : -10 }}
@@ -190,7 +185,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 custom-scrollbar">
+        <nav className="flex-1 overflow-y-auto py-4 px-3 custom-scrollbar min-h-0">
           <div className="space-y-1">
             {navigation.map((item, index) => {
               const isActive = location.pathname === item.href;

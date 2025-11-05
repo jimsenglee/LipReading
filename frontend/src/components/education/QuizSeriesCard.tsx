@@ -86,14 +86,14 @@ const QuizSeriesCard: React.FC<QuizSeriesCardProps> = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.1 }}
       whileHover={{ y: -5 }}
-      className="h-full"
+      className="h-full flex"
     >
       <Card 
-        className="h-full border-primary/20 hover:border-primary/40 transition-all duration-300 cursor-pointer group hover:shadow-lg"
+        className="h-full w-full border-primary/20 hover:border-primary/40 transition-all duration-300 cursor-pointer group hover:shadow-lg flex flex-col"
         onClick={() => onClick(series)}
       >
         {/* Header with title instead of thumbnail */}
-        <div className="relative w-full h-32 bg-gradient-to-r from-purple-200 to-purple-300 flex flex-col items-center justify-center rounded-t-lg border-b border-primary/10 px-4">
+        <div className="relative w-full h-32 bg-gradient-to-r from-purple-200 to-purple-300 flex flex-col items-center justify-center rounded-t-lg border-b border-primary/10 px-4 flex-shrink-0">
           <div className="absolute top-3 left-3 bg-purple-600/80 text-white px-2 py-1 rounded text-sm flex items-center gap-1">
             <Brain className="h-3 w-3" />
             Quiz
@@ -103,7 +103,7 @@ const QuizSeriesCard: React.FC<QuizSeriesCardProps> = ({
               <Trophy className="h-4 w-4" />
             </div>
           )}
-          <CardTitle className="text-xl font-bold text-purple-900 text-center line-clamp-2">
+          <CardTitle className="text-xl font-bold text-purple-900 text-center line-clamp-2 min-h-[3rem]">
             {series.title}
           </CardTitle>
           {series.estimatedCompletionTime && (
@@ -114,7 +114,7 @@ const QuizSeriesCard: React.FC<QuizSeriesCardProps> = ({
           )}
         </div>
         
-        <CardHeader className="pb-3 pt-4">
+        <CardHeader className="pb-3 pt-4 flex-shrink-0">
           <div className="flex items-start justify-between mb-2">
             <div className="space-y-1">
               <Badge className={getQuizDifficultyColor(series.difficulty)}>
@@ -130,14 +130,14 @@ const QuizSeriesCard: React.FC<QuizSeriesCardProps> = ({
             )}
           </div>
           
-          <CardDescription className="line-clamp-2">
+          <CardDescription className="line-clamp-2 min-h-[2.5rem]">
             {series.description}
           </CardDescription>
         </CardHeader>
         
-        <CardContent className="space-y-4">
+        <CardContent className="flex-1 flex flex-col space-y-4 pb-4">
           {/* Quiz Stats */}
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-2 gap-4 text-sm flex-shrink-0">
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" />
               <span className="text-gray-600">{series.totalQuestions || 0} questions</span>
@@ -150,7 +150,7 @@ const QuizSeriesCard: React.FC<QuizSeriesCardProps> = ({
 
           {/* Prerequisites */}
           {series.prerequisites && series.prerequisites.length > 0 && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-2">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 flex-shrink-0">
               <p className="text-xs text-orange-700">
                 <span className="font-medium">Prerequisites:</span> {series.prerequisites.length} quiz{series.prerequisites.length > 1 ? 'es' : ''}
               </p>
@@ -159,7 +159,7 @@ const QuizSeriesCard: React.FC<QuizSeriesCardProps> = ({
 
           {/* Progress Section */}
           {progress && progress.status !== 'not-started' && (
-            <div className="space-y-2">
+            <div className="space-y-2 flex-shrink-0">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">Progress</span>
                 <span className={`font-medium ${getStatusColor()}`}>
@@ -176,8 +176,8 @@ const QuizSeriesCard: React.FC<QuizSeriesCardProps> = ({
             </div>
           )}
 
-          {/* Status and Action */}
-          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+          {/* Status and Action - pushed to bottom */}
+          <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto flex-shrink-0">
             <div className="flex items-center gap-2">
               {getStatusIcon()}
               <span className={`text-sm font-medium ${getStatusColor()}`}>

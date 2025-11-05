@@ -8,6 +8,7 @@ from typing import Dict, Any, List
 from datetime import datetime
 from ..extensions import db
 from ..models.user_bookmark import user_bookmarks
+from ..models.user_progress import UserProgress
 from ..models.tutorial import Tutorial
 from ..models.quiz import Quiz
 from ..models.quiz_attempt import QuizAttempt
@@ -36,12 +37,12 @@ class ProgressService:
                 raise APIError("series not found", 404)
             
             # check if already enrolled
-            existing_bookmark = db.session.scalar(
+            existing_bookmark = db.session.execute(
                 select(user_bookmarks).where(
                     user_bookmarks.c.user_id == user_id,
                     user_bookmarks.c.tutorial_id == series_id
                 )
-            )
+            ).first()
             
             if existing_bookmark:
                 raise APIError("already enrolled in this series", 409)
@@ -80,12 +81,12 @@ class ProgressService:
         """unenroll user from a tutorial series"""
         try:
             # find enrollment
-            bookmark = db.session.scalar(
+            bookmark = db.session.execute(
                 select(user_bookmarks).where(
                     user_bookmarks.c.user_id == user_id,
                     user_bookmarks.c.tutorial_id == series_id
                 )
-            )
+            ).first()
             
             if not bookmark:
                 raise APIError("not enrolled in this series", 404)
@@ -115,16 +116,19 @@ class ProgressService:
     def get_series_progress(user_id: int, series_id: int):
         """get user's progress for a specific series"""
         try:
-            # check if enrolled
-            bookmark = db.session.scalar(
+            # check if enrolled - use first() to get the full row
+            bookmark_row = db.session.execute(
                 select(user_bookmarks).where(
                     user_bookmarks.c.user_id == user_id,
                     user_bookmarks.c.tutorial_id == series_id
                 )
-            )
+            ).first()
             
-            if not bookmark:
+            if not bookmark_row:
                 raise APIError("not enrolled in this series", 404)
+            
+            # extract bookmark data from row - access columns using _mapping (SQLAlchemy 2.0 style)
+            bookmark = bookmark_row._mapping if hasattr(bookmark_row, '_mapping') else dict(bookmark_row)
             
             # get series info
             series = db.session.scalar(
@@ -138,35 +142,60 @@ class ProgressService:
                 .order_by(Tutorial.video_order)
             ).all()
             
-            # get video progress (for now, using basic progress from bookmark)
-            # in a real implementation, you'd have individual video progress tracking
+            # get individual video progress from UserProgress table
+            completed_video_ids = []
             completed_videos = []
-            total_watch_time = bookmark.total_watch_time or 0
             
-            # calculate progress based on videos watched
             if videos:
-                videos_watched = min(len(videos), int(bookmark.progress_percentage / 100 * len(videos)))
-                for i in range(videos_watched):
-                    completed_videos.append({
-                        'id': videos[i].id,
-                        'title': videos[i].video_title or videos[i].title,
-                        'order': videos[i].video_order,
-                        'duration': videos[i].video_duration or 0
-                    })
+                # get all completed videos for this user in this series
+                video_progress_records = db.session.scalars(
+                    select(UserProgress).where(
+                        UserProgress.user_id == user_id,
+                        UserProgress.series_id == series_id,
+                        UserProgress.is_completed == True
+                    )
+                ).all()
+                
+                completed_video_ids = [vp.tutorial_id for vp in video_progress_records]
+                
+                # build completed videos list
+                for video in videos:
+                    if video.id in completed_video_ids:
+                        completed_videos.append({
+                            'id': video.id,
+                            'title': video.video_title or video.title,
+                            'order': video.video_order,
+                            'duration': video.video_duration or 0
+                        })
+            
+            # check if series is completed (all videos completed)
+            is_series_completed = len(videos) > 0 and len(completed_videos) == len(videos)
+            
+            # calculate progress percentage
+            progress_percentage = 0
+            if videos and len(videos) > 0:
+                progress_percentage = round((len(completed_videos) / len(videos)) * 100)
+            
+            # Access bookmark fields safely from dict-like object
+            enrolled_at = bookmark.get('enrolled_at')
+            completed_at = bookmark.get('completed_at')
+            last_accessed_at = bookmark.get('last_accessed_at')
+            total_watch_time = bookmark.get('total_watch_time', 0) or 0
+            last_watched_position = bookmark.get('last_watched_position', 0) or 0
             
             progress = {
                 'seriesId': series_id,
                 'seriesTitle': series.title if series else None,
-                'status': 'completed' if bookmark.is_completed else 'in-progress',
-                'progressPercentage': bookmark.progress_percentage or 0,
-                'enrolledAt': bookmark.enrolled_at.isoformat() if bookmark.enrolled_at else None,
-                'completedAt': bookmark.completed_at.isoformat() if bookmark.completed_at else None,
-                'lastAccessedAt': bookmark.last_accessed_at.isoformat() if bookmark.last_accessed_at else None,
-                'completedVideos': completed_videos,
+                'status': 'completed' if is_series_completed else 'in-progress',
+                'progressPercentage': progress_percentage,
+                'enrolledAt': enrolled_at.isoformat() if enrolled_at else None,
+                'completedAt': completed_at.isoformat() if completed_at and is_series_completed else None,
+                'lastAccessedAt': last_accessed_at.isoformat() if last_accessed_at else None,
+                'completedVideos': [str(v['id']) for v in completed_videos],  # return as string IDs for frontend
                 'totalVideos': len(videos),
-                'totalWatchTime': total_watch_time,
-                'lastWatchedPosition': bookmark.last_watched_position or 0,
-                'isCompleted': bookmark.is_completed or False
+                'totalWatchTime': total_watch_time or 0,
+                'lastWatchedPosition': last_watched_position or 0,
+                'isCompleted': is_series_completed
             }
             
             return ResponseService.success_response(progress)
@@ -190,56 +219,111 @@ class ProgressService:
             except Exception:
                 validated_data = {}
             
-            # check if tutorial exists
-            tutorial = db.session.scalar(
+            # check if tutorial/video exists
+            video = db.session.scalar(
                 select(Tutorial).where(Tutorial.id == tutorial_id)
                 .where(Tutorial.status != 'deleted')
             )
-            if not tutorial:
-                raise APIError("tutorial not found", 404)
+            if not video:
+                raise APIError("video not found", 404)
             
-            # check if enrolled/bookmarked
-            bookmark = db.session.scalar(
+            # get series_id (parent series)
+            series_id = video.parent_series_id
+            if not series_id:
+                # if video is itself a series, use its own ID
+                series_id = video.id if video.series_type == 'series' else None
+                if not series_id:
+                    raise APIError("video is not part of a series", 400)
+            
+            # check if enrolled in series (bookmark exists for series)
+            bookmark_row = db.session.execute(
                 select(user_bookmarks).where(
                     user_bookmarks.c.user_id == user_id,
-                    user_bookmarks.c.tutorial_id == tutorial_id
+                    user_bookmarks.c.tutorial_id == series_id
+                )
+            ).first()
+            
+            if not bookmark_row:
+                raise APIError("must be enrolled in series to track video progress", 403)
+            
+            # extract bookmark data from row (not used in this method, but kept for consistency)
+            bookmark = bookmark_row._mapping if hasattr(bookmark_row, '_mapping') else bookmark_row
+            
+            # check if UserProgress record exists for this video
+            video_progress = db.session.scalar(
+                select(UserProgress).where(
+                    UserProgress.user_id == user_id,
+                    UserProgress.tutorial_id == tutorial_id,
+                    UserProgress.series_id == series_id
                 )
             )
             
-            if not bookmark:
-                raise APIError("tutorial not bookmarked", 404)
+            if video_progress:
+                # update existing progress
+                if 'is_completed' in validated_data:
+                    video_progress.is_completed = validated_data['is_completed']
+                    video_progress.updated_at = datetime.utcnow()
+            else:
+                # create new progress record
+                if validated_data.get('is_completed'):
+                    public_id = generate_public_id(UserProgress, "UPG")
+                    video_progress = UserProgress()
+                    video_progress.public_id = public_id
+                    video_progress.user_id = user_id
+                    video_progress.tutorial_id = tutorial_id
+                    video_progress.series_id = series_id
+                    video_progress.is_completed = True
+                    db.session.add(video_progress)
             
-            # update progress data
-            update_data = {
-                'last_accessed_at': datetime.utcnow()
-            }
-            
-            if 'progress_percentage' in validated_data:
-                update_data['progress_percentage'] = validated_data['progress_percentage']
-            
-            if 'last_watched_position' in validated_data:
-                update_data['last_watched_position'] = validated_data['last_watched_position']
-            
-            if 'total_watch_time' in validated_data:
-                update_data['total_watch_time'] = validated_data['total_watch_time']
-            
-            if 'is_completed' in validated_data:
-                update_data['is_completed'] = validated_data['is_completed']
-                if validated_data['is_completed']:
-                    update_data['completed_at'] = datetime.utcnow()
-            
+            # update bookmark last accessed
             db.session.execute(
                 update(user_bookmarks).where(
                     user_bookmarks.c.user_id == user_id,
-                    user_bookmarks.c.tutorial_id == tutorial_id
-                ).values(**update_data)
+                    user_bookmarks.c.tutorial_id == series_id
+                ).values(
+                    last_accessed_at=datetime.utcnow()
+                )
             )
+            
+            # check if all videos in series are completed
+            if validated_data.get('is_completed'):
+                # get all videos in series
+                all_videos = db.session.scalars(
+                    select(Tutorial.id).where(
+                        Tutorial.parent_series_id == series_id
+                    ).where(Tutorial.status != 'deleted')
+                ).all()
+                
+                # get all completed videos
+                completed_videos = db.session.scalars(
+                    select(UserProgress.tutorial_id).where(
+                        UserProgress.user_id == user_id,
+                        UserProgress.series_id == series_id,
+                        UserProgress.is_completed == True
+                    )
+                ).all()
+                
+                # check if series is completed
+                if len(all_videos) > 0 and len(completed_videos) >= len(all_videos):
+                    # mark series as completed in bookmark
+                    db.session.execute(
+                        update(user_bookmarks).where(
+                            user_bookmarks.c.user_id == user_id,
+                            user_bookmarks.c.tutorial_id == series_id
+                        ).values(
+                            is_completed=True,
+                            completed_at=datetime.utcnow(),
+                            progress_percentage=100
+                        )
+                    )
+            
             db.session.commit()
             
             return ResponseService.success_response({
                 "message": "progress updated successfully",
                 "tutorialId": tutorial_id,
-                "progressPercentage": update_data.get('progress_percentage', bookmark.progress_percentage)
+                "seriesId": series_id,
+                "isCompleted": validated_data.get('is_completed', False)
             })
             
         except APIError:

@@ -3,7 +3,7 @@ Transcription business logic service
 Following README.txt separation of concerns
 """
 import sqlalchemy as sa
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime
 
 from ..extensions import db
@@ -136,20 +136,24 @@ class TranscriptionService:
         try:
             # Validate input
             schema = TranscriptionCreateSchema()
-            validated_data = schema.load(data)
+            try:
+                validated_data = schema.load(data)
+                if not isinstance(validated_data, dict):
+                    validated_data = {}
+            except Exception:
+                validated_data = {}
             
             # Generate public ID
             public_id = generate_public_id(Transcription, 'TRANS')
             
             # Create transcription
-            transcription = Transcription(
-                public_id=public_id,
-                user_id=user_id,
-                title=validated_data['title'],
-                video_source_path=validated_data.get('video_source_path'),
-                duration_seconds=validated_data.get('duration_seconds'),
-                processing_status='pending'
-            )
+            transcription = Transcription()
+            transcription.public_id = public_id
+            transcription.user_id = user_id
+            transcription.title = validated_data.get('title', '')
+            transcription.video_source_path = validated_data.get('video_source_path')
+            transcription.duration_seconds = validated_data.get('duration_seconds')
+            transcription.processing_status = 'pending'
             
             db.session.add(transcription)
             db.session.commit()
@@ -171,7 +175,12 @@ class TranscriptionService:
         try:
             # Validate input
             schema = TranscriptionUpdateSchema()
-            validated_data = schema.load(data)
+            try:
+                validated_data = schema.load(data)
+                if not isinstance(validated_data, dict):
+                    validated_data = {}
+            except Exception:
+                validated_data = {}
             
             # Get transcription
             transcription = db.session.scalar(
@@ -203,7 +212,7 @@ class TranscriptionService:
             raise APIError(f"Failed to update transcription: {str(e)}", 500)
     
     @staticmethod
-    def update_transcription_status(transcription_id: int, status: str, gdrive_file_id: str = None, colab_job_id: str = None):
+    def update_transcription_status(transcription_id: int, status: str, gdrive_file_id: Optional[str] = None, colab_job_id: Optional[str] = None):
         """Update transcription processing status (internal use)"""
         try:
             transcription = db.session.scalar(

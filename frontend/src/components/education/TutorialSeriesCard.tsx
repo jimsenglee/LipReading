@@ -100,10 +100,11 @@ const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -5, scale: 1.02 }}
       transition={{ duration: 0.3 }}
+      className="h-full flex"
     >
       <Card 
-        className={`h-full border-primary/20 hover:border-primary/40 hover:shadow-lg transition-all duration-300 cursor-pointer group ${
-          isGridView ? 'flex flex-col' : 'flex flex-row'
+        className={`h-full w-full border-primary/20 hover:border-primary/40 hover:shadow-lg transition-all duration-300 cursor-pointer group flex flex-col ${
+          isGridView ? '' : 'flex-row'
         }`}
         onClick={() => {
           if (onClick) {
@@ -114,7 +115,7 @@ const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
         }}
       >
         {/* Thumbnail Section */}
-        <div className={`relative ${isGridView ? 'w-full' : 'w-64 flex-shrink-0'}`}>
+        <div className={`relative flex-shrink-0 ${isGridView ? 'w-full' : 'w-64'}`}>
           {(() => {
             const thumbnailUrl = (series as any).thumbnail || 'https://via.placeholder.com/600x300/e2e8f0/64748b?text=Tutorial';
             return (
@@ -159,9 +160,9 @@ const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
         </div>
         
         {/* Content Section */}
-        <div className={`p-4 ${isGridView ? 'flex-1' : 'flex-1'} flex flex-col justify-between`}>
-          {/* Header Info */}
-          <div className="space-y-3">
+        <div className={`p-4 flex-1 flex flex-col ${isGridView ? '' : 'flex-1'}`}>
+          {/* Header Info - flex-grow to take available space */}
+          <div className="flex-1 flex flex-col space-y-3">
             <div className="flex items-start justify-between">
               <Badge className={getDifficultyColor(series.difficulty || 'beginner')}>
                 {(series.difficulty || 'beginner').charAt(0).toUpperCase() + (series.difficulty || 'beginner').slice(1)}
@@ -172,13 +173,13 @@ const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
               </div>
             </div>
 
-            <CardHeader className="p-0">
-              <CardTitle className="text-lg leading-tight line-clamp-2">{series.title}</CardTitle>
-              <CardDescription className="text-sm line-clamp-2">{series.description}</CardDescription>
+            <CardHeader className="p-0 flex-shrink-0">
+              <CardTitle className="text-lg leading-tight line-clamp-2 min-h-[3rem]">{series.title}</CardTitle>
+              <CardDescription className="text-sm line-clamp-2 min-h-[2.5rem] mt-1">{series.description}</CardDescription>
             </CardHeader>
 
             {/* Series Stats */}
-            <div className="flex items-center justify-between text-sm text-gray-600">
+            <div className="flex items-center justify-between text-sm text-gray-600 flex-shrink-0">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1">
                   <BookOpen className="h-3 w-3" />
@@ -194,14 +195,14 @@ const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
 
             {/* Prerequisites */}
             {hasPrerequisites && (
-              <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded border border-orange-200">
+              <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded border border-orange-200 flex-shrink-0">
                 <span className="font-medium">Prerequisites:</span> {(series.prerequisites || []).join(', ')}
               </div>
             )}
 
             {/* Progress Bar */}
             {progress && progress.status !== 'not-started' && (
-              <div className="space-y-1">
+              <div className="space-y-1 flex-shrink-0">
                 <div className="flex justify-between text-xs text-gray-500">
                   <span>Progress</span>
                   <span>{progressPercentage}%</span>
@@ -214,8 +215,8 @@ const TutorialSeriesCard: React.FC<TutorialSeriesCardProps> = ({
             )}
           </div>
 
-          {/* Status and Action */}
-          <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+          {/* Status and Action - pushed to bottom */}
+          <div className="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-2">
               {getStatusBadge()}
             </div>

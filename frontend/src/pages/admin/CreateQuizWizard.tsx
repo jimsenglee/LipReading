@@ -29,7 +29,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useQuizById, useQuizQuestions } from '@/services/content/contentQueries';
+import { useCategories } from '@/services/content/contentQueries';
+import { useCreateQuiz, useUpdateQuiz } from '@/services/content/contentMutations';
 
 interface QuizOption {
   id: string;
@@ -66,8 +69,15 @@ interface QuizSeries {
 const CreateQuizWizard: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // check if we're in edit mode
+  const editMode = location.state?.editMode || false;
+  const quizId = editMode && location.state?.quizId 
+    ? parseInt(String(location.state.quizId), 10) || 0
+    : 0;
   
   const [quizSeries, setQuizSeries] = useState<QuizSeries>({
     title: '',
@@ -86,12 +96,94 @@ const CreateQuizWizard: React.FC = () => {
   });
 
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  
+  // api hooks - fetch all categories for dropdown (no pagination limit)
+  const { data: categoriesData } = useCategories({ per_page: 100, status: 'active' });
+  // Only fetch quiz data if we're in edit mode and have a valid quizId
+  const { data: quizData, isLoading: isLoadingQuiz } = useQuizById(editMode && quizId > 0 ? quizId : 0);
+  const { data: questionsData } = useQuizQuestions(editMode && quizId > 0 ? quizId : 0);
+  const createQuizMutation = useCreateQuiz();
+  const updateQuizMutation = useUpdateQuiz();
+  
+  // populate form when quiz data is loaded (edit mode)
+  useEffect(() => {
+    if (editMode && quizData) {
+      // Map backend questions to frontend format
+      const mappedQuestions: QuizQuestion[] = [];
+      if (questionsData && Array.isArray(questionsData)) {
+        questionsData.forEach((q: any, index: number) => {
+          if (q.questionType === 'video_mcq') {
+            // Map video_mcq to multiple-choice
+            const options: QuizOption[] = [
+              {
+                id: 'correct',
+                text: q.correctAnswer || '',
+                isCorrect: true
+              },
+              ...(q.incorrectOptions || []).map((opt: string, optIdx: number) => ({
+                id: `incorrect-${optIdx}`,
+                text: opt,
+                isCorrect: false
+              }))
+            ];
+            
+            mappedQuestions.push({
+              id: q.id?.toString() || String(index + 1),
+              type: 'multiple-choice',
+              question: '', // video_mcq doesn't have question text in backend
+              options: options,
+              explanation: q.explanation || '',
+              points: q.points || 1,
+              order: index + 1
+            });
+          } else if (q.questionType === 'true_false') {
+            // Map true_false to true-false
+            const options: QuizOption[] = [
+              { id: 'true', text: 'True', isCorrect: q.correctAnswer === 'true' },
+              { id: 'false', text: 'False', isCorrect: q.correctAnswer === 'false' }
+            ];
+            
+            mappedQuestions.push({
+              id: q.id?.toString() || String(index + 1),
+              type: 'true-false',
+              question: q.questionText || '',
+              options: options,
+              explanation: q.explanation || '',
+              points: q.points || 1,
+              order: index + 1
+            });
+          }
+        });
+      }
+      
+      setQuizSeries({
+        title: quizData.title || '',
+        description: quizData.description || '',
+        detailedDescription: quizData.description || '',
+        category: quizData.categoryId?.toString() || '',
+        difficulty: (quizData.difficulty as 'beginner' | 'intermediate' | 'advanced') || 'beginner',
+        timeLimit: quizData.estimatedDuration || 30,
+        passingScore: quizData.passingScore || 70,
+        maxAttempts: quizData.maxAttempts || 3,
+        showResultsImmediately: quizData.showResultsImmediately ?? true,
+        shuffleQuestions: quizData.shuffleQuestions || false,
+        shuffleOptions: quizData.shuffleAnswers || false,
+        questions: mappedQuestions,
+        status: (quizData.status as 'draft' | 'published') || 'draft'
+      });
+    }
+  }, [editMode, quizData, questionsData]);
 
   const breadcrumbItems = [
     { title: 'Admin Dashboard', href: '/admin' },
     { title: 'Content Management', href: '/admin/content' },
-    { title: 'Create Quiz Series' }
+    { title: editMode ? 'Edit Quiz Series' : 'Create Quiz Series' }
   ];
+  
+  const pageTitle = editMode ? 'Edit Quiz Series' : 'Create Quiz Series';
+  const pageSubtitle = editMode 
+    ? 'Update quiz series information and settings'
+    : 'Create interactive quizzes to test user knowledge';
 
   const steps = [
     { id: 1, title: 'Basic Information', description: 'Quiz title, description, and category' },
@@ -100,13 +192,8 @@ const CreateQuizWizard: React.FC = () => {
     { id: 4, title: 'Review & Publish', description: 'Final review and publishing options' }
   ];
 
-  const categories = [
-    'Vowel Sounds',
-    'Consonant Sounds',
-    'Sentence Reading',
-    'Advanced Techniques',
-    'Practice Exercises'
-  ];
+  // use real categories from API
+  const categoriesList = categoriesData?.data || [];
 
   const questionTypes = [
     { value: 'multiple-choice', label: 'Multiple Choice (Video)', description: 'Single correct answer from multiple options with video' },
@@ -135,8 +222,10 @@ const CreateQuizWizard: React.FC = () => {
           // Validate individual questions
           for (let i = 0; i < quizSeries.questions.length; i++) {
             const question = quizSeries.questions[i];
-            if (!question.question.trim()) {
-              newErrors.questions = `Question ${i + 1} text is required`;
+            // Question text is optional (video_mcq doesn't need text)
+            // Only validate for true-false questions
+            if (question.type === 'true-false' && !question.question.trim()) {
+              newErrors.questions = `Question ${i + 1} text is required for true/false questions`;
               break;
             }
             if (question.type === 'multiple-choice') {
@@ -296,25 +385,48 @@ const CreateQuizWizard: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
       const finalQuiz = {
-        ...quizSeries,
-        status: publishNow ? 'published' : 'draft'
+        title: quizSeries.title,
+        description: quizSeries.description,
+        categoryId: parseInt(quizSeries.category),
+        difficulty: quizSeries.difficulty,
+        status: publishNow ? 'published' : 'draft',
+        passingScore: quizSeries.passingScore,
+        maxAttempts: quizSeries.maxAttempts,
+        shuffleQuestions: quizSeries.shuffleQuestions,
+        shuffleAnswers: quizSeries.shuffleOptions,
+        showResultsImmediately: quizSeries.showResultsImmediately,
+        estimatedDuration: quizSeries.timeLimit,
+        // TODO: add questions data
       };
       
-      toast({
-        title: publishNow ? "Quiz Series Published!" : "Quiz Series Saved!",
-        description: publishNow 
-          ? "Your quiz series is now live and available to users."
-          : "Your quiz series has been saved as a draft."
-      });
+      if (editMode && quizId) {
+        await updateQuizMutation.mutateAsync({
+          id: quizId,
+          quizData: finalQuiz
+        });
+        toast({
+          title: publishNow ? "Quiz Series Updated & Published!" : "Quiz Series Updated!",
+          description: publishNow 
+            ? "Your quiz series has been updated and is now live."
+            : "Your quiz series has been updated."
+        });
+      } else {
+        await createQuizMutation.mutateAsync(finalQuiz);
+        toast({
+          title: publishNow ? "Quiz Series Published!" : "Quiz Series Saved!",
+          description: publishNow 
+            ? "Your quiz series is now live and available to users."
+            : "Your quiz series has been saved as a draft."
+        });
+      }
       
-    } catch (error) {
+      navigate('/admin/content');
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Submission Failed",
-        description: "Please try again later."
+        description: error?.message || "Please try again later."
       });
     } finally {
       setIsSubmitting(false);
@@ -327,8 +439,8 @@ const CreateQuizWizard: React.FC = () => {
       
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900">Create Quiz Series</h1>
-        <p className="text-gray-600 mt-2">Create interactive quizzes to test user knowledge</p>
+        <h1 className="text-3xl font-bold text-gray-900">{pageTitle}</h1>
+        <p className="text-gray-600 mt-2">{pageSubtitle}</p>
       </div>
 
       {/* Progress Steps */}
@@ -337,7 +449,7 @@ const CreateQuizWizard: React.FC = () => {
           <div key={step.id} className="flex-1 flex items-center">
             <div className="flex items-center">
               <motion.div 
-                className={`w-14 h-14 rounded-full flex items-center justify-center font-medium text-sm border-2 ${
+                className={`w-14 h-14 rounded-full flex items-center justify-center font-medium text-sm border-2 cursor-pointer ${
                   currentStep > step.id 
                     ? 'bg-green-500 text-white shadow-lg border-green-500' 
                     : currentStep === step.id
@@ -351,6 +463,12 @@ const CreateQuizWizard: React.FC = () => {
                   aspectRatio: '1/1',
                   minWidth: '56px',
                   minHeight: '56px'
+                }}
+                onClick={() => {
+                  // allow direct step navigation in edit mode
+                  if (editMode && currentStep !== step.id) {
+                    setCurrentStep(step.id);
+                  }
                 }}
               >
                 <motion.div
@@ -463,8 +581,13 @@ const CreateQuizWizard: React.FC = () => {
                           <SelectValue placeholder="Select category" />
                         </SelectTrigger>
                         <SelectContent>
-                          {categories.map(category => (
-                            <SelectItem key={category} value={category}>{category}</SelectItem>
+                          {categoriesList.map((category: any) => (
+                            <SelectItem 
+                              key={category.id} 
+                              value={category.id?.toString()}
+                            >
+                              {category.category_name}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

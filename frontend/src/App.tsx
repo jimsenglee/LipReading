@@ -37,11 +37,11 @@ import CreateQuizWizard from "./pages/admin/CreateQuizWizard";
 import CreateCategoryWizard from "./pages/admin/CreateCategoryWizard";
 import EditTutorialSeriesWizard from "./pages/admin/EditTutorialSeriesWizard";
 import EditQuizWizard from "./pages/admin/EditQuizWizard";
-import SystemAnalytics from "./pages/admin/SystemAnalytics";
-import UserLearningAnalytics from "./pages/admin/UserLearningAnalytics";
 import ContentInteractionAnalytics from "./pages/admin/ContentInteractionAnalytics";
 import EditFAQ from "./pages/admin/EditFAQ";
+import CreatePracticeWordWizard from "./pages/admin/CreatePracticeWordWizard";
 import FeedbackSubmission from "./pages/FeedbackSubmission";
+import UserLearningAnalytics from "./pages/admin/UserLearningAnalytics";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -232,6 +232,13 @@ const App = () => (
                 </DashboardLayout>
               </ProtectedRoute>
             } />
+            <Route path="/admin/content/create-practice-word" element={
+              <ProtectedRoute requiredRole="admin">
+                <DashboardLayout>
+                  <CreatePracticeWordWizard />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
             <Route path="/admin/content/edit-tutorial/:id" element={
               <ProtectedRoute requiredRole="admin">
                 <DashboardLayout>
@@ -260,10 +267,10 @@ const App = () => (
                 </DashboardLayout>
               </ProtectedRoute>
             } />
-            <Route path="/admin/analytics" element={
+            <Route path="/admin/content-analytics" element={
               <ProtectedRoute requiredRole="admin">
                 <DashboardLayout>
-                  <SystemAnalytics />
+                  <ContentInteractionAnalytics />
                 </DashboardLayout>
               </ProtectedRoute>
             } />
@@ -271,13 +278,6 @@ const App = () => (
               <ProtectedRoute requiredRole="admin">
                 <DashboardLayout>
                   <UserLearningAnalytics />
-                </DashboardLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/content-analytics" element={
-              <ProtectedRoute requiredRole="admin">
-                <DashboardLayout>
-                  <ContentInteractionAnalytics />
                 </DashboardLayout>
               </ProtectedRoute>
             } />

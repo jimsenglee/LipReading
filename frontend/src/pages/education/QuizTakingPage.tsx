@@ -1,28 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { 
   ArrowLeft, 
   Clock, 
   CheckCircle, 
   XCircle, 
-  Flag,
   Timer,
   AlertCircle,
-  Award,
   Target,
-  ChevronRight,
   RefreshCw,
-  Play,
-  Pause
+  RotateCcw,
+  HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import { useToast } from '@/hooks/use-toast';
 import { useQuizForTaking, useSubmitQuiz } from '@/services';
+import ReactPlayer from 'react-player';
+import { API_BASE_URL } from '@/lib/constants';
+
 type QuizSeries = { id: string; title: string };
 
 interface QuizQuestion {
@@ -31,6 +41,7 @@ interface QuizQuestion {
   questionText?: string;
   videoClipPath?: string;
   options: string[];
+  correctAnswer?: string; // for immediate feedback
   points: number;
   explanation?: string;
 }
@@ -52,11 +63,23 @@ const QuizTakingPage: React.FC = () => {
   const [userAnswers, setUserAnswers] = useState<UserAnswer[]>([]);
   const [selectedAnswer, setSelectedAnswer] = useState<string>('');
   const [timeSpent, setTimeSpent] = useState(0);
-  const [quizStartTime, setQuizStartTime] = useState<Date>(new Date());
+  const [quizStartTime] = useState<Date>(new Date());
   const [questionStartTime, setQuestionStartTime] = useState<Date>(new Date());
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [showResults, setShowResults] = useState(false);
-  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(true);
+  const [showBackConfirm, setShowBackConfirm] = useState(false);
+  
+  // Feedback state for immediate results
+  const [feedbackState, setFeedbackState] = useState<{
+    show: boolean;
+    isCorrect: boolean;
+    correctAnswer?: string;
+  }>({ show: false, isCorrect: false });
+  
+  // Audio refs for sound effects
+  const correctSoundRef = useRef<HTMLAudioElement>(null);
+  const incorrectSoundRef = useRef<HTMLAudioElement>(null);
+  const videoPlayerRef = useRef<any>(null);
 
   // API hooks
   const quizId = seriesId ? parseInt(seriesId) : 0;
@@ -66,6 +89,7 @@ const QuizTakingPage: React.FC = () => {
   // Extract quiz info and questions from API response
   const quiz = quizData?.data;
   const questions: QuizQuestion[] = quiz?.questions || [];
+  const showResultsImmediately = quiz?.showResultsImmediately ?? true;
 
   const currentQuestion = questions[currentQuestionIndex];
   const totalQuestions = questions.length;
@@ -84,14 +108,164 @@ const QuizTakingPage: React.FC = () => {
     const timer = setInterval(() => {
       setTimeSpent(prev => prev + 1);
     }, 1000);
-
     return () => clearInterval(timer);
   }, []);
 
-  // Reset question timer when question changes
+  // Reset question timer and feedback when question changes
   useEffect(() => {
     setQuestionStartTime(new Date());
-  }, [currentQuestionIndex]);
+    setFeedbackState({ show: false, isCorrect: false });
+    setSelectedAnswer('');
+    setIsVideoPlaying(true);
+    // restart video when question changes
+    if (videoPlayerRef.current && currentQuestion?.videoClipPath) {
+      videoPlayerRef.current.seekTo(0);
+    }
+  }, [currentQuestionIndex, currentQuestion]);
+
+  // Play sound effect
+  const playSound = (isCorrect: boolean) => {
+    try {
+      if (isCorrect && correctSoundRef.current) {
+        correctSoundRef.current.currentTime = 0;
+        correctSoundRef.current.play().catch(e => console.log('Sound play failed:', e));
+      } else if (!isCorrect && incorrectSoundRef.current) {
+        incorrectSoundRef.current.currentTime = 0;
+        incorrectSoundRef.current.play().catch(e => console.log('Sound play failed:', e));
+      }
+    } catch (error) {
+      console.log('Audio error:', error);
+    }
+  };
+
+  // Handle answer selection - IMMEDIATE submission
+  const handleAnswerSelect = async (answer: string) => {
+    if (feedbackState.show) return; // prevent multiple clicks
+    
+    const questionTime = Math.floor((new Date().getTime() - questionStartTime.getTime()) / 1000);
+    setSelectedAnswer(answer);
+    
+    // check if answer is correct (compare with correctAnswer from backend)
+    const isCorrect = currentQuestion.correctAnswer?.toLowerCase().trim() === answer.toLowerCase().trim();
+    
+    // save answer
+    const newAnswer: UserAnswer = {
+      questionId: currentQuestion.id,
+      answer: answer,
+      timeSpent: questionTime,
+      isCorrect: isCorrect
+    };
+
+    const updatedAnswers = [...userAnswers];
+    const existingIndex = updatedAnswers.findIndex(a => a.questionId === currentQuestion.id);
+    if (existingIndex >= 0) {
+      updatedAnswers[existingIndex] = newAnswer;
+    } else {
+      updatedAnswers.push(newAnswer);
+    }
+    setUserAnswers(updatedAnswers);
+
+    // show immediate feedback if enabled
+    if (showResultsImmediately) {
+      setFeedbackState({
+        show: true,
+        isCorrect: isCorrect,
+        correctAnswer: currentQuestion.correctAnswer
+      });
+      playSound(isCorrect);
+      
+      // auto-advance after 2 seconds
+      setTimeout(() => {
+        advanceToNextQuestion(updatedAnswers);
+      }, 2000);
+    } else {
+      // no immediate feedback, just advance
+      advanceToNextQuestion(updatedAnswers);
+    }
+  };
+
+  // Advance to next question or submit
+  const advanceToNextQuestion = (answers: UserAnswer[]) => {
+    if (currentQuestionIndex < totalQuestions - 1) {
+      setCurrentQuestionIndex(prev => prev + 1);
+    } else {
+      // last question - submit quiz
+      handleSubmitQuiz(answers);
+    }
+  };
+
+  // Handle video replay
+  const handleReplay = () => {
+    if (videoPlayerRef.current) {
+      videoPlayerRef.current.seekTo(0);
+      setIsVideoPlaying(true);
+    }
+  };
+
+  // Handle back button with confirmation
+  const handleBack = () => {
+    setShowBackConfirm(true);
+  };
+
+  const confirmBack = () => {
+    navigate('/education');
+  };
+
+  const handleSubmitQuiz = (answers: UserAnswer[]) => {
+    setIsSubmitted(true);
+    
+    // convert answers to the format expected by backend
+    const answersForSubmission = answers.reduce((acc, answer) => {
+      acc[answer.questionId.toString()] = answer.answer;
+      return acc;
+    }, {} as Record<string, string>);
+
+    submitQuizMutation.mutate({
+      quizId,
+      answers: answersForSubmission
+    }, {
+      onSuccess: (data) => {
+        const result = data.data;
+        toast({
+          title: "Quiz Completed!",
+          description: `You scored ${result.score}% (${result.earnedPoints}/${result.totalPoints} points)`,
+        });
+
+        // navigate to results page - use correct route from App.tsx
+        navigate(`/quiz-result/${quizId}`, {
+          state: {
+            result: result,
+            quizTitle: quiz?.title
+          }
+        });
+      },
+      onError: (error: any) => {
+        toast({
+          title: "Error",
+          description: error?.message || "Failed to submit quiz. Please try again.",
+          variant: "destructive"
+        });
+        setIsSubmitted(false);
+      }
+    });
+  };
+
+  const getQuestionTypeIcon = (type: string) => {
+    switch (type) {
+      case 'video_mcq':
+        return <Target className="h-4 w-4" />;
+      case 'true_false':
+        return <CheckCircle className="h-4 w-4" />;
+      default:
+        return <HelpCircle className="h-4 w-4" />;
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // Loading state
   if (isLoading) {
@@ -125,104 +299,6 @@ const QuizTakingPage: React.FC = () => {
     );
   }
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleAnswerSelect = (answer: string) => {
-    setSelectedAnswer(answer);
-  };
-
-  const handleNextQuestion = () => {
-    const questionTime = Math.floor((new Date().getTime() - questionStartTime.getTime()) / 1000);
-    
-    // Save current answer
-    const newAnswer: UserAnswer = {
-      questionId: currentQuestion.id,
-      answer: selectedAnswer,
-      timeSpent: questionTime,
-      isCorrect: false // will be determined by backend
-    };
-
-    const updatedAnswers = [...userAnswers];
-    const existingIndex = updatedAnswers.findIndex(a => a.questionId === currentQuestion.id);
-    
-    if (existingIndex >= 0) {
-      updatedAnswers[existingIndex] = newAnswer;
-    } else {
-      updatedAnswers.push(newAnswer);
-    }
-    
-    setUserAnswers(updatedAnswers);
-
-    if (currentQuestionIndex < totalQuestions - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
-      setSelectedAnswer('');
-    } else {
-      handleSubmitQuiz(updatedAnswers);
-    }
-  };
-
-  const handlePreviousQuestion = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(prev => prev - 1);
-      // Load previous answer if exists
-      const prevAnswer = userAnswers.find(a => a.questionId === questions[currentQuestionIndex - 1].id);
-      setSelectedAnswer(prevAnswer?.answer || '');
-    }
-  };
-
-  const handleSubmitQuiz = (answers: UserAnswer[]) => {
-    setIsSubmitted(true);
-    
-    // Convert answers to the format expected by backend
-    const answersForSubmission = answers.reduce((acc, answer) => {
-      acc[answer.questionId.toString()] = answer.answer;
-      return acc;
-    }, {} as Record<string, string>);
-
-    submitQuizMutation.mutate({
-      quizId,
-      answers: answersForSubmission
-    }, {
-      onSuccess: (data) => {
-        const result = data.data;
-        toast({
-          title: "Quiz Completed!",
-          description: `You scored ${result.score}% (${result.earnedPoints}/${result.totalPoints} points)`,
-        });
-
-        // Navigate to results page with backend data
-        navigate('/quiz-result', {
-          state: {
-            result: result,
-            quizTitle: quiz?.title
-          }
-        });
-      },
-      onError: (error) => {
-        toast({
-          title: "Error",
-          description: "Failed to submit quiz. Please try again.",
-          variant: "destructive"
-        });
-      }
-    });
-  };
-
-  const getQuestionTypeIcon = (type: string) => {
-    switch (type) {
-      case 'video_mcq':
-        return <Target className="h-4 w-4" />;
-      case 'true_false':
-        return <CheckCircle className="h-4 w-4" />;
-      default:
-        return <HelpCircle className="h-4 w-4" />;
-    }
-  };
-
   if (isSubmitted) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-2xl">
@@ -249,9 +325,52 @@ const QuizTakingPage: React.FC = () => {
     );
   }
 
+  if (!currentQuestion) {
+    return null;
+  }
+
   return (
     <div className="container mx-auto px-4 py-6 max-w-4xl">
+      {/* Hidden audio elements for sound effects */}
+      <audio ref={correctSoundRef} preload="auto">
+        <source src="/sounds/correct.mp3" type="audio/mpeg" />
+        <source src="/sounds/correct.wav" type="audio/wav" />
+      </audio>
+      <audio ref={incorrectSoundRef} preload="auto">
+        <source src="/sounds/incorrect.mp3" type="audio/mpeg" />
+        <source src="/sounds/incorrect.wav" type="audio/wav" />
+      </audio>
+
       <AnimatedBreadcrumb items={breadcrumbItems} />
+      
+      {/* Back button with confirmation */}
+      <div className="mt-4 mb-4">
+        <Button
+          variant="outline"
+          onClick={handleBack}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </Button>
+      </div>
+
+      <AlertDialog open={showBackConfirm} onOpenChange={setShowBackConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave Quiz?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your progress will be saved, but you'll need to restart the quiz if you leave now. Are you sure you want to go back?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmBack} className="bg-red-600 hover:bg-red-700">
+              Yes, Leave Quiz
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       
       <div className="mt-6">
         {/* Quiz Header */}
@@ -312,93 +431,213 @@ const QuizTakingPage: React.FC = () => {
               </CardHeader>
               
               <CardContent>
-                {/* Video if available */}
+                {/* Video with ReactPlayer - GIF-like (no controls, loop, autoplay) */}
                 {currentQuestion.questionType === 'video_mcq' && currentQuestion.videoClipPath && (
                   <div className="mb-6">
-                    <div className="relative w-full max-w-md mx-auto">
-                      <video 
-                        src={`/api${currentQuestion.videoClipPath}`}
-                        className="w-full rounded-lg border"
-                        controls
-                        muted
-                        loop
-                        autoPlay
+                    <div className="relative w-full max-w-md mx-auto bg-black rounded-lg overflow-hidden aspect-video">
+                      {/* ReactPlayer with GIF-like behavior */}
+                      {/* @ts-ignore - ReactPlayer type definitions are incomplete */}
+                      <ReactPlayer
+                        ref={videoPlayerRef}
+                        src={`${API_BASE_URL}${currentQuestion.videoClipPath}`}
+                        width="100%"
+                        height="100%"
+                        playing={isVideoPlaying}
+                        loop={true}
+                        controls={false}
+                        muted={false}
                         onPlay={() => setIsVideoPlaying(true)}
                         onPause={() => setIsVideoPlaying(false)}
+                        onEnded={() => {
+                          // auto-restart on end for seamless loop
+                          if (videoPlayerRef.current && typeof videoPlayerRef.current.seekTo === 'function') {
+                            videoPlayerRef.current.seekTo(0);
+                          }
+                        }}
                       />
-                      <div className="absolute top-2 right-2">
-                        <Badge variant="secondary" className="bg-black/50 text-white">
-                          {isVideoPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                        </Badge>
+                      
+                      {/* Custom Replay Button in Center */}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={handleReplay}
+                          className="pointer-events-auto bg-black/60 hover:bg-black/80 rounded-full p-4 text-white transition-all"
+                          aria-label="Replay video"
+                        >
+                          <RotateCcw className="h-8 w-8" />
+                        </motion.button>
                       </div>
                     </div>
                     <p className="text-sm text-gray-600 text-center mt-2">
-                      Video will loop automatically. Watch carefully for lip movements.
+                      Video loops automatically. Click the replay button to restart.
                     </p>
                   </div>
                 )}
+
+                {/* Immediate Feedback Display */}
+                <AnimatePresence>
+                  {feedbackState.show && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className={`mb-4 p-4 rounded-lg border-2 ${
+                        feedbackState.isCorrect
+                          ? 'bg-green-50 border-green-500'
+                          : 'bg-red-50 border-red-500'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {feedbackState.isCorrect ? (
+                          <CheckCircle className="h-6 w-6 text-green-600" />
+                        ) : (
+                          <XCircle className="h-6 w-6 text-red-600" />
+                        )}
+                        <div>
+                          <p className={`font-semibold ${
+                            feedbackState.isCorrect ? 'text-green-700' : 'text-red-700'
+                          }`}>
+                            {feedbackState.isCorrect ? 'Correct!' : 'Incorrect'}
+                          </p>
+                          {!feedbackState.isCorrect && feedbackState.correctAnswer && (
+                            <p className="text-sm text-gray-600 mt-1">
+                              The correct answer is: <span className="font-semibold">{feedbackState.correctAnswer}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Answer Options */}
                 <div className="space-y-3">
                   {currentQuestion.questionType === 'video_mcq' && currentQuestion.options && (
                     <>
-                      {currentQuestion.options.map((option, index) => (
-                        <motion.button
-                          key={index}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => handleAnswerSelect(option)}
-                          className={`w-full p-4 text-left rounded-lg border-2 transition-all ${
-                            selectedAnswer === option
-                              ? 'border-primary bg-primary/5 shadow-md'
-                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                              selectedAnswer === option
-                                ? 'border-primary bg-primary'
-                                : 'border-gray-300'
-                            }`}>
-                              {selectedAnswer === option && (
-                                <div className="w-2 h-2 bg-white rounded-full" />
+                      {currentQuestion.options.map((option, index) => {
+                        const isSelected = selectedAnswer === option;
+                        const showCorrect = feedbackState.show && option === currentQuestion.correctAnswer;
+                        const showIncorrect = feedbackState.show && isSelected && !feedbackState.isCorrect;
+                        
+                        return (
+                          <motion.button
+                            key={index}
+                            whileHover={!feedbackState.show ? { scale: 1.02 } : {}}
+                            whileTap={!feedbackState.show ? { scale: 0.98 } : {}}
+                            onClick={() => !feedbackState.show && handleAnswerSelect(option)}
+                            disabled={feedbackState.show}
+                            className={`w-full p-4 text-left rounded-lg border-2 transition-all ${
+                              feedbackState.show
+                                ? showCorrect
+                                  ? 'border-green-500 bg-green-50'
+                                  : showIncorrect
+                                  ? 'border-red-500 bg-red-50'
+                                  : 'border-gray-200 bg-gray-50 opacity-60'
+                                : isSelected
+                                ? 'border-primary bg-primary/5 shadow-md'
+                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                feedbackState.show
+                                  ? showCorrect
+                                    ? 'border-green-500 bg-green-500'
+                                    : showIncorrect
+                                    ? 'border-red-500 bg-red-500'
+                                    : 'border-gray-300'
+                                  : isSelected
+                                  ? 'border-primary bg-primary'
+                                  : 'border-gray-300'
+                              }`}>
+                                {(isSelected || showCorrect) && (
+                                  <div className="w-2 h-2 bg-white rounded-full" />
+                                )}
+                              </div>
+                              <span className={`${
+                                feedbackState.show && (showCorrect || showIncorrect)
+                                  ? 'font-semibold'
+                                  : ''
+                              }`}>
+                                {option}
+                              </span>
+                              {feedbackState.show && showCorrect && (
+                                <CheckCircle className="h-5 w-5 text-green-600 ml-auto" />
+                              )}
+                              {feedbackState.show && showIncorrect && (
+                                <XCircle className="h-5 w-5 text-red-600 ml-auto" />
                               )}
                             </div>
-                            <span className="text-gray-900">{option}</span>
-                          </div>
-                        </motion.button>
-                      ))}
+                          </motion.button>
+                        );
+                      })}
                     </>
                   )}
 
                   {currentQuestion.questionType === 'true_false' && (
                     <div className="grid grid-cols-2 gap-4">
-                      {['True', 'False'].map((option) => (
-                        <motion.button
-                          key={option}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => handleAnswerSelect(option)}
-                          className={`p-6 text-center rounded-lg border-2 transition-all ${
-                            selectedAnswer === option
-                              ? 'border-primary bg-primary/5 shadow-md'
-                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex flex-col items-center gap-2">
-                            {option === 'true' ? (
-                              <CheckCircle className={`h-8 w-8 ${
-                                selectedAnswer === option ? 'text-primary' : 'text-gray-400'
-                              }`} />
-                            ) : (
-                              <XCircle className={`h-8 w-8 ${
-                                selectedAnswer === option ? 'text-primary' : 'text-gray-400'
-                              }`} />
-                            )}
-                            <span className="font-medium capitalize">{option}</span>
-                          </div>
-                        </motion.button>
-                      ))}
+                      {['True', 'False'].map((option) => {
+                        const isSelected = selectedAnswer === option;
+                        const showCorrect = feedbackState.show && option === currentQuestion.correctAnswer;
+                        const showIncorrect = feedbackState.show && isSelected && !feedbackState.isCorrect;
+                        
+                        return (
+                          <motion.button
+                            key={option}
+                            whileHover={!feedbackState.show ? { scale: 1.02 } : {}}
+                            whileTap={!feedbackState.show ? { scale: 0.98 } : {}}
+                            onClick={() => !feedbackState.show && handleAnswerSelect(option)}
+                            disabled={feedbackState.show}
+                            className={`p-6 text-center rounded-lg border-2 transition-all ${
+                              feedbackState.show
+                                ? showCorrect
+                                  ? 'border-green-500 bg-green-50'
+                                  : showIncorrect
+                                  ? 'border-red-500 bg-red-50'
+                                  : 'border-gray-200 bg-gray-50 opacity-60'
+                                : isSelected
+                                ? 'border-primary bg-primary/5 shadow-md'
+                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex flex-col items-center gap-2">
+                              {option === 'True' ? (
+                                <CheckCircle className={`h-8 w-8 ${
+                                  feedbackState.show
+                                    ? showCorrect
+                                      ? 'text-green-600'
+                                      : showIncorrect
+                                      ? 'text-red-600'
+                                      : 'text-gray-400'
+                                    : isSelected
+                                    ? 'text-primary'
+                                    : 'text-gray-400'
+                                }`} />
+                              ) : (
+                                <XCircle className={`h-8 w-8 ${
+                                  feedbackState.show
+                                    ? showCorrect
+                                      ? 'text-green-600'
+                                      : showIncorrect
+                                      ? 'text-red-600'
+                                      : 'text-gray-400'
+                                    : isSelected
+                                    ? 'text-primary'
+                                    : 'text-gray-400'
+                                }`} />
+                              )}
+                              <span className={`font-medium capitalize ${
+                                feedbackState.show && (showCorrect || showIncorrect)
+                                  ? 'font-bold'
+                                  : ''
+                              }`}>
+                                {option}
+                              </span>
+                            </div>
+                          </motion.button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -406,40 +645,6 @@ const QuizTakingPage: React.FC = () => {
             </Card>
           </motion.div>
         </AnimatePresence>
-
-        {/* Navigation */}
-        <div className="flex items-center justify-between">
-          <Button
-            variant="outline"
-            onClick={handlePreviousQuestion}
-            disabled={currentQuestionIndex === 0}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Previous
-          </Button>
-
-          <div className="text-sm text-gray-500">
-            {userAnswers.filter(a => a.answer).length} of {totalQuestions} answered
-          </div>
-
-          <Button
-            onClick={handleNextQuestion}
-            disabled={!selectedAnswer}
-            className="bg-primary hover:bg-primary/90"
-          >
-            {currentQuestionIndex === totalQuestions - 1 ? (
-              <>
-                Submit Quiz
-                <Flag className="ml-2 h-4 w-4" />
-              </>
-            ) : (
-              <>
-                Next
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </>
-            )}
-          </Button>
-        </div>
       </div>
     </div>
   );

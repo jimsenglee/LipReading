@@ -14,7 +14,10 @@ import {
   useCategories, 
   useTutorials, 
   useQuizzes,
-  ContentParams 
+  ContentParams,
+  usePracticeWords,
+  PracticeWordParams,
+  useDeletePracticeWord
 } from '@/services';
 import { 
   Plus, 
@@ -24,13 +27,15 @@ import {
   Eye,
   Edit,
   Trash2,
-  FileText
+  FileText,
+  Mic
 } from 'lucide-react';
 import DataTable, { Column, Action } from '@/components/admin/DataTable';
 import SearchFilterBar from '@/components/admin/SearchFilterBar';
 import BulkActions from '@/components/admin/BulkActions';
 import ActionDropdown from '@/components/admin/ActionDropdown';
 import { StatusBadge, DifficultyBadge } from '@/components/admin/BadgeUtils';
+import AdminReviewModal from '@/components/admin/AdminReviewModal';
 import { formatDateForExport } from '@/lib/export-utils';
 import { useContentState } from '@/hooks/use-content-state';
 import { useContentOperations } from '@/hooks/use-content-operations';
@@ -106,7 +111,7 @@ const ContentManagement: React.FC = () => {
   // ============================================================================
   
   // Active tab state
-  const [activeTab, setActiveTab] = useState<'tutorials' | 'quizzes' | 'categories' | 'drafts'>('tutorials');
+  const [activeTab, setActiveTab] = useState<'tutorials' | 'quizzes' | 'categories' | 'drafts' | 'practice-words'>('tutorials');
   
   // Shared state for all content types with default sorting by ID
   const [tutorialState, tutorialStateActions] = useContentState({
@@ -124,21 +129,32 @@ const ContentManagement: React.FC = () => {
     sortOrder: 'asc', 
     itemsPerPage: 10
   });
+  const [practiceWordState, practiceWordStateActions] = useContentState({
+    sortBy: 'sort_order',
+    sortOrder: 'asc',
+    itemsPerPage: 10
+  });
   
   // Shared operations
   const contentOperations = useContentOperations();
   
   // Modal states
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [deleteType, setDeleteType] = useState<'tutorial' | 'quiz' | 'category'>('tutorial');
+  const [deleteType, setDeleteType] = useState<'tutorial' | 'quiz' | 'category' | 'practice-word'>('tutorial');
   const [deleteId, setDeleteId] = useState<string>('');
   const [isMultiDeleteModalOpen, setIsMultiDeleteModalOpen] = useState(false);
-  const [multiDeleteType, setMultiDeleteType] = useState<'tutorial' | 'quiz' | 'category'>('tutorial');
+  const [multiDeleteType, setMultiDeleteType] = useState<'tutorial' | 'quiz' | 'category' | 'practice-word'>('tutorial');
   
   // Preview modal states
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState<TutorialSeries | QuizSeries | Category | null>(null);
   const [previewType, setPreviewType] = useState<'tutorial' | 'quiz' | 'category'>('tutorial');
+  
+  // Review modal states
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviewContentId, setReviewContentId] = useState<number | null>(null);
+  const [reviewContentType, setReviewContentType] = useState<'tutorial' | 'quiz'>('tutorial');
+  const [reviewContentTitle, setReviewContentTitle] = useState<string>('');
 
   // Draft state
   const [draftSearchValue, setDraftSearchValue] = useState('');
@@ -187,6 +203,20 @@ const ContentManagement: React.FC = () => {
   const { data: tutorialsResponse, error: tutorialsError, refetch: refetchTutorials } = useTutorials(tutorialParams);
   const { data: quizzesResponse, error: quizzesError, refetch: refetchQuizzes } = useQuizzes(quizParams);
   const { data: categoriesResponse, error: categoriesError, refetch: refetchCategories } = useCategories(categoryParams);
+  
+  // practice words query
+  const { data: practiceWordsResponse, error: practiceWordsError, refetch: refetchPracticeWords } = usePracticeWords({
+    page: practiceWordState.currentPage,
+    per_page: practiceWordState.itemsPerPage,
+    search: practiceWordState.searchTerm || undefined,
+    difficulty: practiceWordState.status === 'active' ? undefined : 'all',
+    status: 'active',
+    sort_by: practiceWordState.sortBy as any,
+    sort_order: practiceWordState.sortOrder
+  });
+  
+  // practice words mutations
+  const deletePracticeWordMutation = useDeletePracticeWord();
 
   // ============================================================================
   // DATA MAPPING (Using Shared Utilities)
@@ -238,7 +268,7 @@ const ContentManagement: React.FC = () => {
       id: mapped.id,
       name: mapped.title,
       description: mapped.description,
-      contentCount: 0,
+      contentCount: category.content_count || 0, // Use actual content_count from API
       status: mapped.status as 'active' | 'inactive'
     };
   });
@@ -509,6 +539,44 @@ const ContentManagement: React.FC = () => {
     }
   ];
 
+  // practice word columns
+  const practiceWordColumns: Column<any>[] = [
+    {
+      key: 'word',
+      label: 'Word',
+      sortable: true,
+      render: (word: any) => (
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 bg-primary/10 rounded flex items-center justify-center">
+            <Mic className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <div className="font-medium text-gray-900">{word.word}</div>
+            <div className="text-sm text-gray-500">{word.phonetics || 'No phonetics'}</div>
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'category',
+      label: 'Category',
+      sortable: true,
+      render: (word: any) => word.category
+    },
+    {
+      key: 'difficulty',
+      label: 'Difficulty',
+      sortable: true,
+      render: (word: any) => <DifficultyBadge difficulty={word.difficulty} />
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      sortable: true,
+      render: (word: any) => <StatusBadge status={word.status} />
+    }
+  ];
+
   // Draft columns
   const draftColumns: Column<any>[] = [
     {
@@ -653,6 +721,34 @@ const ContentManagement: React.FC = () => {
       onClick: (category) => {
         setDeleteType('category');
         setDeleteId(category.id);
+        setIsDeleteModalOpen(true);
+      },
+      variant: 'ghost',
+      className: "text-red-600 hover:text-red-700 hover:bg-red-50"
+    }
+  ];
+
+  // practice word actions
+  const practiceWordActions: Action<any>[] = [
+    {
+      key: 'edit',
+      label: 'Edit',
+      icon: <Edit className="h-4 w-4" />,
+      onClick: (word: any) => {
+        // TODO: implement practice word edit modal or navigation
+        toast({
+          title: "Edit Practice Word",
+          description: `Edit functionality for "${word.word || word.title}" will be available soon.`,
+        });
+      }
+    },
+    {
+      key: 'delete',
+      label: 'Delete',
+      icon: <Trash2 className="h-4 w-4" />,
+      onClick: (word: any) => {
+        setDeleteType('practice-word');
+        setDeleteId(word.id);
         setIsDeleteModalOpen(true);
       },
       variant: 'ghost',
@@ -818,6 +914,16 @@ const ContentManagement: React.FC = () => {
               exportLabel="Export"
             />
           )}
+          
+          {activeTab === 'practice-words' && (
+            <BulkActions
+              selectedCount={practiceWordState.selectedItems.size}
+              onBulkDelete={() => {
+                console.log('Bulk delete practice words');
+              }}
+              deleteLabel="Delete"
+            />
+          )}
 
           {/* Create Content Dropdown - Following Your Design */}
           <ActionDropdown
@@ -843,6 +949,12 @@ const ContentManagement: React.FC = () => {
                 label: "Category",
                 icon: <Tag className="h-4 w-4" />,
                 onClick: () => contentOperations.handleCreate('category')
+              },
+              {
+                key: "practice-word",
+                label: "Practice Word",
+                icon: <Mic className="h-4 w-4" />,
+                onClick: () => contentOperations.handleCreate('practice-word')
               }
             ]}
             variant="default"
@@ -853,7 +965,7 @@ const ContentManagement: React.FC = () => {
 
       {/* Tabs - Following UserManagement Pattern */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
-        <TabsList className={`grid w-full ${getDraftsCount() > 0 ? 'grid-cols-4' : 'grid-cols-3'} bg-primary/5 border border-primary/20`}>
+        <TabsList className={`grid w-full ${getDraftsCount() > 0 ? 'grid-cols-5' : 'grid-cols-4'} bg-primary/5 border border-primary/20`}>
           <TabsTrigger 
             value="tutorials" 
             className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
@@ -874,6 +986,13 @@ const ContentManagement: React.FC = () => {
           >
             <Tag className="h-4 w-4" />
             Categories ({categoriesResponse?.pagination?.total_count || categoryList.length || 0})
+          </TabsTrigger>
+          <TabsTrigger 
+            value="practice-words" 
+            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
+          >
+            <Mic className="h-4 w-4" />
+            Practice Words ({practiceWordsResponse?.pagination?.total_count || 0})
           </TabsTrigger>
           {getDraftsCount() > 0 && (
             <TabsTrigger 
@@ -946,6 +1065,14 @@ const ContentManagement: React.FC = () => {
             title="Tutorial Series"
             description={`${tutorialsResponse?.pagination?.total_count || 0} total tutorials`}
             getItemId={(tutorial) => parseInt(tutorial.id)}
+            onRowClick={(item) => {
+              const tutorialId = parseInt(item.id);
+              console.log('[ContentManagement] Tutorial row clicked:', { item, tutorialId, title: item.title });
+              setReviewContentId(tutorialId);
+              setReviewContentType('tutorial');
+              setReviewContentTitle(item.title);
+              setIsReviewModalOpen(true);
+            }}
           />
         </TabsContent>
 
@@ -1009,6 +1136,14 @@ const ContentManagement: React.FC = () => {
             title="Quiz Series"
             description={`${quizSeries.length} total quizzes`}
             getItemId={(quiz) => parseInt(quiz.id)}
+            onRowClick={(item) => {
+              const quizId = parseInt(item.id);
+              console.log('[ContentManagement] Quiz row clicked:', { item, quizId, title: item.title });
+              setReviewContentId(quizId);
+              setReviewContentType('quiz');
+              setReviewContentTitle(item.title);
+              setIsReviewModalOpen(true);
+            }}
           />
         </TabsContent>
 
@@ -1075,6 +1210,70 @@ const ContentManagement: React.FC = () => {
           />
         </TabsContent>
 
+        {/* Practice Words Tab */}
+        <TabsContent value="practice-words" className="space-y-6">
+          {/* Search and Filters */}
+          <Card className="border-primary/20">
+            <CardContent className="p-6">
+              <SearchFilterBar
+                searchTerm={practiceWordState.searchTerm}
+                onSearchChange={practiceWordStateActions.handleSearch}
+                searchPlaceholder="Search practice words..."
+                filterValue={practiceWordState.category}
+                onFilterChange={(category) => {
+                  practiceWordStateActions.handleFilter(category, 'all');
+                }}
+                filterOptions={[
+                  { value: 'all', label: 'All Categories' },
+                  { value: 'general', label: 'General' },
+                  { value: 'advanced', label: 'Advanced' }
+                ]}
+                filterLabel="Category:"
+              />
+            </CardContent>
+          </Card>
+
+          {/* Practice Words Table */}
+          <DataTable
+            data={practiceWordsResponse?.data || []}
+            columns={practiceWordColumns}
+            actions={practiceWordActions}
+            pagination={practiceWordsResponse?.pagination ? {
+              current_page: practiceWordsResponse.pagination.current_page,
+              total_pages: practiceWordsResponse.pagination.total_pages,
+              total_count: practiceWordsResponse.pagination.total_count,
+              per_page: practiceWordsResponse.pagination.per_page
+            } : undefined}
+            selectedItems={new Set(Array.from(practiceWordState.selectedItems).map(id => parseInt(id)))}
+            onItemSelect={(id, checked) => {
+              const stringId = id.toString();
+              practiceWordStateActions.handleItemSelect(stringId, checked);
+            }}
+            onSelectAll={(checked) => {
+              const allIds = (practiceWordsResponse?.data || []).map((word: any) => word.id.toString());
+              practiceWordStateActions.handleSelectAll(checked, allIds);
+            }}
+            onPageChange={practiceWordStateActions.setCurrentPage}
+            onItemsPerPageChange={(value) => practiceWordStateActions.setItemsPerPage(parseInt(value))}
+            sortBy={practiceWordState.sortBy}
+            sortOrder={practiceWordState.sortOrder}
+            onSort={(field) => {
+              practiceWordStateActions.handleSort(field as any);
+            }}
+            error={practiceWordsError}
+            onRetry={() => refetchPracticeWords()}
+            emptyStateIcon={<Mic className="h-12 w-12 text-gray-400 mx-auto mb-4" />}
+            emptyStateTitle={practiceWordState.searchTerm ? 'No Practice Words Found' : 'No Practice Words Yet'}
+            emptyStateDescription={practiceWordState.searchTerm 
+              ? 'Try adjusting your search criteria.'
+              : 'Get started by adding your first practice word.'
+            }
+            title="Practice Words"
+            description={`${practiceWordsResponse?.pagination?.total_count || 0} total words`}
+            getItemId={(word) => parseInt(word.id)}
+          />
+        </TabsContent>
+
         {/* Drafts Tab */}
         <TabsContent value="drafts" className="space-y-6">
           <Card className="border-primary/20">
@@ -1135,7 +1334,7 @@ const ContentManagement: React.FC = () => {
       <AlertDialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {deleteType === 'tutorial' ? 'Tutorial' : deleteType === 'quiz' ? 'Quiz' : 'Category'}</AlertDialogTitle>
+            <AlertDialogTitle>Delete {deleteType === 'tutorial' ? 'Tutorial' : deleteType === 'quiz' ? 'Quiz' : deleteType === 'practice-word' ? 'Practice Word' : 'Category'}</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete this {deleteType}? This action cannot be undone.
             </AlertDialogDescription>
@@ -1194,6 +1393,16 @@ const ContentManagement: React.FC = () => {
                     } else {
                       throw new Error(result.message || 'Failed to delete category');
                     }
+                  } else if (deleteType === 'practice-word') {
+                    // use delete practice word mutation
+                    await deletePracticeWordMutation.mutateAsync(parseInt(deleteId));
+                    
+                    toast({
+                      title: "Practice Word Deleted",
+                      description: "The practice word has been successfully deleted."
+                    });
+                    // refresh the data
+                    refetchPracticeWords();
                   }
                 } catch (error) {
                   console.error('Individual delete error:', error);
@@ -1208,7 +1417,7 @@ const ContentManagement: React.FC = () => {
               }}
               className="bg-red-600 hover:bg-red-700"
             >
-              Delete {deleteType === 'tutorial' ? 'Tutorial' : deleteType === 'quiz' ? 'Quiz' : 'Category'}
+              Delete {deleteType === 'tutorial' ? 'Tutorial' : deleteType === 'quiz' ? 'Quiz' : deleteType === 'practice-word' ? 'Practice Word' : 'Category'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1432,6 +1641,19 @@ const ContentManagement: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Admin Review Modal */}
+      <AdminReviewModal
+        isOpen={isReviewModalOpen}
+        onClose={() => {
+          setIsReviewModalOpen(false);
+          setReviewContentId(null);
+          setReviewContentTitle('');
+        }}
+        contentId={reviewContentId || 0}
+        contentType={reviewContentType}
+        contentTitle={reviewContentTitle}
+      />
     </div>
   );
 };

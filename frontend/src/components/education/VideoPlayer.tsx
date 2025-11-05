@@ -195,23 +195,20 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       onMouseLeave={() => isPlaying && setShowControls(false)}
     >
       {/* react-player integration */}
-      <ReactPlayer
-        ref={videoRef}
-        src={videoUrl}
-        width="100%"
-        height="100%"
-        playing={isPlaying}
-        volume={isMuted ? 0 : volume}
-        playbackRate={playbackRate}
-        onProgress={(state: any) => setCurrentTime(state.playedSeconds)}
-        onDuration={(duration: any) => setDuration(duration)}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onBuffer={() => setIsBuffering(true)}
-        onBufferEnd={() => setIsBuffering(false)}
-        onClickPreview={togglePlay}
-        controls={false}
-      />
+      {(ReactPlayer as any)({
+        ref: videoRef,
+        src: videoUrl,
+        width: "100%",
+        height: "100%",
+        playing: isPlaying,
+        volume: isMuted ? 0 : volume,
+        playbackRate: playbackRate,
+        onProgress: (state: any) => setCurrentTime(state.playedSeconds),
+        onDuration: (duration: any) => setDuration(duration),
+        onPlay: () => setIsPlaying(true),
+        onPause: () => setIsPlaying(false),
+        controls: false
+      })}
 
       {/* Loading Spinner */}
       {isBuffering && (

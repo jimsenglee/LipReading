@@ -155,10 +155,8 @@ export const useUpdateCategory = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ id, categoryData }: { 
-      id: number; 
-      categoryData: Partial<ApiCategory> 
-    }) => apiClient.updateCategory(id, categoryData),
+    mutationFn: ({ id, categoryData }: { id: number; categoryData: Partial<ApiCategory> }) => 
+      apiClient.updateCategory(id, categoryData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
     },
@@ -172,6 +170,31 @@ export const useDeleteCategory = () => {
     mutationFn: (id: number) => apiClient.deleteCategory(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
+    },
+  });
+};
+
+// video progress mutation
+export const useUpdateVideoProgress = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ 
+      tutorialId, 
+      progressData 
+    }: { 
+      tutorialId: number; 
+      progressData: {
+        progress_percentage?: number;
+        last_watched_position?: number;
+        total_watch_time?: number;
+        is_completed?: boolean;
+      }
+    }) => apiClient.updateVideoProgress(tutorialId, progressData),
+    onSuccess: (data, variables) => {
+      // invalidate progress-related queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['series-progress'] });
+      queryClient.invalidateQueries({ queryKey: ['progress'] });
     },
   });
 };

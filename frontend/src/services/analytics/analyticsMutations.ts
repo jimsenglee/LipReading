@@ -17,23 +17,24 @@ export const useSubmitRating = () => {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No authentication token found');
       
-      const response = await fetch('/api/ratings', {
+      const response = await fetch(`${API_BASE_URL}/api/reviews/tutorials/${seriesId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ seriesId, rating, review }),
+        body: JSON.stringify({ rating, review_text: review }),
       });
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
       }
       
       return response.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tutorial-reviews'] });
       queryClient.invalidateQueries({ queryKey: ['tutorials'] });
       queryClient.invalidateQueries({ queryKey: ['quizzes'] });
     },
@@ -52,24 +53,79 @@ export const useSubmitFeedback = () => {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No authentication token found');
       
-      const response = await fetch('/api/feedback', {
+      // map frontend type to backend feedback_type values
+      const feedbackTypeMap: { [key: string]: string } = {
+        'video': 'general',
+        'tutorial': 'general',
+        'general': 'general',
+        'bug': 'bug',
+        'feature': 'feature'
+      };
+      
+      const feedback_type = feedbackTypeMap[type] || 'general';
+      
+      const response = await fetch(`${API_BASE_URL}/api/feedback`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ type, content, rating }),
+        body: JSON.stringify({ 
+          feedback_type,
+          description: content,
+          ...(rating && { rating })
+        }),
       });
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
       }
       
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['feedback'] });
+    },
+  });
+};
+
+export const useUpdateFeedback = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ feedbackId, feedbackData }: { 
+      feedbackId: number; 
+      feedbackData: { 
+        status?: string; 
+        admin_response?: string 
+      } 
+    }) => {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No authentication token found');
+      
+      const response = await fetch(`${API_BASE_URL}/api/feedback/${feedbackId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(feedbackData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['feedback'] });
+      queryClient.invalidateQueries({ queryKey: ['feedback-analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['feedback-list'] });
     },
   });
 };

@@ -7,7 +7,7 @@ import { toast } from '@/hooks/use-toast';
 
 export interface ReviewSubmissionData {
   rating: number;
-  reviewText?: string;
+  reviewText?: string; // frontend naming (camelCase)
 }
 
 export interface ReviewMutationResponse {
@@ -17,13 +17,18 @@ export interface ReviewMutationResponse {
   };
 }
 
-// phase 4: review mutations for React Query
+// review mutations for React Query
 export const useSubmitReview = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ tutorialId, data }: { tutorialId: number; data: ReviewSubmissionData }): Promise<ReviewMutationResponse> => {
-      const response = await apiClient.post<{ message: string }>(`/bookmarks/${tutorialId}/review`, data);
+      // map frontend camelCase to backend snake_case
+      const backendData = {
+        rating: data.rating,
+        review_text: data.reviewText
+      };
+      const response = await apiClient.post<{ message: string }>(`/reviews/tutorials/${tutorialId}`, backendData);
       return {
         success: true,
         data: response.data
@@ -33,7 +38,6 @@ export const useSubmitReview = () => {
       // invalidate review queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['tutorial-reviews', tutorialId] });
       queryClient.invalidateQueries({ queryKey: ['user-review', tutorialId] });
-      queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
       
       toast({
         title: "Success",

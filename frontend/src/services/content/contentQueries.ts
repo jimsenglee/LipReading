@@ -140,6 +140,50 @@ export const useTutorialById = (id: number) => {
   });
 };
 
+export const useQuizById = (id: number) => {
+  return useQuery({
+    queryKey: ['quiz', id],
+    queryFn: async (): Promise<ApiQuiz> => {
+      const response = await fetch(`${API_BASE_URL}/api/quizzes/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch quiz: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      return result.data;
+    },
+    enabled: !!id,
+  });
+};
+
+export const useCategoryById = (id: number) => {
+  return useQuery({
+    queryKey: ['category', id],
+    queryFn: async (): Promise<ApiCategory> => {
+      const response = await fetch(`${API_BASE_URL}/api/categories/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch category: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      return result.data;
+    },
+    enabled: !!id,
+  });
+};
+
 export const useTutorialSeriesById = (seriesId: number) => {
   return useQuery({
     queryKey: ['tutorial-series', seriesId],
@@ -159,6 +203,29 @@ export const useTutorialSeriesById = (seriesId: number) => {
       return result.data;
     },
     enabled: !!seriesId,
+  });
+};
+
+export const useQuizQuestions = (quizId: number) => {
+  return useQuery({
+    queryKey: ['quiz-questions', quizId],
+    queryFn: async () => {
+      // Fetch all questions (no pagination for edit mode)
+      const response = await fetch(`${API_BASE_URL}/api/quizzes/${quizId}/questions?per_page=1000`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch quiz questions: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      return result.data || [];
+    },
+    enabled: !!quizId,
   });
 };
 
@@ -190,5 +257,18 @@ export const useQuizSeriesById = (quizId: number) => {
       return result.data;
     },
     enabled: !!quizId,
+  });
+};
+
+// user progress queries
+export const useSeriesProgress = (seriesId: number) => {
+  return useQuery({
+    queryKey: ['series-progress', seriesId],
+    queryFn: async () => {
+      const response = await apiClient.getSeriesProgress(seriesId);
+      return response.data;
+    },
+    enabled: !!seriesId,
+    staleTime: 30000, // cache for 30 seconds
   });
 };

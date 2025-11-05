@@ -36,9 +36,12 @@ class QuizService:
             except Exception:
                 validated_params = {}
             
-            # Build base query
+            # Build base query - only show parent quiz series (like tutorials)
+            # Filter out child quizzes (quizzes that belong to a series)
             query = sa.select(Quiz)
             query = query.where(Quiz.status != 'deleted')
+            # Only show parent series quizzes (parent_series_id IS NULL) - same logic as tutorials
+            query = query.where(Quiz.parent_series_id.is_(None))
             
             # Apply filters
             if validated_params.get('search'):
@@ -356,7 +359,7 @@ class QuizService:
             series_quiz.estimated_duration = data.get('estimated_duration', 0)
             series_quiz.tags = str(data.get('tags', []))
             series_quiz.views = 0
-            series_quiz.rating = 0.0
+            # rating removed; reviews drive ratings
             
             db.session.add(series_quiz)
             db.session.flush()  # get the series ID

@@ -582,10 +582,10 @@ const Education = () => {
             Practice
           </TabsTrigger>
           {bookmarkedTutorials.length > 0 && (
-            <TabsTrigger value="bookmarked" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+          <TabsTrigger value="bookmarked" className="data-[state=active]:bg-primary data-[state=active]:text-white">
               <BookmarkCheck className="h-4 w-4 mr-2" />
-              Bookmarked
-            </TabsTrigger>
+            Bookmarked
+          </TabsTrigger>
           )}
         </TabsList>
 
@@ -761,7 +761,7 @@ const Education = () => {
                 <div className="mt-4" />
               <motion.div
                 className={viewMode === 'grid' 
-                    ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8"
+                    ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 items-stretch"
                     : "space-y-6"
                 }
                 initial={{ opacity: 0 }}
@@ -922,7 +922,7 @@ const Education = () => {
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.2 }}
                   >
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
                       {paginatedQuizSeries.map((series, index) => (
                         <QuizSeriesCard
                           key={series.id}
@@ -973,7 +973,7 @@ const Education = () => {
           {bookmarkedTutorials.length > 0 ? (
             <motion.div 
               className={viewMode === 'grid' 
-                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch'
                 : 'space-y-4'
               }
               initial={{ opacity: 0 }}

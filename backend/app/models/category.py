@@ -7,6 +7,7 @@ from ..extensions import db
 if TYPE_CHECKING:
     from .tutorial import Tutorial
     from .quiz import Quiz
+    from .practice_word import PracticeWord
 
 
 class Category(db.Model):
@@ -22,6 +23,7 @@ class Category(db.Model):
 
     tutorials: so.WriteOnlyMapped['Tutorial'] = so.relationship(back_populates='category', cascade='all, delete-orphan')
     quizzes: so.WriteOnlyMapped['Quiz'] = so.relationship(back_populates='category', cascade='all, delete-orphan')
+    practice_words: so.WriteOnlyMapped['PracticeWord'] = so.relationship(back_populates='category', cascade='all, delete-orphan')
 
     def __repr__(self) -> str:
         return f"<Category {self.category_name}>"

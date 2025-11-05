@@ -40,6 +40,7 @@ export interface ApiCategory {
   id: number;
   publicId: string;
   category_name: string;
+  status?: string;
 }
 
 export interface ApiTutorial {
@@ -115,6 +116,7 @@ export interface ApiQuiz {
   shuffleQuestions?: boolean;
   shuffleAnswers?: boolean;
   showResultsImmediately?: boolean;
+  status?: string;
 }
 
 export interface ApiTranscription {
@@ -308,8 +310,24 @@ class ApiClient {
     });
   }
 
-  async getSeriesProgress(seriesId: number): Promise<{ success: boolean; progress?: any; message?: string }> {
-    return this.request<{ success: boolean; progress?: any; message?: string }>(`/progress/series/${seriesId}/progress`);
+  async getSeriesProgress(seriesId: number): Promise<{ success: boolean; data?: any; message?: string }> {
+    const response = await this.request<{ success: boolean; data?: any; message?: string }>(`/progress/series/${seriesId}`);
+    return response;
+  }
+
+  async updateVideoProgress(tutorialId: number, progressData: {
+    progress_percentage?: number;
+    last_watched_position?: number;
+    total_watch_time?: number;
+    is_completed?: boolean;
+  }): Promise<{ success: boolean; message: string; tutorialId: number; progressPercentage?: number }> {
+    return this.request<{ success: boolean; message: string; tutorialId: number; progressPercentage?: number }>(
+      `/progress/tutorials/${tutorialId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(progressData),
+      }
+    );
   }
 
   async getUserProgress(): Promise<{ success: boolean; progress: any }> {

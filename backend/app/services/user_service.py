@@ -74,6 +74,10 @@ class UserService:
             }
             backend_sort_by = sort_mapping.get(sort_by, sort_by)
             
+            # ensure we have a valid attribute name for getattr
+            if backend_sort_by is None:
+                backend_sort_by = 'id'
+            
             sort_column = getattr(Account, backend_sort_by, Account.id)
             
             if sort_order.lower() == 'desc':

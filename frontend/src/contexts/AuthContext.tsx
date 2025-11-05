@@ -52,16 +52,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           try {
             const parsedUser = JSON.parse(storedUser);
             
-            // Validate that the user object has required fields
+            // validate that the user object has required fields
             if (parsedUser.id && parsedUser.email && parsedUser.name) {
-              // Check if token is expired (basic check)
+              // check if token is expired (basic check)
               try {
                 const tokenPayload = JSON.parse(atob(token.split('.')[1]));
                 const currentTime = Math.floor(Date.now() / 1000);
                 
                 if (tokenPayload.exp && tokenPayload.exp > currentTime) {
                   setUser(parsedUser);
-                  // Set user data in React Query cache
+                  // set user data in react query cache
                   queryClient.setQueryData(['user'], parsedUser);
                 } else {
                   localStorage.removeItem('user');
@@ -76,14 +76,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               localStorage.removeItem('token');
             }
           } catch (parseError) {
-            console.error('Error parsing stored user:', parseError);
+            console.error('error parsing stored user:', parseError);
             localStorage.removeItem('user');
             localStorage.removeItem('token');
           }
         } else {
         }
       } catch (error) {
-        console.error('Error in session restoration:', error);
+        console.error('error in session restoration:', error);
         localStorage.removeItem('user');
         localStorage.removeItem('token');
       } finally {
@@ -92,7 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    // Restore session immediately, no delay needed
+    // restore session immediately, no delay needed
     restoreSession();
   }, [queryClient]);
 

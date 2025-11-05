@@ -327,7 +327,7 @@ const InteractiveQuizzes = () => {
             ) : (
               <>
                 {/* Quiz Series Grid */}
-                <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 items-stretch">
                   {paginatedQuizSeries.map((series, index) => (
                     <QuizSeriesCard
                       key={series.id}

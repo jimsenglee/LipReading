@@ -215,7 +215,7 @@ class BookmarkService:
             import traceback
             traceback.print_exc()
             raise APIError("internal server error", 500)
-
+    
     @staticmethod
     def get_bookmark_statistics(user_id: int):
         """get bookmark statistics for a user"""
@@ -254,8 +254,8 @@ class BookmarkService:
             # check which are already bookmarked
             existing_bookmarks = db.session.scalars(
                 select(user_bookmarks.c.tutorial_id).where(
-                    user_bookmarks.c.user_id == user_id,
-                    user_bookmarks.c.tutorial_id.in_(tutorial_ids)
+                        user_bookmarks.c.user_id == user_id,
+                        user_bookmarks.c.tutorial_id.in_(tutorial_ids)
                 )
             ).all()
             
@@ -301,8 +301,8 @@ class BookmarkService:
             # delete bookmarks
             result = db.session.execute(
                 delete(user_bookmarks).where(
-                    user_bookmarks.c.user_id == user_id,
-                    user_bookmarks.c.tutorial_id.in_(tutorial_ids)
+                        user_bookmarks.c.user_id == user_id,
+                        user_bookmarks.c.tutorial_id.in_(tutorial_ids)
                 )
             )
             

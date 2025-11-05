@@ -28,7 +28,7 @@ export interface ContentOperations {
     type: 'tutorial' | 'quiz' | 'category',
     onSuccess: () => void
   ) => Promise<void>;
-  handleCreate: (type: 'tutorial' | 'quiz' | 'category') => void;
+  handleCreate: (type: 'tutorial' | 'quiz' | 'category' | 'practice-word') => void;
 }
 
 export const useContentOperations = (): ContentOperations => {
@@ -144,7 +144,7 @@ export const useContentOperations = (): ContentOperations => {
     }
   };
 
-  const handleCreate = (type: 'tutorial' | 'quiz' | 'category') => {
+  const handleCreate = (type: 'tutorial' | 'quiz' | 'category' | 'practice-word') => {
     switch (type) {
       case 'tutorial':
         navigate('/admin/content/create-tutorial');
@@ -154,6 +154,9 @@ export const useContentOperations = (): ContentOperations => {
         break;
       case 'category':
         navigate('/admin/content/create-category');
+        break;
+      case 'practice-word':
+        navigate('/admin/content/create-practice-word');
         break;
     }
   };

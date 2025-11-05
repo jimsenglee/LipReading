@@ -16,8 +16,10 @@ from .quiz_question import QuizQuestion  # noqa: F401
 from .quiz_attempt import QuizAttempt  # noqa: F401
 from .transcription import Transcription  # noqa: F401
 from .practice_session import PracticeSession  # noqa: F401
+from .practice_word import PracticeWord  # noqa: F401
 from .feedback import Feedback  # noqa: F401
 from .report import Report  # noqa: F401
 from .review import Review  # noqa: F401
+from .user_progress import UserProgress  # noqa: F401
 
 

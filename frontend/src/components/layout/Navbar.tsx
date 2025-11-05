@@ -79,7 +79,10 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false })
           )}
             
             {/* Brand Logo - closer to burger button */}
-            <Link to="/" className="flex items-center space-x-2 group">
+            <Link 
+              to={user ? (user.role === 'admin' ? '/admin' : '/dashboard') : '/'} 
+              className="flex items-center space-x-2 group"
+            >
               <motion.div
                 whileHover={{ rotate: 360, scale: 1.1 }}
                 transition={{ duration: 0.6, type: "spring", stiffness: 200 }}

@@ -10,6 +10,11 @@ from .quiz_schemas import (
 )
 from .category_schemas import CategoryCreateSchema, CategoryUpdateSchema, CategoryQuerySchema
 from .user_schemas import UserCreateSchema, UserUpdateSchema, UserQuerySchema
+from .feedback_schemas import FeedbackSubmissionSchema, FeedbackQuerySchema
+from .practice_word_schemas import (
+    PracticeWordCreateSchema, PracticeWordUpdateSchema, PracticeWordQuerySchema,
+    PracticeWordBulkUpdateSchema
+)
 
 __all__ = [
     'TutorialCreateSchema',
@@ -26,5 +31,11 @@ __all__ = [
     'CategoryQuerySchema',
     'UserCreateSchema',
     'UserUpdateSchema',
-    'UserQuerySchema'
+    'UserQuerySchema',
+    'FeedbackSubmissionSchema',
+    'FeedbackQuerySchema',
+    'PracticeWordCreateSchema',
+    'PracticeWordUpdateSchema',
+    'PracticeWordQuerySchema',
+    'PracticeWordBulkUpdateSchema'
 ]

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,9 @@ import {
   FolderPlus
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useCategoryById } from '@/services/content/contentQueries';
+import { useCreateCategory, useUpdateCategory } from '@/services/content/contentMutations';
 
 interface CategoryFormData {
   name: string;
@@ -30,7 +32,14 @@ interface CategoryFormData {
 const CreateCategoryWizard: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // check if we're in edit mode
+  const editMode = location.state?.editMode || false;
+  const categoryId = editMode && location.state?.categoryId 
+    ? parseInt(String(location.state.categoryId), 10) || 0
+    : 0;
   
   const [categoryData, setCategoryData] = useState<CategoryFormData>({
     name: '',
@@ -42,12 +51,36 @@ const CreateCategoryWizard: React.FC = () => {
   });
 
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  
+  // api hooks - only fetch category data if we're in edit mode and have a valid categoryId
+  const { data: categoryApiData, isLoading: isLoadingCategory } = useCategoryById(editMode && categoryId > 0 ? categoryId : 0);
+  const createCategoryMutation = useCreateCategory();
+  const updateCategoryMutation = useUpdateCategory();
+  
+  // populate form when category data is loaded (edit mode)
+  useEffect(() => {
+    if (editMode && categoryApiData) {
+      setCategoryData({
+        name: categoryApiData.category_name || '',
+        description: '', // category API doesn't return description, might need backend update
+        icon: 'tag',
+        color: 'blue',
+        status: (categoryApiData.status as 'active' | 'inactive') || 'active',
+        displayOrder: 1
+      });
+    }
+  }, [editMode, categoryApiData]);
 
   const breadcrumbItems = [
     { title: 'Admin Dashboard', href: '/admin' },
     { title: 'Content Management', href: '/admin/content' },
-    { title: 'Create Category' }
+    { title: editMode ? 'Edit Category' : 'Create Category' }
   ];
+  
+  const pageTitle = editMode ? 'Edit Category' : 'Create New Category';
+  const pageSubtitle = editMode 
+    ? 'Update category information'
+    : 'Add a new category to organize your content';
 
   const iconOptions = [
     { value: 'tag', label: 'Tag', icon: '🏷️' },
@@ -91,29 +124,39 @@ const CreateCategoryWizard: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
       const finalCategory = {
-        ...categoryData,
-        status: publishNow ? 'active' : 'inactive'
+        category_name: categoryData.name,
+        description: categoryData.description,
+        status: publishNow ? 'active' : categoryData.status
       };
       
-      toast({
-        title: publishNow ? "Category Created & Activated!" : "Category Created!",
-        description: publishNow 
-          ? "Your category is now active and available for content."
-          : "Your category has been created as inactive."
-      });
+      if (editMode && categoryId) {
+        await updateCategoryMutation.mutateAsync({
+          id: categoryId,
+          categoryData: finalCategory
+        });
+        toast({
+          title: "Category Updated!",
+          description: "Your category has been successfully updated."
+        });
+      } else {
+        await createCategoryMutation.mutateAsync(finalCategory);
+        toast({
+          title: publishNow ? "Category Created & Activated!" : "Category Created!",
+          description: publishNow 
+            ? "Your category is now active and available for content."
+            : "Your category has been created as inactive."
+        });
+      }
       
       // Navigate back to content management
       navigate('/admin/content');
       
-    } catch (error) {
+    } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Creation Failed",
-        description: "Please try again later."
+        title: "Operation Failed",
+        description: error?.message || "Please try again later."
       });
     } finally {
       setIsSubmitting(false);
@@ -138,8 +181,8 @@ const CreateCategoryWizard: React.FC = () => {
             <FolderPlus className="h-8 w-8 text-primary" />
           </div>
         </div>
-        <h1 className="text-3xl font-bold text-gray-900">Create New Category</h1>
-        <p className="text-gray-600 mt-2">Add a new category to organize your content</p>
+        <h1 className="text-3xl font-bold text-gray-900">{pageTitle}</h1>
+        <p className="text-gray-600 mt-2">{pageSubtitle}</p>
       </div>
 
       <Card className="border-primary/20">

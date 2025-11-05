@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,28 +11,24 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import CrudModal from '@/components/ui/crud-modal';
+import Pagination from '@/components/ui/pagination';
 import { 
   Download, 
   Eye,
   Bookmark,
-  Play,
   MessageSquare,
-  Clock,
-  TrendingUp,
-  TrendingDown,
   Star,
   AlertCircle,
-  CheckCircle,
-  XCircle,
   Edit,
   BarChart3,
-  Users,
-  Calendar,
   PieChart
 } from 'lucide-react';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell } from 'recharts';
 import { toast } from '@/hooks/use-toast';
+import { useContentInteractionAnalytics, useTutorialPopularity, useTutorialInteractions, useFeedbackAnalytics, useFeedbackDistributions, useFeedbackList, useQuizAnalytics, FeedbackItem } from '@/services/analytics/analyticsQueries';
+import { useCategories } from '@/services';
+import { useUpdateFeedback } from '@/services/analytics/analyticsMutations';
 
 interface TutorialInteraction {
   tutorialId: string;
@@ -40,202 +36,87 @@ interface TutorialInteraction {
   category: string;
   views: number;
   bookmarks: number;
-  avgWatchTime: number;
-  totalDuration: number;
   completionRate: number;
-  lastAccessed: string;
-  trending: 'up' | 'down' | 'stable';
-}
-
-interface FeedbackItem {
-  id: string;
-  userId: string;
-  userName: string;
-  email: string;
-  type: 'bug' | 'feature' | 'general';
-  category: string;
-  title: string;
-  description: string;
-  status: 'new' | 'in-progress' | 'resolved' | 'closed';
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  submittedAt: string;
-  updatedAt: string;
-  attachments?: string[];
-  adminNotes?: string;
-}
-
-interface UnusedContent {
-  id: string;
-  title: string;
-  type: 'tutorial' | 'quiz';
-  category: string;
-  lastAccessed: string;
-  daysSinceAccess: number;
-  totalViews: number;
-  uploadDate: string;
 }
 
 const ContentInteractionAnalytics = () => {
   const [selectedTab, setSelectedTab] = useState('content');
   const [selectedFeedback, setSelectedFeedback] = useState<FeedbackItem | null>(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [feedbackFilter, setFeedbackFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [loading, setLoading] = useState(false);
+  
+  // pagination state for tutorial interactions
+  const [tutorialPage, setTutorialPage] = useState(1);
+  const [tutorialPerPage, setTutorialPerPage] = useState(10);
+  const [tutorialCategoryFilter, setTutorialCategoryFilter] = useState('all');
+  
+  // pagination state for feedback list
+  const [feedbackPage, setFeedbackPage] = useState(1);
+  const [feedbackPerPage, setFeedbackPerPage] = useState(10);
+  const [feedbackSearchInput, setFeedbackSearchInput] = useState(''); // local state for input
+  const [feedbackSearch, setFeedbackSearch] = useState(''); // debounced state for query
+  const [feedbackStatusFilter, setFeedbackStatusFilter] = useState('all');
+  const [feedbackTypeFilter, setFeedbackTypeFilter] = useState('all');
 
   const breadcrumbItems = [
     { title: 'Content Interaction Analytics' }
   ];
 
-  // Data will be fetched from API
-  const tutorialInteractions: TutorialInteraction[] = [
-    {
-      tutorialId: '1',
-      title: 'Basic Vowel Recognition',
-      category: 'Vowels',
-      views: 2847,
-      bookmarks: 432,
-      avgWatchTime: 8.2,
-      totalDuration: 12.5,
-      completionRate: 78.3,
-      lastAccessed: '2024-01-15T14:30:00Z',
-      trending: 'up'
-    },
-    {
-      tutorialId: '2',
-      title: 'Consonant Lip Patterns',
-      category: 'Consonants',
-      views: 1923,
-      bookmarks: 287,
-      avgWatchTime: 6.7,
-      totalDuration: 15.2,
-      completionRate: 65.4,
-      lastAccessed: '2024-01-15T12:15:00Z',
-      trending: 'stable'
-    },
-    {
-      tutorialId: '3',
-      title: 'Advanced Phrase Reading',
-      category: 'Phrases',
-      views: 1245,
-      bookmarks: 156,
-      avgWatchTime: 4.3,
-      totalDuration: 18.7,
-      completionRate: 42.1,
-      lastAccessed: '2024-01-14T16:45:00Z',
-      trending: 'down'
-    }
-  ];
+  // debounce feedback search to prevent excessive refetches
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFeedbackSearch(feedbackSearchInput);
+    }, 300); // 300ms debounce
 
-  const feedbackItems: FeedbackItem[] = [
-    {
-      id: '1',
-      userId: 'user1',
-      userName: 'John Smith',
-      email: 'john@example.com',
-      type: 'bug',
-      category: 'Transcription',
-      title: 'Video upload fails with large files',
-      description: 'When trying to upload videos larger than 100MB, the upload process fails with a timeout error. This happens consistently across different browsers.',
-      status: 'new',
-      priority: 'high',
-      submittedAt: '2024-01-15T10:30:00Z',
-      updatedAt: '2024-01-15T10:30:00Z',
-      attachments: ['screenshot1.png', 'error-log.txt']
-    },
-    {
-      id: '2',
-      userId: 'user2',
-      userName: 'Sarah Johnson',
-      email: 'sarah@example.com',
-      type: 'feature',
-      category: 'Education',
-      title: 'Add progress tracking for tutorials',
-      description: 'It would be great to have a progress bar that shows how much of each tutorial I have completed, and maybe resume from where I left off.',
-      status: 'in-progress',
-      priority: 'medium',
-      submittedAt: '2024-01-14T15:20:00Z',
-      updatedAt: '2024-01-15T09:15:00Z',
-      adminNotes: 'Feature approved for next sprint. UI designs in progress.'
-    },
-    {
-      id: '3',
-      userId: 'user3',
-      userName: 'Mike Davis',
-      email: 'mike@example.com',
-      type: 'general',
-      category: 'General',
-      title: 'Great platform, minor suggestions',
-      description: 'I love using this platform for learning lip reading. The tutorials are very helpful. I would suggest adding more beginner-level content and maybe some practice exercises.',
-      status: 'resolved',
-      priority: 'low',
-      submittedAt: '2024-01-13T18:45:00Z',
-      updatedAt: '2024-01-14T12:30:00Z',
-      adminNotes: 'Positive feedback noted. Beginner content request added to backlog.'
-    }
-  ];
+    return () => clearTimeout(timer);
+  }, [feedbackSearchInput]);
 
-  const unusedContent: UnusedContent[] = [
-    {
-      id: '1',
-      title: 'Silent Letter Recognition',
-      type: 'tutorial',
-      category: 'Advanced',
-      lastAccessed: '2023-12-15T10:30:00Z',
-      daysSinceAccess: 31,
-      totalViews: 47,
-      uploadDate: '2023-11-20T14:00:00Z'
-    },
-    {
-      id: '2',
-      title: 'Accent Variation Quiz',
-      type: 'quiz',
-      category: 'Dialects',
-      lastAccessed: '2023-12-20T16:45:00Z',
-      daysSinceAccess: 26,
-      totalViews: 23,
-      uploadDate: '2023-11-15T09:30:00Z'
-    }
-  ];
+  // fetch data from api
+  const contentAnalyticsQuery = useContentInteractionAnalytics();
+  const tutorialPopularityQuery = useTutorialPopularity();
+  const categoriesQuery = useCategories({});
+  const tutorialInteractionsQuery = useTutorialInteractions({
+    page: tutorialPage,
+    per_page: tutorialPerPage,
+    category: tutorialCategoryFilter !== 'all' ? tutorialCategoryFilter : undefined
+  });
+  const feedbackAnalyticsQuery = useFeedbackAnalytics();
+  const feedbackDistributionsQuery = useFeedbackDistributions();
+  const feedbackListQuery = useFeedbackList({
+    page: feedbackPage,
+    per_page: feedbackPerPage,
+    search: feedbackSearch || undefined,
+    status: feedbackStatusFilter !== 'all' ? feedbackStatusFilter : undefined,
+    feedback_type: feedbackTypeFilter !== 'all' ? feedbackTypeFilter : undefined,
+    sort_by: 'submission_date',
+    sort_order: 'desc'
+  });
+  const quizAnalyticsQuery = useQuizAnalytics();
+  
+  // extract data from queries
+  const contentMetrics = contentAnalyticsQuery.data || { totalTutorials: 0, totalViews: 0, totalBookmarks: 0, avgCompletionRate: 0 };
+  const tutorialInteractionsData = tutorialInteractionsQuery.data;
+  const tutorialInteractions = tutorialInteractionsData?.data || [];
+  const tutorialPagination = tutorialInteractionsData?.pagination;
+  const categories = categoriesQuery.data?.data || [];
+  const feedbackMetrics = feedbackAnalyticsQuery.data || { totalFeedback: 0, newItems: 0, inProgress: 0, resolved: 0 };
+  const tutorialPopularity = tutorialPopularityQuery.data || [];
+  const feedbackDistributions = feedbackDistributionsQuery.data || { byStatus: [], byType: [] };
+  const feedbackItemsData = feedbackListQuery.data;
+  const feedbackItems = feedbackItemsData?.data || [];
+  const feedbackPagination = feedbackItemsData?.pagination;
+  const quizMetrics = quizAnalyticsQuery.data || { totalQuizzes: 0, totalViews: 0, totalAttempts: 0, avgScore: 0 };
 
-  const contentMetrics = {
-    totalTutorials: 156,
-    totalViews: 23847,
-    totalBookmarks: 4521,
-    avgCompletionRate: 68.2,
-    avgWatchTime: 6.8,
-    unusedContentCount: 12
-  };
-
-  const feedbackMetrics = {
-    totalFeedback: 238,
-    newFeedback: 23,
-    inProgress: 45,
-    resolved: 156,
-    avgResponseTime: 2.3,
-    satisfactionRate: 87.5
-  };
-
-  // Chart data for visualizations
-  const tutorialPopularityData = tutorialInteractions.map(t => ({
-    name: t.title.substring(0, 15) + '...',
+  // prepare chart data - use full title, truncate in tooltip if needed
+  const tutorialPopularityData = tutorialPopularity.map(t => ({
+    name: t.title, // use full title, x-axis will handle display
+    fullTitle: t.title,
     views: t.views,
-    bookmarks: t.bookmarks,
-    completion: t.completionRate
+    bookmarks: t.bookmarks
   }));
 
-  const feedbackStatusData = [
-    { name: 'New', value: feedbackMetrics.newFeedback, color: '#3B82F6' },
-    { name: 'In Progress', value: feedbackMetrics.inProgress, color: '#F59E0B' },
-    { name: 'Resolved', value: feedbackMetrics.resolved, color: '#10B981' },
-    { name: 'Closed', value: 14, color: '#6B7280' }
-  ];
-
-  const feedbackTypeData = [
-    { type: 'Bug Reports', count: 89, color: '#EF4444' },
-    { type: 'Feature Requests', count: 76, color: '#3B82F6' },
-    { type: 'General Feedback', count: 73, color: '#10B981' }
-  ];
+  const feedbackStatusData = feedbackDistributions.byStatus || [];
+  const feedbackTypeData = feedbackDistributions.byType || [];
 
   const chartConfig = {
     views: {
@@ -252,11 +133,20 @@ const ContentInteractionAnalytics = () => {
     },
   };
 
-  const handleFeedbackUpdate = async (feedbackId: string, updates: Partial<FeedbackItem>) => {
-    setLoading(true);
+  // mutation for updating feedback
+  const updateFeedbackMutation = useUpdateFeedback();
+
+  const handleFeedbackUpdate = async () => {
+    if (!selectedFeedback) return;
+    
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await updateFeedbackMutation.mutateAsync({
+        feedbackId: parseInt(selectedFeedback.id),
+        feedbackData: {
+          status: selectedFeedback.status,
+          admin_response: selectedFeedback.adminNotes
+        }
+      });
       
       toast({
         title: "Feedback Updated",
@@ -268,11 +158,9 @@ const ContentInteractionAnalytics = () => {
     } catch (error) {
       toast({
         title: "Update Failed",
-        description: "Failed to update feedback item. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to update feedback item. Please try again.",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -292,14 +180,13 @@ const ContentInteractionAnalytics = () => {
         ['Average Completion Rate', `${contentMetrics.avgCompletionRate}%`],
         [''],
         ['Tutorial Performance'],
-        ['Title', 'Category', 'Views', 'Bookmarks', 'Completion Rate', 'Avg Watch Time'],
+        ['Title', 'Category', 'Views', 'Bookmarks', 'Completion Rate'],
         ...tutorialInteractions.map(tutorial => [
           tutorial.title,
           tutorial.category,
           tutorial.views.toString(),
           tutorial.bookmarks.toString(),
-          `${tutorial.completionRate}%`,
-          `${tutorial.avgWatchTime}min`
+          `${tutorial.completionRate}%`
         ])
       ].map(row => row.join(',')).join('\n');
 
@@ -335,22 +222,21 @@ const ContentInteractionAnalytics = () => {
         [''],
         ['Feedback Metrics'],
         ['Total Feedback', feedbackMetrics.totalFeedback.toString()],
-        ['New Items', feedbackMetrics.newFeedback.toString()],
+        ['New Items', feedbackMetrics.newItems.toString()],
         ['In Progress', feedbackMetrics.inProgress.toString()],
         ['Resolved', feedbackMetrics.resolved.toString()],
         [''],
-        ['Feedback Details'],
-        ['ID', 'User', 'Type', 'Category', 'Title', 'Status', 'Priority', 'Submitted Date'],
-        ...feedbackItems.map(item => [
-          item.id,
-          item.userName,
-          item.type,
-          item.category,
-          item.title,
-          item.status,
-          item.priority,
-          new Date(item.submittedAt).toLocaleDateString()
-        ])
+          ['Feedback Details'],
+          ['ID', 'User', 'Type', 'Category', 'Title', 'Status', 'Submitted Date'],
+          ...feedbackItems.map(item => [
+            item.id,
+            item.userName,
+            item.type,
+            item.category,
+            item.title,
+            item.status,
+            new Date(item.submittedAt).toLocaleDateString()
+          ])
       ].map(row => row.join(',')).join('\n');
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -374,31 +260,13 @@ const ContentInteractionAnalytics = () => {
     }
   };
 
-  const getTrendingIcon = (trend: string) => {
-    switch (trend) {
-      case 'up': return <TrendingUp className="h-4 w-4 text-green-500" />;
-      case 'down': return <TrendingDown className="h-4 w-4 text-red-500" />;
-      default: return <div className="h-4 w-4" />;
-    }
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'new': return 'bg-blue-100 text-blue-800';
-      case 'in-progress': return 'bg-yellow-100 text-yellow-800';
-      case 'resolved': return 'bg-green-100 text-green-800';
-      case 'closed': return 'bg-gray-100 text-gray-800';
+      case 'New': return 'bg-blue-100 text-blue-800';
+      case 'In Progress': return 'bg-yellow-100 text-yellow-800';
+      case 'Resolved': return 'bg-green-100 text-green-800';
+      case 'Closed': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'critical': return 'bg-red-100 text-red-800 border-red-200';
-      case 'high': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'low': return 'bg-green-100 text-green-800 border-green-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
@@ -411,20 +279,6 @@ const ContentInteractionAnalytics = () => {
     }
   };
 
-  const formatTime = (minutes: number) => {
-    if (minutes < 60) {
-      return `${minutes.toFixed(1)}m`;
-    }
-    const hours = Math.floor(minutes / 60);
-    const mins = Math.floor(minutes % 60);
-    return `${hours}h ${mins}m`;
-  };
-
-  const filteredFeedback = feedbackItems.filter(item => {
-    const matchesType = feedbackFilter === 'all' || item.type === feedbackFilter;
-    const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
-    return matchesType && matchesStatus;
-  });
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -445,15 +299,15 @@ const ContentInteractionAnalytics = () => {
         <TabsList className="grid w-full grid-cols-3 bg-primary/5 border border-primary/20">
           <TabsTrigger value="content" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
             <BarChart3 className="h-4 w-4" />
-            Content Analytics
+            Tutorial Analytics
+          </TabsTrigger>
+          <TabsTrigger value="quiz" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
+            <Star className="h-4 w-4" />
+            Quiz Analytics
           </TabsTrigger>
           <TabsTrigger value="feedback" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
             <MessageSquare className="h-4 w-4" />
             Feedback Management
-          </TabsTrigger>
-          <TabsTrigger value="unused" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <Clock className="h-4 w-4" />
-            Unused Content
           </TabsTrigger>
         </TabsList>
 
@@ -470,7 +324,7 @@ const ContentInteractionAnalytics = () => {
           </div>
 
           {/* Content Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card className="border-primary/20">
               <CardContent className="p-6 text-center">
                 <div className="text-2xl font-bold text-gray-900">{contentMetrics.totalTutorials}</div>
@@ -497,18 +351,6 @@ const ContentInteractionAnalytics = () => {
                 <div className="text-sm text-gray-600">Avg Completion</div>
               </CardContent>
             </Card>
-            <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-primary">{contentMetrics.avgWatchTime}m</div>
-                <div className="text-sm text-gray-600">Avg Watch Time</div>
-              </CardContent>
-            </Card>
-            <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-orange-600">{contentMetrics.unusedContentCount}</div>
-                <div className="text-sm text-gray-600">Unused Content</div>
-              </CardContent>
-            </Card>
           </div>
 
           {/* Tutorial Popularity Chart */}
@@ -521,23 +363,48 @@ const ContentInteractionAnalytics = () => {
               <CardDescription>Views vs Bookmarks comparison for top tutorials</CardDescription>
             </CardHeader>
             <CardContent>
-              <ChartContainer config={chartConfig} className="h-[350px] mb-6">
+              <div className="h-[500px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={tutorialPopularityData}>
+                  <BarChart data={tutorialPopularityData} margin={{ top: 20, right: 30, left: 20, bottom: 150 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" opacity={0.3} />
                     <XAxis 
                       dataKey="name" 
                       stroke="hsl(var(--muted-foreground))"
-                      fontSize={12}
+                      fontSize={11}
                       angle={-45}
                       textAnchor="end"
-                      height={80}
+                      height={150}
+                      interval={0}
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                      tickFormatter={(value) => {
+                        // truncate if too long, show in tooltip
+                        return value.length > 25 ? value.substring(0, 25) + '...' : value;
+                      }}
                     />
                     <YAxis 
                       stroke="hsl(var(--muted-foreground))"
                       fontSize={12}
+                      label={{ value: 'Count', angle: -90, position: 'insideLeft', fontSize: 12 }}
                     />
-                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <ChartTooltip 
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <div className="bg-background p-3 border border-border rounded-lg shadow-lg">
+                              <p className="font-medium text-foreground mb-2">
+                                {payload[0].payload.fullTitle || payload[0].payload.name}
+                              </p>
+                              {payload.map((entry, index) => (
+                                <p key={index} className="text-sm text-muted-foreground">
+                                  {entry.name}: {entry.value?.toLocaleString() || 0}
+                                </p>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
                     <Bar 
                       dataKey="views" 
                       fill="hsl(var(--primary))" 
@@ -552,7 +419,30 @@ const ContentInteractionAnalytics = () => {
                     />
                   </BarChart>
                 </ResponsiveContainer>
-              </ChartContainer>
+              </div>
+
+              {/* Filter for Tutorial Table */}
+              <div className="flex items-center gap-4 mb-4">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="category-filter" className="text-sm font-medium text-gray-700">Filter by Category:</Label>
+                  <Select 
+                    value={tutorialCategoryFilter}
+                    onValueChange={(value) => {
+                      setTutorialCategoryFilter(value);
+                    }}
+                  >
+                    <SelectTrigger className="w-48 border-primary/20 focus:border-primary">
+                      <SelectValue placeholder="All Categories" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {categories.map(cat => (
+                        <SelectItem key={cat.id} value={cat.category_name}>{cat.category_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
               {/* Popular Tutorials Table */}
               <Table>
@@ -562,12 +452,17 @@ const ContentInteractionAnalytics = () => {
                     <TableHead>Views</TableHead>
                     <TableHead>Bookmarks</TableHead>
                     <TableHead>Completion Rate</TableHead>
-                    <TableHead>Avg Watch Time</TableHead>
-                    <TableHead>Trend</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tutorialInteractions.map((tutorial) => (
+                  {tutorialInteractions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-12 text-gray-500">
+                        No tutorials found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    tutorialInteractions.map((tutorial) => (
                     <TableRow key={tutorial.tutorialId} className="hover:bg-gray-50">
                       <TableCell>
                         <div>
@@ -593,49 +488,99 @@ const ContentInteractionAnalytics = () => {
                           <Progress value={tutorial.completionRate} className="h-1 w-20" />
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <span className="font-medium">
-                          {formatTime(tutorial.avgWatchTime)} / {formatTime(tutorial.totalDuration)}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {getTrendingIcon(tutorial.trending)}
-                      </TableCell>
                     </TableRow>
-                  ))}
+                    ))
+                  )}
                 </TableBody>
               </Table>
+              
+              {/* Pagination */}
+              {tutorialPagination && (
+                <div className="flex items-center justify-between pt-6 border-t border-gray-200 mt-6">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium text-gray-700">Show</Label>
+                    <Select 
+                      value={tutorialPerPage.toString()} 
+                      onValueChange={(value) => {
+                        setTutorialPerPage(Number(value));
+                        setTutorialPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="w-24 border-primary/20 focus:border-primary">
+                        <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="15">15</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                </SelectContent>
+              </Select>
+                    <Label className="text-sm font-medium text-gray-700">entries</Label>
+            </div>
+                  
+                  <Pagination
+                    currentPage={tutorialPagination.current_page}
+                    totalPages={tutorialPagination.total_pages}
+                    totalCount={tutorialPagination.total_count}
+                    perPage={tutorialPagination.per_page}
+                    onPageChange={setTutorialPage}
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="quiz" className="space-y-6">
+          {/* Quiz Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card className="border-primary/20">
+              <CardContent className="p-6 text-center">
+                <div className="text-2xl font-bold text-gray-900">{quizMetrics.totalQuizzes}</div>
+                <div className="text-sm text-gray-600">Total Quizzes</div>
+              </CardContent>
+            </Card>
+            <Card className="border-primary/20">
+              <CardContent className="p-6 text-center">
+                <Eye className="h-8 w-8 text-primary mx-auto mb-2" />
+                <div className="text-2xl font-bold text-gray-900">{quizMetrics.totalViews.toLocaleString()}</div>
+                <div className="text-sm text-gray-600">Total Views</div>
+              </CardContent>
+            </Card>
+            <Card className="border-primary/20">
+              <CardContent className="p-6 text-center">
+                <div className="text-2xl font-bold text-gray-900">{quizMetrics.totalAttempts.toLocaleString()}</div>
+                <div className="text-sm text-gray-600">Total Attempts</div>
+              </CardContent>
+            </Card>
+            <Card className="border-primary/20">
+              <CardContent className="p-6 text-center">
+                <div className="text-2xl font-bold text-blue-600">{quizMetrics.avgScore}%</div>
+                <div className="text-sm text-gray-600">Avg Score</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Placeholder for future quiz analytics features */}
+          <Card className="border-primary/20">
+            <CardHeader>
+              <CardTitle className="text-primary flex items-center gap-2">
+                <Star className="h-5 w-5" />
+                Quiz Performance
+              </CardTitle>
+              <CardDescription>Detailed quiz analytics coming soon</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12 text-gray-500">
+                Additional quiz analytics features will be available here
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="feedback" className="space-y-6">
-          <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
-            <div className="flex gap-4">
-              <Select value={feedbackFilter} onValueChange={setFeedbackFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Filter by type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="bug">Bug Reports</SelectItem>
-                  <SelectItem value="feature">Feature Requests</SelectItem>
-                  <SelectItem value="general">General Feedback</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="new">New</SelectItem>
-                  <SelectItem value="in-progress">In Progress</SelectItem>
-                  <SelectItem value="resolved">Resolved</SelectItem>
-                  <SelectItem value="closed">Closed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="flex justify-end">
             <Button 
               onClick={exportFeedbackReport}
               disabled={loading}
@@ -647,7 +592,7 @@ const ContentInteractionAnalytics = () => {
           </div>
 
           {/* Feedback Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card className="border-primary/20">
               <CardContent className="p-6 text-center">
                 <div className="text-2xl font-bold text-gray-900">{feedbackMetrics.totalFeedback}</div>
@@ -656,7 +601,7 @@ const ContentInteractionAnalytics = () => {
             </Card>
             <Card className="border-primary/20">
               <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-blue-600">{feedbackMetrics.newFeedback}</div>
+                <div className="text-2xl font-bold text-blue-600">{feedbackMetrics.newItems}</div>
                 <div className="text-sm text-gray-600">New Items</div>
               </CardContent>
             </Card>
@@ -670,18 +615,6 @@ const ContentInteractionAnalytics = () => {
               <CardContent className="p-6 text-center">
                 <div className="text-2xl font-bold text-green-600">{feedbackMetrics.resolved}</div>
                 <div className="text-sm text-gray-600">Resolved</div>
-              </CardContent>
-            </Card>
-            <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-primary">{feedbackMetrics.avgResponseTime}d</div>
-                <div className="text-sm text-gray-600">Avg Response</div>
-              </CardContent>
-            </Card>
-            <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-green-600">{feedbackMetrics.satisfactionRate}%</div>
-                <div className="text-sm text-gray-600">Satisfaction</div>
               </CardContent>
             </Card>
           </div>
@@ -735,11 +668,11 @@ const ContentInteractionAnalytics = () => {
               </CardContent>
             </Card>
 
-            {/* Feedback Type Bar Chart */}
+            {/* Feedback Type Pie Chart */}
             <Card className="border-primary/20">
               <CardHeader>
                 <CardTitle className="text-primary flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
+                  <PieChart className="h-5 w-5" />
                   Feedback by Type
                 </CardTitle>
                 <CardDescription>Breakdown of feedback categories</CardDescription>
@@ -747,16 +680,21 @@ const ContentInteractionAnalytics = () => {
               <CardContent>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={feedbackTypeData} layout="horizontal">
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" opacity={0.3} />
-                      <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                      <YAxis 
-                        dataKey="type" 
-                        type="category" 
-                        stroke="hsl(var(--muted-foreground))" 
-                        fontSize={12}
-                        width={120}
-                      />
+                    <RechartsPieChart>
+                      <Pie
+                        data={feedbackTypeData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ type, count }) => `${type}\n${count} items`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="count"
+                      >
+                        {feedbackTypeData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
                       <ChartTooltip 
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
@@ -771,8 +709,7 @@ const ContentInteractionAnalytics = () => {
                           return null;
                         }}
                       />
-                      <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                    </BarChart>
+                    </RechartsPieChart>
                   </ResponsiveContainer>
                 </div>
               </CardContent>
@@ -784,13 +721,66 @@ const ContentInteractionAnalytics = () => {
             <CardHeader>
               <CardTitle className="text-primary flex items-center gap-2">
                 <MessageSquare className="h-5 w-5" />
-                Feedback Items ({filteredFeedback.length})
+                Feedback Items ({feedbackPagination?.total_count || 0})
               </CardTitle>
               <CardDescription>User feedback, bug reports, and feature requests</CardDescription>
             </CardHeader>
             <CardContent>
+              {/* Filters */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div>
+                  <Label htmlFor="search">Search</Label>
+                  <Input
+                    id="search"
+                    placeholder="Search feedback..."
+                    value={feedbackSearchInput}
+                    onChange={(e) => {
+                      setFeedbackSearchInput(e.target.value);
+                    }}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={feedbackStatusFilter} onValueChange={(value) => {
+                    setFeedbackStatusFilter(value);
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="New">New</SelectItem>
+                      <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="Resolved">Resolved</SelectItem>
+                      <SelectItem value="Closed">Closed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="type">Type</Label>
+                  <Select value={feedbackTypeFilter} onValueChange={(value) => {
+                    setFeedbackTypeFilter(value);
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="bug">Bug</SelectItem>
+                      <SelectItem value="feature">Feature</SelectItem>
+                      <SelectItem value="general">General</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
               <div className="space-y-4">
-                {filteredFeedback.map((item) => (
+                {feedbackItems.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    No feedback items found
+                  </div>
+                ) : (
+                  feedbackItems.map((item) => (
                   <div key={item.id} className="p-4 rounded-lg border border-gray-200 hover:border-primary/30 transition-colors">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
@@ -803,9 +793,6 @@ const ContentInteractionAnalytics = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge className={getPriorityColor(item.priority)}>
-                          {item.priority}
-                        </Badge>
                         <Badge className={getStatusColor(item.status)}>
                           {item.status}
                         </Badge>
@@ -835,82 +822,46 @@ const ContentInteractionAnalytics = () => {
                       </div>
                     )}
                   </div>
-                ))}
+                ))
+                )}
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="unused" className="space-y-6">
-          {/* Unused Content */}
-          <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-primary flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Unused Content
-              </CardTitle>
-              <CardDescription>
-                Content that hasn't been accessed recently (30+ days)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {unusedContent.length === 0 ? (
-                <div className="text-center py-8">
-                  <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">All Content Active</h3>
-                  <p className="text-gray-600">All your content has been accessed recently!</p>
+              
+              {/* Pagination */}
+              {feedbackPagination && (
+                <div className="flex items-center justify-between pt-6 border-t border-gray-200 mt-6">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium text-gray-700">Show</Label>
+                    <Select 
+                      value={feedbackPerPage.toString()} 
+                      onValueChange={(value) => {
+                        setFeedbackPerPage(Number(value));
+                        setFeedbackPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="w-24 border-primary/20 focus:border-primary">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="15">15</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Label className="text-sm font-medium text-gray-700">entries</Label>
+                  </div>
+                  
+                  <Pagination
+                    currentPage={feedbackPagination.current_page}
+                    totalPages={feedbackPagination.total_pages}
+                    totalCount={feedbackPagination.total_count}
+                    perPage={feedbackPagination.per_page}
+                    onPageChange={setFeedbackPage}
+                  />
                 </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Content</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Total Views</TableHead>
-                      <TableHead>Last Accessed</TableHead>
-                      <TableHead>Days Inactive</TableHead>
-                      <TableHead>Upload Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {unusedContent.map((content) => (
-                      <TableRow key={content.id} className="hover:bg-gray-50">
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{content.title}</div>
-                            <div className="text-sm text-gray-500">{content.category}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={content.type === 'tutorial' ? 'default' : 'secondary'}>
-                            {content.type}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{content.totalViews}</TableCell>
-                        <TableCell>
-                          <span className="text-sm text-gray-600">
-                            {new Date(content.lastAccessed).toLocaleDateString()}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="destructive" className="bg-red-100 text-red-800">
-                            {content.daysSinceAccess} days
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm text-gray-600">
-                            {new Date(content.uploadDate).toLocaleDateString()}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
               )}
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
 
       {/* Feedback Management Modal */}
       <CrudModal
@@ -920,52 +871,29 @@ const ContentInteractionAnalytics = () => {
           setSelectedFeedback(null);
         }}
         title="Manage Feedback"
-        onSave={() => selectedFeedback && handleFeedbackUpdate(selectedFeedback.id, {})}
+        onSave={handleFeedbackUpdate}
         saveLabel="Update Feedback"
       >
         {selectedFeedback && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="status">Status</Label>
-                <Select 
-                  value={selectedFeedback.status} 
-                  onValueChange={(value) => setSelectedFeedback({
-                    ...selectedFeedback,
-                    status: value as 'new' | 'in-progress' | 'resolved' | 'closed'
-                  })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="in-progress">In Progress</SelectItem>
-                    <SelectItem value="resolved">Resolved</SelectItem>
-                    <SelectItem value="closed">Closed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="priority">Priority</Label>
-                <Select 
-                  value={selectedFeedback.priority} 
-                  onValueChange={(value) => setSelectedFeedback({
-                    ...selectedFeedback,
-                    priority: value as 'low' | 'medium' | 'high' | 'critical'
-                  })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="critical">Critical</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div>
+              <Label htmlFor="status">Status</Label>
+              <Select 
+                value={selectedFeedback.status} 
+                onValueChange={(value) => setSelectedFeedback({
+                  ...selectedFeedback,
+                  status: value
+                })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="In Progress">In Progress</SelectItem>
+                  <SelectItem value="Resolved">Resolved</SelectItem>
+                  <SelectItem value="Closed">Closed</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             
             <div>
@@ -996,6 +924,7 @@ const ContentInteractionAnalytics = () => {
           </div>
         )}
       </CrudModal>
+      </Tabs>
     </div>
   );
 };

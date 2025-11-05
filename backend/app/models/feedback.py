@@ -17,6 +17,8 @@ class Feedback(db.Model):
     submission_date: so.Mapped[datetime] = so.mapped_column(sa.DateTime(), nullable=False, default=datetime.utcnow)
     status: so.Mapped[str] = so.mapped_column(sa.String(50), nullable=False, default='New')
     reviewed_by_admin_id: so.Mapped[int | None] = so.mapped_column(sa.ForeignKey('accounts.id'))
+    admin_response: so.Mapped[str | None] = so.mapped_column(sa.Text())
+    updated_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime())
 
     def __repr__(self) -> str:
         return f"<Feedback {self.public_id} type={self.feedback_type}>"

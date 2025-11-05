@@ -6,7 +6,7 @@ import sqlalchemy as sa
 from typing import Dict, Any
 
 from ..extensions import db
-from ..models import Category
+from ..models import Category, Tutorial, Quiz, Review
 from ..schemas.category_schemas import CategoryCreateSchema, CategoryUpdateSchema, CategoryQuerySchema
 from ..services.response_service import ResponseService
 from ..services.error_service import APIError
@@ -74,14 +74,43 @@ class CategoryService:
             # Execute query
             categories = db.session.scalars(query).all()
             
-            # Format response
+            # Format response with content count
             category_list = []
             for c in categories:
+                # Count content usage: tutorials + quizzes + practice_words
+                from ..models.tutorial import Tutorial
+                from ..models.quiz import Quiz
+                from ..models.practice_word import PracticeWord
+                
+                tutorial_count = db.session.scalar(
+                    sa.select(sa.func.count(Tutorial.id))
+                    .where(Tutorial.category_id == c.id)
+                    .where(Tutorial.status != 'deleted')
+                ) or 0
+                
+                quiz_count = db.session.scalar(
+                    sa.select(sa.func.count(Quiz.id))
+                    .where(Quiz.category_id == c.id)
+                    .where(Quiz.status != 'deleted')
+                ) or 0
+                
+                practice_word_count = db.session.scalar(
+                    sa.select(sa.func.count(PracticeWord.id))
+                    .where(PracticeWord.category_id == c.id)
+                    .where(PracticeWord.status != 'deleted')
+                ) or 0
+                
+                content_count = tutorial_count + quiz_count + practice_word_count
+                
                 category_list.append({
                     'id': c.id,
                     'publicId': c.public_id,
                     'category_name': c.category_name,
                     'status': c.status,
+                    'content_count': content_count,
+                    'tutorial_count': tutorial_count,
+                    'quiz_count': quiz_count,
+                    'practice_word_count': practice_word_count,
                 })
             
             pagination = ResponseService.pagination_info(page, per_page, total or 0)
@@ -243,10 +272,13 @@ class CategoryService:
                     .where(Tutorial.status != 'deleted')
                 ) or 0
                 
+                # calculate avg rating from reviews for tutorials in this category
                 avg_rating = db.session.scalar(
-                    sa.select(sa.func.avg(Tutorial.rating))
+                    sa.select(sa.func.avg(Review.rating))
+                    .join(Tutorial, Review.target_id == Tutorial.id)
                     .where(Tutorial.category_id == category_id)
                     .where(Tutorial.status != 'deleted')
+                    .where(Review.target_type == 'tutorial')
                 ) or 0.0
                 
                 return ResponseService.success_response({

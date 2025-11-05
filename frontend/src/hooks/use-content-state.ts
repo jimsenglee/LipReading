@@ -8,7 +8,7 @@ export interface ContentState {
   searchTerm: string;
   category: string;
   status: 'all' | 'active' | 'inactive';
-  sortBy: 'id' | 'title' | 'category' | 'created_at' | 'updated_at';
+  sortBy: 'id' | 'title' | 'category' | 'created_at' | 'updated_at' | 'sort_order';
   sortOrder: 'asc' | 'desc';
   currentPage: number;
   itemsPerPage: number;
@@ -19,14 +19,14 @@ export interface ContentStateActions {
   setSearchTerm: (value: string) => void;
   setCategory: (value: string) => void;
   setStatus: (value: 'all' | 'active' | 'inactive') => void;
-  setSortBy: (field: 'id' | 'title' | 'category' | 'created_at' | 'updated_at') => void;
+  setSortBy: (field: 'id' | 'title' | 'category' | 'created_at' | 'updated_at' | 'sort_order') => void;
   setSortOrder: (order: 'asc' | 'desc') => void;
   setCurrentPage: (page: number) => void;
   setItemsPerPage: (items: number) => void;
   setSelectedItems: (items: Set<string>) => void;
   handleSearch: (value: string) => void;
   handleFilter: (category: string, status: string) => void;
-  handleSort: (field: 'id' | 'title' | 'category' | 'created_at' | 'updated_at') => void;
+  handleSort: (field: 'id' | 'title' | 'category' | 'created_at' | 'updated_at' | 'sort_order') => void;
   handleItemSelect: (itemId: string, checked: boolean) => void;
   handleSelectAll: (checked: boolean, allItemIds: string[]) => void;
   resetSelection: () => void;
@@ -36,7 +36,7 @@ export const useContentState = (initialState?: Partial<ContentState>): [ContentS
   const [searchTerm, setSearchTerm] = useState(initialState?.searchTerm || '');
   const [category, setCategory] = useState(initialState?.category || 'all');
   const [status, setStatus] = useState<'all' | 'active' | 'inactive'>(initialState?.status || 'all');
-  const [sortBy, setSortBy] = useState<'id' | 'title' | 'category' | 'created_at' | 'updated_at'>(initialState?.sortBy || 'id');
+  const [sortBy, setSortBy] = useState<'id' | 'title' | 'category' | 'created_at' | 'updated_at' | 'sort_order'>(initialState?.sortBy || 'id');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initialState?.sortOrder || 'asc');
   const [currentPage, setCurrentPage] = useState(initialState?.currentPage || 1);
   const [itemsPerPage, setItemsPerPage] = useState(initialState?.itemsPerPage || 10);
@@ -53,7 +53,7 @@ export const useContentState = (initialState?: Partial<ContentState>): [ContentS
     // Don't reset page to prevent jumping effect
   };
 
-  const handleSort = (field: 'title' | 'category' | 'created_at' | 'updated_at') => {
+  const handleSort = (field: 'title' | 'category' | 'created_at' | 'updated_at' | 'sort_order') => {
     if (sortBy === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {

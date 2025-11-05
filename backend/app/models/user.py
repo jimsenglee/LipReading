@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from .transcription import Transcription
     from .practice_session import PracticeSession
     from .quiz_attempt import QuizAttempt
+    from .user_progress import UserProgress
     from .tutorial import Tutorial
 
 
@@ -30,6 +31,7 @@ class User(Account):
     transcriptions: so.WriteOnlyMapped['Transcription'] = so.relationship(back_populates='user', cascade='all, delete-orphan')
     practice_sessions: so.WriteOnlyMapped['PracticeSession'] = so.relationship(back_populates='user', cascade='all, delete-orphan')
     quiz_attempts: so.WriteOnlyMapped['QuizAttempt'] = so.relationship(back_populates='user', cascade='all, delete-orphan')
+    video_progress: so.WriteOnlyMapped['UserProgress'] = so.relationship(back_populates='user', cascade='all, delete-orphan')
 
     # bookmarks many-to-many via association table declared in user_bookmark.py
     bookmarked_tutorials: so.WriteOnlyMapped['Tutorial'] = so.relationship(

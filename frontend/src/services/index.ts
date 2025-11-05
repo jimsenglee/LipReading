@@ -28,3 +28,11 @@ export * from './analytics/analyticsMutations';
 
 // Transcription
 export * from './transcription';
+
+// Feedback
+export * from './feedback/feedbackQueries';
+export * from './feedback/feedbackMutations';
+
+// Practice Words
+export * from './practice/practiceQueries';
+export * from './practice/practiceMutations';

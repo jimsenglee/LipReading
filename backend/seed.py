@@ -5,7 +5,6 @@ from werkzeug.security import generate_password_hash
 from sqlalchemy import text
 import random
 import json
-import os
 from datetime import datetime, timedelta
 
 # load env before importing the app so SQLALCHEMY_DATABASE_URI has password
@@ -23,6 +22,12 @@ from app.models import (
     QuizQuestion,
     Review,
 )
+from app.models.feedback import Feedback
+from app.models.practice_word import PracticeWord
+from app.models.user_bookmark import user_bookmarks
+from app.models.user_progress import UserProgress
+from app.models.quiz_attempt import QuizAttempt
+from app.utils.id_generator import generate_public_id
 
 # Add helper logging function near top (after imports)
 print_marker = lambda msg: print(f"[SEED] {msg}")
@@ -33,8 +38,12 @@ def seed_programmatic() -> int:
     print_marker("Clearing existing database data...")
     
     # Delete in reverse dependency order (fix foreign key constraint)
-    from app.models.review import Review
+    db.session.execute(text("DELETE FROM user_bookmarks"))
+    db.session.execute(text("DELETE FROM user_progress"))
+    db.session.execute(text("DELETE FROM quiz_attempts"))
+    db.session.query(Feedback).delete()
     db.session.query(Review).delete()
+    db.session.query(PracticeWord).delete()
     db.session.query(QuizQuestion).delete()
     db.session.query(Quiz).delete()
     # Delete child tutorials first (videos), then parent tutorials (series)
@@ -99,8 +108,24 @@ def seed_programmatic() -> int:
     user3.is_2fa_enabled = False
     user3.profile_image_path = 'profiles/avatar.jpg'
     
-    db.session.add_all([admin, user1, user2, user3])
-    print_marker("3 users + 1 admin created (password: 1234)")
+    # create additional users for diverse reviews
+    additional_users = []
+    user_names = ['Alice Johnson', 'Bob Smith', 'Charlie Brown', 'Diana Prince', 'Eve Wilson', 'Frank Miller', 'Grace Lee']
+    for i, name in enumerate(user_names, 4):
+    user = User()
+        user.public_id = f'ACC-U-20250101-{str(i).zfill(4)}'
+        user.name = name
+        user.email = f'user{i}@example.com'
+    user.password_hash = generate_password_hash('1234')
+    user.account_type = 'User'
+    user.is_2fa_enabled = False
+        user.profile_image_path = 'profiles/avatar.jpg'
+        additional_users.append(user)
+    
+    all_users = [admin, user1, user2, user3] + additional_users
+    db.session.add_all(all_users)
+    db.session.flush()
+    print_marker(f"{len(all_users) - 1} users + 1 admin created (password: 1234)")
 
     # Create domain categories + quiz taxonomy (Words, Phrases, Consonants, Vowels, Numbers)
     print_marker("Creating categories...")
@@ -226,20 +251,17 @@ def seed_programmatic() -> int:
         else:  # Day 8-10: Mixed (60% published, 40% draft)
             status = 'published' if random.random() > 0.4 else 'draft'
         
-        # logical views and rating progression - earlier days get more engagement
+        # account-based views - max 1 view per unique user account per tutorial
+        # we have 3 users, so views should be 1-3 range (each user watches once)
         if status == 'published':
-            if i < 3:  # Day 1-3: High engagement (core content)
-                views = random.randint(1500, 2500)
-                rating = round(random.uniform(4.2, 5.0), 1)
-            elif i < 7:  # Day 4-7: Medium engagement
-                views = random.randint(800, 1800)
-                rating = round(random.uniform(3.8, 4.8), 1)
-            else:  # Day 8-10: Lower engagement (advanced content)
-                views = random.randint(200, 1200)
-                rating = round(random.uniform(3.5, 4.5), 1)
+            if i < 3:  # Day 1-3: High engagement (core content) - all 3 users watch
+                views = 3
+            elif i < 7:  # Day 4-7: Medium engagement - 2 users watch
+                views = random.randint(1, 3)
+            else:  # Day 8-10: Lower engagement (advanced content) - 1-2 users watch
+                views = random.randint(1, 2)
         else:
             views = 0
-            rating = 0.0
         
         # random creation date within last 30 days
         created_date = datetime.utcnow() - timedelta(days=random.randint(1, 30))
@@ -294,79 +316,81 @@ def seed_programmatic() -> int:
                 return c.id
         return categories[0].id
 
+    # create quiz SERIES (like tutorial series structure)
+    # parent quiz series with child quiz items
     QUIZ_CHUNK_WORDS = 10
     QUIZ_CHUNK_PHRASES = 10
-    quizzes = []
-
-    # words
-    for start in range(0, len(word_files), QUIZ_CHUNK_WORDS):
-        chunk = word_files[start:start + QUIZ_CHUNK_WORDS]
-        if not chunk:
-            continue
-        quiz = Quiz()
-        quiz.public_id = f'QZ-W-{str(len(quizzes)+1).zfill(4)}'
-        quiz.category_id = get_cat_id('Words')
-        quiz.title = f'Words Quiz {len(quizzes)+1}'
-        quiz.status = 'active'
-        quiz.description = 'Practice recognizing isolated words from lip movements.'
-        quiz.difficulty = 'beginner' if len(quizzes) < 5 else ('intermediate' if len(quizzes) < 15 else 'advanced')
-        quiz.author = 'Admin User'
-        quiz.thumbnail_path = None
-        quiz.views = 0
-        # rating removed; reviews drive ratings
-        quiz.total_questions = 0
-        quiz.estimated_duration = len(chunk) * 30
-        quiz.tags = json.dumps(["quiz", "words", "lip reading"])
-        quiz.passing_score = 70
-        quiz.max_attempts = 3
-        quiz.shuffle_questions = False
-        quiz.shuffle_answers = True
-        quiz.show_results_immediately = True
-        quiz.created_at = datetime.utcnow()
-        quiz.updated_at = datetime.utcnow()
-        quizzes.append(quiz)
-
-    # phrases
-    for start in range(0, len(phrase_files), QUIZ_CHUNK_PHRASES):
-        chunk = phrase_files[start:start + QUIZ_CHUNK_PHRASES]
-        if not chunk:
-            continue
-        quiz = Quiz()
-        quiz.public_id = f'QZ-P-{str(len(quizzes)+1).zfill(4)}'
-        quiz.category_id = get_cat_id('Phrases')
-        quiz.title = f'Phrases Quiz {len(quizzes)+1}'
-        quiz.status = 'active'
-        quiz.description = 'Practice recognizing phrases and sentences from lip movements.'
-        quiz.difficulty = 'beginner' if len(quizzes) < 5 else ('intermediate' if len(quizzes) < 15 else 'advanced')
-        quiz.author = 'Admin User'
-        quiz.thumbnail_path = None
-        quiz.views = 0
-        # rating removed; reviews drive ratings
-        quiz.total_questions = 0
-        quiz.estimated_duration = len(chunk) * 35
-        quiz.tags = json.dumps(["quiz", "phrases", "lip reading"])
-        quiz.passing_score = 70
-        quiz.max_attempts = 3
-        quiz.shuffle_questions = False
-        quiz.shuffle_answers = True
-        quiz.show_results_immediately = True
-        quiz.created_at = datetime.utcnow()
-        quiz.updated_at = datetime.utcnow()
-        quizzes.append(quiz)
+    quiz_series_list = []  # parent series only
+    quiz_items_list = []  # child quizzes within series
     
-    db.session.add_all(quizzes)
+    # create word quiz series
+    num_word_series = max(1, len(word_files) // QUIZ_CHUNK_WORDS)
+    for series_idx in range(min(10, num_word_series)):  # create max 10 word quiz series
+        series_quiz = Quiz()
+        series_quiz.public_id = f'QZ-W-S-{str(series_idx+1).zfill(3)}'
+        series_quiz.category_id = get_cat_id('Words')
+        series_quiz.title = f'Words Quiz Series {series_idx+1}'
+        series_quiz.status = 'active'
+        series_quiz.description = f'Practice recognizing isolated words from lip movements - Series {series_idx+1}.'
+        series_quiz.difficulty = 'beginner' if series_idx < 3 else ('intermediate' if series_idx < 7 else 'advanced')
+        series_quiz.author = 'Admin User'
+        series_quiz.thumbnail_path = None
+        series_quiz.views = 0
+        series_quiz.series_type = 'series'  # parent series
+        series_quiz.parent_series_id = None  # no parent
+        series_quiz.total_questions = QUIZ_CHUNK_WORDS  # will be updated later
+        series_quiz.estimated_duration = QUIZ_CHUNK_WORDS * 30  # 30 seconds per question
+        series_quiz.tags = json.dumps(["quiz", "words", "lip reading", "series"])
+        series_quiz.passing_score = 70
+        series_quiz.max_attempts = 3
+        series_quiz.shuffle_questions = False
+        series_quiz.shuffle_answers = True
+        series_quiz.show_results_immediately = True
+        series_quiz.created_at = datetime.utcnow()
+        series_quiz.updated_at = datetime.utcnow()
+        quiz_series_list.append(series_quiz)
+    
+    # create phrase quiz series
+    num_phrase_series = max(1, len(phrase_files) // QUIZ_CHUNK_PHRASES)
+    for series_idx in range(min(10, num_phrase_series)):  # create max 10 phrase quiz series
+        series_quiz = Quiz()
+        series_quiz.public_id = f'QZ-P-S-{str(series_idx+1).zfill(3)}'
+        series_quiz.category_id = get_cat_id('Phrases')
+        series_quiz.title = f'Phrases Quiz Series {series_idx+1}'
+        series_quiz.status = 'active'
+        series_quiz.description = f'Practice recognizing phrases and sentences from lip movements - Series {series_idx+1}.'
+        series_quiz.difficulty = 'beginner' if series_idx < 3 else ('intermediate' if series_idx < 7 else 'advanced')
+        series_quiz.author = 'Admin User'
+        series_quiz.thumbnail_path = None
+        series_quiz.views = 0
+        series_quiz.series_type = 'series'  # parent series
+        series_quiz.parent_series_id = None  # no parent
+        series_quiz.total_questions = QUIZ_CHUNK_PHRASES  # will be updated later
+        series_quiz.estimated_duration = QUIZ_CHUNK_PHRASES * 35  # 35 seconds per question
+        series_quiz.tags = json.dumps(["quiz", "phrases", "lip reading", "series"])
+        series_quiz.passing_score = 70
+        series_quiz.max_attempts = 3
+        series_quiz.shuffle_questions = False
+        series_quiz.shuffle_answers = True
+        series_quiz.show_results_immediately = True
+        series_quiz.created_at = datetime.utcnow()
+        series_quiz.updated_at = datetime.utcnow()
+        quiz_series_list.append(series_quiz)
+    
+    # add all parent series to database and flush to get IDs
+    db.session.add_all(quiz_series_list)
     db.session.flush()
-    print_marker(f"{len(quizzes)} quizzes created from video files")
+    print_marker(f"{len(quiz_series_list)} quiz SERIES created (parent quizzes)")
 
-    # create quiz questions with actual video files
+    # create quiz questions with actual video files (for parent series)
     print_marker("Creating quiz questions with video files...")
     
     quiz_questions = []
     question_id = 0
     
-    # create questions for words (chunk-aligned)
-    word_quizzes = [q for q in quizzes if q.tags and 'words' in json.loads(q.tags)]
-    for qi, _ in enumerate(word_quizzes):
+    # create questions for word quiz series
+    word_quiz_series = [q for q in quiz_series_list if q.tags and 'words' in json.loads(q.tags)]
+    for qi, series_quiz in enumerate(word_quiz_series):
         start = qi * QUIZ_CHUNK_WORDS
         chunk = word_files[start:start + QUIZ_CHUNK_WORDS]
         for word_file in chunk:
@@ -382,7 +406,7 @@ def seed_programmatic() -> int:
                 incorrect_options.append(similar_word_name)
             
             quiz_question = QuizQuestion()
-            quiz_question.quiz_id = word_quizzes[qi].id
+            quiz_question.quiz_id = series_quiz.id  # use parent series ID
             quiz_question.question_type = 'video_mcq'
             quiz_question.video_clip_path = f'/uploads/quiz/Words/{word_file}'
             quiz_question.correct_answer = word_name
@@ -392,9 +416,9 @@ def seed_programmatic() -> int:
             quiz_questions.append(quiz_question)
             question_id += 1
     
-    # create questions for phrases (chunk-aligned)
-    phrase_quizzes = [q for q in quizzes if q.tags and 'phrases' in json.loads(q.tags)]
-    for qi, _ in enumerate(phrase_quizzes):
+    # create questions for phrase quiz series
+    phrase_quiz_series = [q for q in quiz_series_list if q.tags and 'phrases' in json.loads(q.tags)]
+    for qi, series_quiz in enumerate(phrase_quiz_series):
         start = qi * QUIZ_CHUNK_PHRASES
         chunk = phrase_files[start:start + QUIZ_CHUNK_PHRASES]
         for phrase_file in chunk:
@@ -410,7 +434,7 @@ def seed_programmatic() -> int:
                 incorrect_options.append(similar_phrase_name)
             
             quiz_question = QuizQuestion()
-            quiz_question.quiz_id = phrase_quizzes[qi].id
+            quiz_question.quiz_id = series_quiz.id  # use parent series ID
             quiz_question.question_type = 'video_mcq'
             quiz_question.video_clip_path = f'/uploads/quiz/Phrases/{phrase_file}'
             quiz_question.correct_answer = phrase_name
@@ -423,7 +447,7 @@ def seed_programmatic() -> int:
             # add some true/false questions randomly (about 20% of questions)
             if random.random() < 0.2 and question_id < len(phrase_files):
                 true_false_question = QuizQuestion()
-                true_false_question.quiz_id = phrase_quizzes[qi].id
+                true_false_question.quiz_id = series_quiz.id  # use parent series ID
                 true_false_question.question_type = 'true_false'
                 true_false_question.question_text = f'The phrase "{phrase_name}" contains a question word.'
                 true_false_question.correct_answer = 'True' if '?' in phrase_name or any(q in phrase_name.lower() for q in ['what', 'when', 'where', 'who', 'why', 'how']) else 'False'
@@ -435,36 +459,303 @@ def seed_programmatic() -> int:
     db.session.add_all(quiz_questions)
     db.session.flush()
     
-    # update quiz total_questions count
-    for quiz in quizzes:
-        question_count = db.session.query(QuizQuestion).filter(QuizQuestion.quiz_id == quiz.id).count()
-        quiz.total_questions = question_count
+    # update quiz series total_questions count
+    for series_quiz in quiz_series_list:
+        question_count = db.session.query(QuizQuestion).filter(QuizQuestion.quiz_id == series_quiz.id).count()
+        series_quiz.total_questions = question_count
     
     db.session.commit()
     question_count = len(quiz_questions)
     print_marker(f"{question_count} quiz questions created with actual video files")
 
-    # create sample reviews for first tutorial and first quiz
-    print_marker("Creating sample reviews for tutorials and quizzes...")
-    if tutorials:
-        first_tutorial_id = tutorials[0].id
-        r1 = Review(); r1.public_id = 'REV-T-0001'; r1.user_id = user1.id; r1.target_type = 'tutorial'; r1.target_id = first_tutorial_id; r1.rating = 5; r1.review_text = 'Great tutorial!'
-        r2 = Review(); r2.public_id = 'REV-T-0002'; r2.user_id = user2.id; r2.target_type = 'tutorial'; r2.target_id = first_tutorial_id; r2.rating = 4; r2.review_text = 'Helpful and clear.'
-        db.session.add_all([r1, r2])
-    if quizzes:
-        first_quiz_id = quizzes[0].id
-        r3 = Review(); r3.public_id = 'REV-Q-0001'; r3.user_id = user1.id; r3.target_type = 'quiz'; r3.target_id = first_quiz_id; r3.rating = 4; r3.review_text = 'Good challenge.'
-        r4 = Review(); r4.public_id = 'REV-Q-0002'; r4.user_id = user3.id; r4.target_type = 'quiz'; r4.target_id = first_quiz_id; r4.rating = 5; r4.review_text = 'Loved the questions!'
-        db.session.add_all([r3, r4])
+    # create diverse reviews for tutorials and quizzes
+    print_marker("Creating diverse reviews for tutorials and quizzes...")
+    reviews = []
+    review_texts = [
+        "Excellent tutorial! Very clear explanations and helpful examples.",
+        "Great content, but could use more practice exercises.",
+        "This helped me understand the basics. Highly recommend!",
+        "Good tutorial, though some parts were a bit challenging.",
+        "Amazing! I've learned so much from this series.",
+        "Decent tutorial, but could be more engaging.",
+        "Perfect for beginners. The step-by-step approach is excellent.",
+        "Really enjoyed this! The instructor explains everything clearly.",
+        "Helpful tutorial. I appreciate the detailed explanations.",
+        "Good content overall, but some sections need more detail.",
+        "Fantastic tutorial! I've improved my skills significantly.",
+        "Nice tutorial, but the pace was a bit fast for me.",
+        "Very informative and well-structured. Great job!",
+        "I found this tutorial very helpful for my learning journey.",
+        "Good quality content, would recommend to others.",
+        "Excellent breakdown of complex concepts. Love it!",
+        "This tutorial exceeded my expectations. Thank you!",
+        "Solid tutorial with good examples and clear explanations.",
+        "Great resource for learning. Highly satisfied!",
+        "Good tutorial, though I wish there were more examples."
+    ]
+    
+    # create reviews for tutorials (users enrolled in tutorials can review)
+    # NO ADMIN RESPONSES - all reviews should be without admin responses
+    review_counter = 1  # manual counter for unique public_ids
+    date_str = datetime.now().strftime('%Y%m%d')
+    
+    if tutorials and len(all_users) > 1:
+        user_list = [u for u in all_users if u.account_type == 'User']
+        # create reviews for ALL tutorials - GUARANTEE at least 1 review per tutorial
+        for tutorial_idx, tutorial in enumerate(tutorials):
+            # each tutorial gets 3-8 reviews from different users, but at least 1
+            num_reviews = max(1, random.randint(3, min(8, len(user_list))))
+            # ensure we don't try to sample more users than available
+            num_reviews = min(num_reviews, len(user_list))
+            selected_users = random.sample(user_list, num_reviews) if len(user_list) > 0 else []
+            
+            # GUARANTEE at least 1 review - if no users, skip this tutorial
+            if len(selected_users) == 0:
+                print_marker(f"WARNING: No users available to create reviews for tutorial {tutorial.id}")
+                continue
+            
+            for user_idx, user in enumerate(selected_users):
+                review = Review()
+                review.public_id = f'REV-{date_str}-{review_counter:04d}'
+                review_counter += 1
+                review.user_id = user.id
+                review.target_type = 'tutorial'
+                review.target_id = tutorial.id
+                # diverse ratings: mostly positive (3-5), some mixed (2-4)
+                if tutorial_idx < 3:  # first 3 tutorials get better ratings
+                    review.rating = random.choices([4, 5], weights=[30, 70])[0]
+                elif tutorial_idx < 6:
+                    review.rating = random.choices([3, 4, 5], weights=[20, 50, 30])[0]
+                else:
+                    review.rating = random.choices([2, 3, 4, 5], weights=[10, 30, 40, 20])[0]
+                
+                review.review_text = random.choice(review_texts)
+                review.created_at = datetime.utcnow() - timedelta(days=random.randint(0, 30))
+                
+                # NO ADMIN RESPONSES - leave admin_response, admin_responded_at, and reviewed_by_admin_id as None
+                
+                reviews.append(review)
+    
+    # create reviews for quizzes (users who attempted quizzes can review)
+    # NO ADMIN RESPONSES - all reviews should be without admin responses
+    # GUARANTEE at least 1 review per quiz series
+    if quiz_series_list and len(all_users) > 1:
+        user_list = [u for u in all_users if u.account_type == 'User']
+        # create reviews for ALL quiz series - GUARANTEE at least 1 review per quiz
+        for quiz_idx, quiz in enumerate(quiz_series_list):
+            num_reviews = max(1, random.randint(2, min(5, len(user_list))))
+            # ensure we don't try to sample more users than available
+            num_reviews = min(num_reviews, len(user_list))
+            selected_users = random.sample(user_list, num_reviews) if len(user_list) > 0 else []
+            
+            # GUARANTEE at least 1 review - if no users, skip this quiz
+            if len(selected_users) == 0:
+                print_marker(f"WARNING: No users available to create reviews for quiz {quiz.id}")
+                continue
+            
+            for user in selected_users:
+                review = Review()
+                review.public_id = f'REV-{date_str}-{review_counter:04d}'
+                review_counter += 1
+                review.user_id = user.id
+                review.target_type = 'quiz'
+                review.target_id = quiz.id
+                review.rating = random.choices([3, 4, 5], weights=[20, 40, 40])[0]
+                review.review_text = random.choice([
+                    "Great quiz! Challenging but fair.",
+                    "Good questions, helped me practice.",
+                    "Enjoyed taking this quiz. Well designed!",
+                    "Nice variety of questions.",
+                    "This quiz really tests your understanding."
+                ])
+                review.created_at = datetime.utcnow() - timedelta(days=random.randint(0, 20))
+                
+                # NO ADMIN RESPONSES - leave admin_response, admin_responded_at, and reviewed_by_admin_id as None
+                
+                reviews.append(review)
+    
+    if reviews:
+        db.session.add_all(reviews)
+        db.session.commit()
+        print_marker(f"Inserted {len(reviews)} diverse reviews with ratings and comments")
+    
+    # create enrollments (bookmarks) for tutorials - users must be enrolled to review
+    print_marker("Creating enrollments (bookmarks) for tutorials...")
+    from app.models.user_bookmark import user_bookmarks
+    bookmark_records = []
+    user_list = [u for u in all_users if u.account_type == 'User']
+    
+    # ensure all users who wrote reviews are enrolled in those tutorials
+    if tutorials and reviews:
+        # create enrollment set from reviews (users enrolled in tutorials they reviewed)
+        enrolled_pairs = set()
+        for review in reviews:
+            if review.target_type == 'tutorial':
+                enrolled_pairs.add((review.user_id, review.target_id))
+        
+        # add additional enrollments for better data diversity
+        for tutorial in tutorials:  # enrollments for all tutorials
+            # each tutorial gets enrollments from 60-100% of users
+            enrollment_rate = random.uniform(0.6, 1.0)
+            num_enrollments = max(1, int(len(user_list) * enrollment_rate))
+            selected_users = random.sample(user_list, min(num_enrollments, len(user_list)))
+            
+            for user in selected_users:
+                if (user.id, tutorial.id) not in enrolled_pairs:
+                    enrolled_pairs.add((user.id, tutorial.id))
+        
+        # convert set to list of dicts for insert
+        for user_id, tutorial_id in enrolled_pairs:
+            bookmark_records.append({
+                'user_id': user_id,
+                'tutorial_id': tutorial_id
+            })
+    
+    if bookmark_records:
+        db.session.execute(user_bookmarks.insert(), bookmark_records)
+        db.session.commit()
+        print_marker(f"Created {len(bookmark_records)} enrollments (bookmarks) for tutorials")
+    
+    # create quiz attempts for analytics display
+    print_marker("Creating quiz attempts...")
+    quiz_attempts = []
+    if quiz_series_list:
+        for i, quiz in enumerate(quiz_series_list[:10]):  # attempts for first 10 quiz series
+            # user1 attempts multiple quizzes with varying scores
+            attempt1 = QuizAttempt()
+            attempt1.public_id = f'QA-20250101-{str(i*3+1).zfill(4)}'
+            attempt1.user_id = user1.id
+            attempt1.quiz_id = quiz.id
+            attempt1.attempt_number = 1
+            attempt1.score = round(random.uniform(60, 95), 1)
+            attempt1.passed = attempt1.score >= quiz.passing_score
+            attempt1.answers_json = None
+            quiz_attempts.append(attempt1)
+            
+            # user2 attempts first 5 quizzes
+            if i < 5:
+                attempt2 = QuizAttempt()
+                attempt2.public_id = f'QA-20250101-{str(i*3+2).zfill(4)}'
+                attempt2.user_id = user2.id
+                attempt2.quiz_id = quiz.id
+                attempt2.attempt_number = 1
+                attempt2.score = round(random.uniform(75, 100), 1)
+                attempt2.passed = attempt2.score >= quiz.passing_score
+                attempt2.answers_json = None
+                quiz_attempts.append(attempt2)
+            
+            # user3 attempts first 3 quizzes
+            if i < 3:
+                attempt3 = QuizAttempt()
+                attempt3.public_id = f'QA-20250101-{str(i*3+3).zfill(4)}'
+                attempt3.user_id = user3.id
+                attempt3.quiz_id = quiz.id
+                attempt3.attempt_number = 1
+                attempt3.score = round(random.uniform(50, 85), 1)
+                attempt3.passed = attempt3.score >= quiz.passing_score
+                attempt3.answers_json = None
+                quiz_attempts.append(attempt3)
+    
+    if quiz_attempts:
+        db.session.add_all(quiz_attempts)
+        db.session.commit()
+    print_marker(f"Created {len(quiz_attempts)} quiz attempts")
+    
+    # create practice words with actual video files
+    print_marker("Creating practice words...")
+    word_videos_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'quiz', 'Words')
+    word_video_files = []
+    if os.path.exists(word_videos_dir):
+        word_video_files = [f for f in os.listdir(word_videos_dir) if f.endswith('.mp4')]
+        # sort to prioritize proper words over numeric filenames
+        word_video_files = sorted(word_video_files, key=lambda x: (x[0].isdigit(), x.lower()))
+    
+    practice_words = []
+    phonetics_map = {
+        'Hello': '/həˈloʊ/',
+        'Thank You': '/θæŋk juː/',
+        'Beautiful': '/ˈbjuːtɪfəl/',
+        'Computer': '/kəmˈpjuːtər/',
+        'Excellent': '/ˈɛksələnt/',
+        'Good': '/ɡʊd/',
+        'Morning': '/ˈmɔːrnɪŋ/',
+        'Night': '/naɪt/',
+        'Please': '/pliːz/',
+        'Welcome': '/ˈwelkəm/',
+    }
+    difficulty_map = {
+        'Hello': 'beginner',
+        'Thank You': 'beginner',
+        'Good': 'beginner',
+        'Morning': 'beginner',
+        'Night': 'beginner',
+        'Please': 'beginner',
+        'Welcome': 'beginner',
+        'Beautiful': 'intermediate',
+        'Computer': 'advanced',
+        'Excellent': 'advanced',
+    }
+    
+    for i, filename in enumerate(word_video_files[:50]):  # seed first 50 practice words
+        word_name = os.path.splitext(filename)[0]
+        # skip numeric-only filenames for better demo
+        if word_name.isdigit():
+            continue
+        # use basic categories cycling through first 5
+        category = categories[i % 5] if categories else None
+        if not category:
+            break
+            
+        pw = PracticeWord()
+        pw.public_id = f'PW-20250101-{str(i+1).zfill(4)}'
+        pw.category_id = category.id
+        pw.word = word_name.replace('_', ' ').title()
+        pw.phonetics = phonetics_map.get(pw.word, f'/phonetic/{pw.word.lower()}/')
+        pw.description = f'Practice the lip reading for "{pw.word}"'
+        pw.video_path = f'/uploads/quiz/Words/{filename}'
+        pw.difficulty = difficulty_map.get(pw.word, 'intermediate')
+        pw.status = 'active'
+        pw.sort_order = i + 1
+        practice_words.append(pw)
+    
+    db.session.add_all(practice_words)
     db.session.commit()
-    print_marker("Inserted sample reviews")
-    return question_count
+    print_marker(f"Created {len(practice_words)} practice words")
+    
+    # create sample feedback items for analytics display
+    print_marker("Creating sample feedback items...")
+    feedback_items = []
+    feedback_types = ['bug', 'feature', 'general']
+    feedback_statuses = ['New', 'In Progress', 'Resolved', 'New', 'New']  # more new items
+    
+    for i in range(8):  # create 8 feedback items
+        fb = Feedback()
+        # use manual sequential ID since generate_public_id doesn't work in loop
+        fb.public_id = f'FB-{datetime.now().strftime("%Y%m%d")}-{str(i+1).zfill(4)}'
+        fb.submitted_by_user_id = user1.id if i % 3 == 0 else (user2.id if i % 3 == 1 else user3.id)
+        fb.feedback_type = feedback_types[i % len(feedback_types)]
+        fb.description = f'Sample feedback item {i+1}: Please improve the {feedback_types[i % len(feedback_types)]} functionality.'
+        fb.status = feedback_statuses[i % len(feedback_statuses)]
+        fb.submission_date = datetime.utcnow() - timedelta(days=random.randint(0, 14))
+        if fb.status == 'Resolved':
+            fb.reviewed_by_admin_id = admin.id
+        feedback_items.append(fb)
+    
+    db.session.add_all(feedback_items)
+    db.session.commit()
+    print_marker(f"Created {len(feedback_items)} feedback items")
+    
+    # note: user_progress not needed since we track completion at series level
+    # which requires video structure that doesn't exist in current seed data
+    
+    total_items = len(categories) + len(tutorials) + len(quiz_series_list) + question_count + len(practice_words) + len(feedback_items)
+    return total_items
 
 
 def main() -> None:
     app: Flask = create_app()
     with app.app_context():
-        question_count = seed_programmatic()
+        total_items = seed_programmatic()
         db.session.commit()
         print_marker("\nDatabase seeding completed successfully!")
         print_marker("Summary:")
@@ -478,7 +769,8 @@ def main() -> None:
         print_marker("  - 20 quizzes created with video files:")
         print_marker("    * Word quizzes: /uploads/quiz/Words/")
         print_marker("    * Phrase quizzes: /uploads/quiz/Phrases/")
-        print_marker(f"  - {question_count} quiz questions created with actual video files")
+        print_marker("  - Practice words created from /uploads/quiz/Words/")
+        print_marker(f"  - {total_items} total items created")
         print_marker("\nLogin credentials:")
         print_marker("  - Admin: admin@example.com / 1234")
         print_marker("  - User: user@example.com / 1234")

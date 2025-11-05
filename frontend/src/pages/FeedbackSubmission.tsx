@@ -24,14 +24,15 @@ import {
   Video
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSubmitGeneralFeedback } from '@/services';
+import { API_BASE_URL } from '@/lib/constants';
 
 const FeedbackSubmission = () => {
   const feedbackToast = useFeedbackToast();
+  const submitFeedbackMutation = useSubmitGeneralFeedback();
   const [feedbackType, setFeedbackType] = useState('');
   const [description, setDescription] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
 
   const breadcrumbItems = [
@@ -91,33 +92,46 @@ const FeedbackSubmission = () => {
       return;
     }
 
-    setIsSubmitting(true);
-
     try {
-      // Simulate API call - saving feedback to database
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      let attachedFilePath = undefined;
       
-      // Show success state
-      setShowSuccess(true);
-      
-      // Clear form after showing success
-      setTimeout(() => {
-        setFeedbackType('');
-        setDescription('');
-        setAttachedFile(null);
-        setShowSuccess(false);
-        setIsSubmitting(false);
-        setErrors({});
+      // If file is attached, upload it first
+      if (attachedFile) {
+        const formData = new FormData();
+        formData.append('file', attachedFile);
         
-        feedbackToast.success(
-          "Feedback Submitted",
-          "Thank you for your feedback! Your submission has been received."
-        );
-      }, 2000);
+        const token = localStorage.getItem('token');
+        const uploadResponse = await fetch(`${API_BASE_URL}/api/feedback/upload`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          body: formData,
+        });
+        
+        if (!uploadResponse.ok) {
+          throw new Error('File upload failed');
+        }
+        
+        const uploadData = await uploadResponse.json();
+        attachedFilePath = uploadData.data.filePath;
+      }
+      
+      // Submit feedback with file path
+      await submitFeedbackMutation.mutateAsync({
+        feedbackType,
+        description,
+        attachedFilePath
+      });
+      
+      // Clear form after successful submission
+      setFeedbackType('');
+      setDescription('');
+      setAttachedFile(null);
+      setErrors({});
       
     } catch (error) {
-      setIsSubmitting(false);
-      feedbackToast.error("Submission Failed", "Please try again later.");
+      // Error handled by mutation
     }
   };
 
@@ -148,49 +162,6 @@ const FeedbackSubmission = () => {
     return <FileText className="h-4 w-4" />;
   };
 
-  if (showSuccess) {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <AnimatedBreadcrumb items={breadcrumbItems} />
-        
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-2xl mx-auto"
-        >
-          <Card className="border-green-200 bg-green-50">
-            <CardContent className="pt-6">
-              <div className="text-center space-y-4">
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.2 }}
-                  className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto"
-                >
-                  <CheckCircle className="h-8 w-8 text-green-600" />
-                </motion.div>
-                
-                <div>
-                  <h2 className="text-2xl font-bold text-green-800">Thank You!</h2>
-                  <p className="text-green-700 mt-2">
-                    Your feedback has been successfully submitted and stored in our database.
-                  </p>
-                  <p className="text-sm text-green-600 mt-1">
-                    Our team will review your submission and get back to you if needed.
-                  </p>
-                </div>
-                
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600 mr-2"></div>
-                  <span className="text-sm text-green-700">Clearing form...</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -211,7 +182,7 @@ const FeedbackSubmission = () => {
           </p>
         </div>
 
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <Card className="border-primary/20 shadow-lg">
               <CardHeader className="bg-gradient-to-r from-primary/5 to-secondary/5">
                 <CardTitle className="text-primary flex items-center gap-2">
@@ -387,10 +358,10 @@ const FeedbackSubmission = () => {
                   >
                     <Button
                       type="submit"
-                      disabled={isSubmitting}
+                      disabled={submitFeedbackMutation.isPending}
                       className="w-full bg-primary hover:bg-primary/90 text-white py-6 text-lg font-medium"
                     >
-                      {isSubmitting ? (
+                      {submitFeedbackMutation.isPending ? (
                         <>
                           <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
                           Submitting Feedback...

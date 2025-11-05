@@ -97,7 +97,8 @@ class FileHandler:
             'videos': 'uploads/series/videos',
             'thumbnails': 'uploads/series/thumbnails', 
             'subtitles': 'uploads/series/subtitles',
-            'documents': 'uploads/education/documents'
+            'documents': 'uploads/education/documents',
+            'feedback': 'uploads/feedback'
         }
     
     @staticmethod
