@@ -109,6 +109,11 @@
     @apply border-border;
   }
 
+  /* scale down base font size to achieve 75% zoom appearance at 100% browser zoom */
+  html {
+    font-size: 12px; /* 75% of default 16px */
+  }
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;

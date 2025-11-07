@@ -36,3 +36,6 @@ export * from './feedback/feedbackMutations';
 // Practice Words
 export * from './practice/practiceQueries';
 export * from './practice/practiceMutations';
+
+// Progress
+export * from './progress/progressQueries';

@@ -28,6 +28,14 @@ class Account(db.Model):
     registration_date: so.Mapped[datetime] = so.mapped_column(sa.DateTime(), nullable=False, default=datetime.utcnow)
     account_type: so.Mapped[str] = so.mapped_column(sa.String(20), nullable=False, index=True)
     status: so.Mapped[str] = so.mapped_column(sa.String(20), nullable=False, default='active', index=True)
+    google_id: so.Mapped[Optional[str]] = so.mapped_column(sa.String(255), unique=True, nullable=True, index=True)
+    _2fa_secret: so.Mapped[Optional[str]] = so.mapped_column(sa.String(255), nullable=True)
+    # login attempt tracking fields
+    failed_login_attempts: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False, default=0)
+    account_locked_until: so.Mapped[Optional[datetime]] = so.mapped_column(sa.DateTime(), nullable=True, index=True)
+    lockout_count: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False, default=0)  # track how many times account has been locked
+    # password reset rate limiting
+    last_password_reset_request: so.Mapped[Optional[datetime]] = so.mapped_column(sa.DateTime(), nullable=True)
 
     # relationships - these will be overridden in subclasses
     accessibility_settings: so.Mapped['AccessibilitySettings'] = so.relationship(back_populates='user', uselist=False)

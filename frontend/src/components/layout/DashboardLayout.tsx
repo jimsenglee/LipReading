@@ -38,9 +38,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         <main className={cn(
           "flex-1 transition-all duration-300 ease-in-out overflow-y-auto",
           // Clean margin transition without complex calculations
-          sidebarOpen && !isMobile ? "ml-72" : "ml-0"
+          sidebarOpen && !isMobile ? "ml-64" : "ml-0"
         )}>
-          <div className="p-6 min-h-full">
+          <div className="p-4 min-h-full">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}

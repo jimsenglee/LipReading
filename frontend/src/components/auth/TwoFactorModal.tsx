@@ -118,17 +118,17 @@ const TwoFactorModal: React.FC<TwoFactorModalProps> = ({
             Two-Factor Authentication
           </DialogTitle>
           <DialogDescription>
-            We've sent a verification code to your email address.
+            Enter the 6-digit code from your authenticator app to complete login.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Email Display */}
+          {/* Instructions */}
           <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
-            <Mail className="h-4 w-4 text-primary" />
+            <Shield className="h-4 w-4 text-primary" />
             <div className="flex-1">
-              <div className="text-sm font-medium">Code sent to:</div>
-              <div className="text-sm text-gray-600">{email}</div>
+              <div className="text-sm font-medium">Authenticator App Required</div>
+              <div className="text-sm text-gray-600">Open your authenticator app and enter the 6-digit code</div>
             </div>
           </div>
 
@@ -171,11 +171,9 @@ const TwoFactorModal: React.FC<TwoFactorModalProps> = ({
             </Button>
           </div>
 
-          {/* Resend Option */}
-          <div className="text-center">
-            <button className="text-sm text-primary hover:text-primary/80 underline-offset-4 hover:underline">
-              Didn't receive the code? Resend
-            </button>
+          {/* Help Text */}
+          <div className="text-center text-sm text-gray-600">
+            Having trouble? Make sure your authenticator app time is synced correctly.
           </div>
         </div>
       </DialogContent>

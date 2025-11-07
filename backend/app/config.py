@@ -27,5 +27,21 @@ class Config:
     # Colab AI server configuration
     COLAB_SERVER_URL = os.getenv('COLAB_SERVER_URL', None)
     MAX_VIDEO_SIZE_MB = int(os.getenv('MAX_VIDEO_SIZE_MB', 100))
+    
+    # Email configuration for password reset and 2FA
+    MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+    MAIL_PORT = int(os.getenv('MAIL_PORT', '587'))
+    MAIL_USE_TLS = os.getenv('MAIL_USE_TLS', 'True').lower() == 'true'
+    MAIL_USERNAME = os.getenv('MAIL_USERNAME', 'chikiongboon@gmail.com')
+    MAIL_PASSWORD = os.getenv('MAIL_PASSWORD', 'ehyizsqusmaqujvz')
+    FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:8080')
+    
+    # Google OAuth configuration
+    GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '404495636811-4vncopqk1m6oado3n81jcskhdi6lrvvm.apps.googleusercontent.com')
+    GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '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')
+    GOOGLE_REDIRECT_URI = os.getenv('GOOGLE_REDIRECT_URI', 'http://127.0.0.1:5000/api/auth/google/callback')
+    
+    # App name for 2FA QR code
+    APP_NAME = os.getenv('APP_NAME', 'LipReading')
 
 

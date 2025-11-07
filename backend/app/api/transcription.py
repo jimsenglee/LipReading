@@ -3,7 +3,8 @@ Transcription API endpoints - Thin layer delegating to services
 Following README.txt separation of concerns
 """
 import os
-from flask import Blueprint, request
+import time
+from flask import Blueprint, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ..services.transcription_service import TranscriptionService
@@ -239,4 +240,283 @@ def delete_transcription(transcription_id: int):
         return handle_api_error(e)
     except Exception as e:
         return ResponseService.error_response(f"Failed to delete transcription: {str(e)}", 500)
+
+
+@transcription_bp.route('/transcriptions/practice/realtime', methods=['POST'])
+@jwt_required()
+def process_practice_realtime():
+    """Process real-time practice video frames for transcription (batch processing like realtime)"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        print(f"[DEBUG] ===== PRACTICE REALTIME REQUEST ======")
+        print(f"[DEBUG] User ID: {current_user_id}")
+        
+        # check if frames are provided (support both single frame and batch)
+        if 'frame' in request.files:
+            # single frame mode (legacy support)
+            frame_file = request.files['frame']
+            frame_files = [frame_file]
+            print(f"[DEBUG] Single frame mode detected")
+        elif 'frames' in request.files:
+            # batch frames mode (preferred)
+            frame_files = request.files.getlist('frames')
+            print(f"[DEBUG] Batch frames mode detected: {len(frame_files)} frames")
+        else:
+            return ResponseService.error_response('No video frame(s) provided', 400)
+        
+        word_id = request.form.get('word_id')
+        print(f"[DEBUG] Word ID: {word_id}")
+        
+        if not frame_files or len(frame_files) == 0:
+            return ResponseService.error_response('Empty frame file(s)', 400)
+        
+        # for single frame, we need to collect more frames or use existing batch logic
+        # for now, if single frame, we'll create a minimal video (duplicate frame)
+        if len(frame_files) == 1:
+            print(f"[DEBUG] Single frame provided - duplicating to create minimal video")
+            # duplicate frame 25 times to create 1 second video
+            frame_files = frame_files * 25
+        
+        if len(frame_files) < 25:
+            return ResponseService.error_response(f'Not enough frames. Need at least 25 frames, got {len(frame_files)}', 400)
+        
+        print(f"[DEBUG] Processing {len(frame_files)} frames for practice transcription")
+        
+        # save frames temporarily and create video from them (like realtime endpoint)
+        import tempfile
+        import cv2
+        import numpy as np
+        
+        temp_dir = tempfile.gettempdir()
+        frames_dir = os.path.join(temp_dir, f"practice_frames_{current_user_id}_{int(time.time() * 1000)}")
+        os.makedirs(frames_dir, exist_ok=True)
+        
+        # save all frames
+        frame_paths = []
+        for idx, frame_file in enumerate(frame_files):
+            frame_filename = f"frame_{idx:04d}.jpg"
+            frame_path = os.path.join(frames_dir, frame_filename)
+            frame_file.save(frame_path)
+            frame_paths.append(frame_path)
+        
+        print(f"[DEBUG] Saved {len(frame_paths)} frames to {frames_dir}")
+        
+        # create video from frames
+        video_output_path = os.path.join(temp_dir, f"practice_video_{current_user_id}_{int(time.time() * 1000)}.mp4")
+        
+        try:
+            # read first frame to get dimensions
+            first_frame = cv2.imread(frame_paths[0], cv2.IMREAD_GRAYSCALE)
+            if first_frame is None:
+                raise ValueError("Could not read first frame")
+            
+            height, width = first_frame.shape
+            print(f"[DEBUG] Video dimensions: {width}x{height}, {len(frame_paths)} frames")
+            
+            # create video writer (25fps)
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # type: ignore[attr-defined]
+            out = cv2.VideoWriter(video_output_path, fourcc, 25.0, (width, height), False)
+            
+            # write all frames to video
+            for frame_path in frame_paths:
+                frame = cv2.imread(frame_path, cv2.IMREAD_GRAYSCALE)
+                if frame is not None:
+                    out.write(frame)
+            
+            out.release()
+            print(f"[DEBUG] Created practice video file: {video_output_path}")
+            
+            # process video with colab ai
+            print(f"[DEBUG] Sending practice video to Colab AI for processing...")
+            ai_result = ColabAIService.process_video_file(video_output_path)
+            
+            print(f"[DEBUG] ===== PRACTICE COLAB AI RESULT ======")
+            print(f"[DEBUG] AI Result success: {ai_result.get('success')}")
+            print(f"[DEBUG] AI Result transcription: {ai_result.get('transcription', 'N/A')}")
+            print(f"[DEBUG] AI Result error: {ai_result.get('error', 'N/A')}")
+            print(f"[DEBUG] ===== END PRACTICE AI RESULT =====")
+            
+            # cleanup temp files
+            try:
+                if os.path.exists(video_output_path):
+                    os.remove(video_output_path)
+                for frame_path in frame_paths:
+                    if os.path.exists(frame_path):
+                        os.remove(frame_path)
+                if os.path.exists(frames_dir):
+                    os.rmdir(frames_dir)
+            except Exception as cleanup_error:
+                print(f"[DEBUG] Cleanup error (non-critical): {cleanup_error}")
+            
+            if ai_result.get('success'):
+                transcription_text = ai_result.get('transcription', '')
+                print(f"[DEBUG] ===== PRACTICE TRANSCRIPTION RESULT ======")
+                print(f"[DEBUG] Transcription text: '{transcription_text}'")
+                print(f"[DEBUG] Transcription length: {len(transcription_text)} characters")
+                print(f"[DEBUG] ===== END PRACTICE RESULT ======")
+                return ResponseService.success_response({
+                    'transcription': transcription_text,
+                    'word_id': word_id
+                }, message="Practice frame processed successfully")
+            else:
+                error_msg = ai_result.get('error', 'Unknown error')
+                print(f"[DEBUG] ===== PRACTICE PROCESSING FAILED ======")
+                print(f"[DEBUG] Error: {error_msg}")
+                print(f"[DEBUG] ===== END PRACTICE ERROR ======")
+                return ResponseService.error_response(f"Processing failed: {error_msg}", 500)
+                
+        except Exception as video_error:
+            print(f"[DEBUG] Practice video creation error: {str(video_error)}")
+            import traceback
+            traceback.print_exc()
+            # cleanup on error
+            try:
+                if os.path.exists(video_output_path):
+                    os.remove(video_output_path)
+                for frame_path in frame_paths:
+                    if os.path.exists(frame_path):
+                        os.remove(frame_path)
+                if os.path.exists(frames_dir):
+                    os.rmdir(frames_dir)
+            except:
+                pass
+            return ResponseService.error_response(f"Video creation failed: {str(video_error)}", 500)
+        
+    except APIError as e:
+        return handle_api_error(e)
+    except Exception as e:
+        print(f"[DEBUG] Practice realtime error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return ResponseService.error_response(f"Failed to process frame: {str(e)}", 500)
+
+
+@transcription_bp.route('/transcriptions/realtime', methods=['POST'])
+@jwt_required()
+def process_realtime_transcription():
+    """Process real-time transcription - collect frames and create video for processing"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # check if frames are provided (multiple frames for video creation)
+        if 'frames' not in request.files:
+            return ResponseService.error_response('No video frames provided', 400)
+        
+        frame_files = request.files.getlist('frames')
+        
+        if not frame_files or len(frame_files) < 25:  # need at least 1 second at 25fps
+            return ResponseService.error_response(f'Not enough frames provided. Need at least 25 frames, got {len(frame_files) if frame_files else 0}', 400)
+        
+        print(f"[DEBUG] Received {len(frame_files)} frames for realtime transcription")
+        
+        # save frames temporarily and create video from them (like colab cell)
+        import tempfile
+        import cv2
+        import numpy as np
+        
+        temp_dir = tempfile.gettempdir()
+        frames_dir = os.path.join(temp_dir, f"realtime_frames_{current_user_id}_{int(time.time() * 1000)}")
+        os.makedirs(frames_dir, exist_ok=True)
+        
+        # save all frames
+        frame_paths = []
+        for idx, frame_file in enumerate(frame_files):
+            frame_filename = f"frame_{idx:04d}.jpg"
+            frame_path = os.path.join(frames_dir, frame_filename)
+            frame_file.save(frame_path)
+            frame_paths.append(frame_path)
+        
+        print(f"[DEBUG] Saved {len(frame_paths)} frames to {frames_dir}")
+        
+        # create video from frames (like colab cell process_recorded_video)
+        video_output_path = os.path.join(temp_dir, f"realtime_video_{current_user_id}_{int(time.time() * 1000)}.mp4")
+        
+        try:
+            # read first frame to get dimensions
+            first_frame = cv2.imread(frame_paths[0], cv2.IMREAD_GRAYSCALE)
+            if first_frame is None:
+                raise ValueError("Could not read first frame")
+            
+            height, width = first_frame.shape
+            print(f"[DEBUG] Video dimensions: {width}x{height}, {len(frame_paths)} frames")
+            
+            # create video writer (25fps like colab cell)
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # type: ignore[attr-defined]
+            out = cv2.VideoWriter(video_output_path, fourcc, 25.0, (width, height), False)
+            
+            # write all frames to video
+            for frame_path in frame_paths:
+                frame = cv2.imread(frame_path, cv2.IMREAD_GRAYSCALE)
+                if frame is not None:
+                    out.write(frame)
+            
+            out.release()
+            print(f"[DEBUG] Created video file: {video_output_path}")
+            
+            # process video with colab ai (like video upload feature)
+            print(f"[DEBUG] Sending video to Colab AI for processing...")
+            print(f"[DEBUG] Video file exists: {os.path.exists(video_output_path)}")
+            print(f"[DEBUG] Video file size: {os.path.getsize(video_output_path) if os.path.exists(video_output_path) else 'N/A'} bytes")
+            
+            ai_result = ColabAIService.process_video_file(video_output_path)
+            
+            print(f"[DEBUG] ===== COLAB AI RESULT ======")
+            print(f"[DEBUG] AI Result success: {ai_result.get('success')}")
+            print(f"[DEBUG] AI Result transcription: {ai_result.get('transcription', 'N/A')}")
+            print(f"[DEBUG] AI Result error: {ai_result.get('error', 'N/A')}")
+            print(f"[DEBUG] ===== END COLAB AI RESULT =====")
+            
+            # cleanup temp files
+            try:
+                if os.path.exists(video_output_path):
+                    os.remove(video_output_path)
+                for frame_path in frame_paths:
+                    if os.path.exists(frame_path):
+                        os.remove(frame_path)
+                if os.path.exists(frames_dir):
+                    os.rmdir(frames_dir)
+            except Exception as cleanup_error:
+                print(f"[DEBUG] Cleanup error (non-critical): {cleanup_error}")
+            
+            if ai_result.get('success'):
+                transcription_text = ai_result.get('transcription', '')
+                print(f"[DEBUG] ===== FINAL TRANSCRIPTION RESULT ======")
+                print(f"[DEBUG] Transcription text: '{transcription_text}'")
+                print(f"[DEBUG] Transcription length: {len(transcription_text)} characters")
+                print(f"[DEBUG] ===== END FINAL RESULT ======")
+                return ResponseService.success_response({
+                    'transcription': transcription_text
+                }, message="Frames processed successfully")
+            else:
+                error_msg = ai_result.get('error', 'Unknown error')
+                print(f"[DEBUG] ===== PROCESSING FAILED ======")
+                print(f"[DEBUG] Error: {error_msg}")
+                print(f"[DEBUG] ===== END ERROR ======")
+                return ResponseService.error_response(f"Processing failed: {error_msg}", 500)
+                
+        except Exception as video_error:
+            print(f"[DEBUG] Video creation error: {str(video_error)}")
+            import traceback
+            traceback.print_exc()
+            # cleanup on error
+            try:
+                if os.path.exists(video_output_path):
+                    os.remove(video_output_path)
+                for frame_path in frame_paths:
+                    if os.path.exists(frame_path):
+                        os.remove(frame_path)
+                if os.path.exists(frames_dir):
+                    os.rmdir(frames_dir)
+            except:
+                pass
+            return ResponseService.error_response(f"Video creation failed: {str(video_error)}", 500)
+        
+    except APIError as e:
+        return handle_api_error(e)
+    except Exception as e:
+        print(f"[DEBUG] Realtime transcription error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return ResponseService.error_response(f"Failed to process frames: {str(e)}", 500)
 

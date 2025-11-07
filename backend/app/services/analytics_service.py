@@ -3,8 +3,8 @@ analytics service for calculating content interaction and feedback analytics
 Following README.txt separation of concerns
 """
 from flask import current_app
-from sqlalchemy import select, func, and_, or_
-from typing import Dict, Any, List
+from sqlalchemy import select, func, and_, or_, case, desc, asc
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from ..extensions import db
 from ..models.tutorial import Tutorial
@@ -48,13 +48,13 @@ class AnalyticsService:
             # a series is completed when user has completed all videos in that series
             avg_completion = AnalyticsService._calculate_avg_completion_rate()
             
-            print(f"[DEBUG] Content analytics calculated: tutorials={total_tutorials}, views={total_views}, bookmarks={total_bookmarks}, completion={avg_completion}")
+            print(f"[DEBUG] Content analytics: tutorials={total_tutorials}, views={total_views}, bookmarks={total_bookmarks}, avg_completion={avg_completion}")
             
             return ResponseService.success_response({
                 "totalTutorials": total_tutorials,
                 "totalViews": total_views,
                 "totalBookmarks": total_bookmarks,
-                "avgCompletionRate": round(avg_completion, 1)
+                "avgCompletion": round(avg_completion, 1)
             })
             
         except Exception as e:
@@ -65,268 +65,71 @@ class AnalyticsService:
 
     @staticmethod
     def _calculate_avg_completion_rate():
-        """calculate average completion rate for all tutorial series"""
+        """calculate average completion rate for tutorial series"""
         try:
-            # get all series (not individual videos)
-            all_series = db.session.scalars(
-                select(Tutorial)
-                .where(Tutorial.status != 'deleted')
+            # get all tutorial series (parent tutorials with series_type='series')
+            series_tutorials = db.session.scalars(
+                select(Tutorial.id)
                 .where(Tutorial.series_type == 'series')
+                .where(Tutorial.parent_series_id == None)
             ).all()
             
-            if not all_series:
+            if not series_tutorials:
                 return 0.0
             
-            series_completion_rates = []
+            total_completion_rates = []
             
-            for series in all_series:
+            for series_id in series_tutorials:
                 # get all videos in this series
                 series_videos = db.session.scalars(
-                    select(Tutorial)
-                    .where(Tutorial.parent_series_id == series.id)
-                    .where(Tutorial.status != 'deleted')
+                    select(Tutorial.id)
+                    .where(Tutorial.parent_series_id == series_id)
                 ).all()
                 
                 if not series_videos:
                     continue
                 
-                # get unique users who have bookmarked this series
-                users_who_bookmarked = db.session.scalars(
+                # get all users who bookmarked this series (enrolled)
+                enrolled_users = db.session.scalars(
                     select(user_bookmarks.c.user_id).distinct()
-                    .where(user_bookmarks.c.tutorial_id == series.id)
+                    .where(user_bookmarks.c.tutorial_id == series_id)
                 ).all()
                 
-                if not users_who_bookmarked:
+                if not enrolled_users:
                     continue
                 
+                # for each enrolled user, check if they completed all videos
                 completed_count = 0
-                
-                for user_id in users_who_bookmarked:
-                    # check if user has completed all videos in series
-                    videos_completed = db.session.scalar(
+                for user_id in enrolled_users:
+                    # count completed videos for this user in this series
+                    completed_videos = db.session.scalar(
                         select(func.count(UserProgress.id))
                         .where(UserProgress.user_id == user_id)
-                        .where(UserProgress.series_id == series.id)
+                        .where(UserProgress.series_id == series_id)
                         .where(UserProgress.is_completed == True)
                     ) or 0
                     
-                    # user completed series if they completed all videos
-                    if videos_completed >= len(series_videos):
+                    # user completed the series if they completed all videos
+                    if completed_videos >= len(series_videos):
                         completed_count += 1
                 
                 # calculate completion rate for this series
-                completion_rate = (completed_count / len(users_who_bookmarked)) * 100
-                series_completion_rates.append(completion_rate)
+                if len(enrolled_users) > 0:
+                    series_completion_rate = (completed_count / len(enrolled_users)) * 100
+                    total_completion_rates.append(series_completion_rate)
             
             # return average completion rate across all series
-            if series_completion_rates:
-                return sum(series_completion_rates) / len(series_completion_rates)
-            else:
-                return 0.0
-                
-        except Exception as e:
-            current_app.logger.error(f"calculate completion rate error: {str(e)}")
+            if total_completion_rates:
+                return sum(total_completion_rates) / len(total_completion_rates)
             return 0.0
-
-    @staticmethod
-    def get_tutorial_popularity():
-        """get tutorial popularity data for chart"""
-        try:
-            print(f"[DEBUG] get_tutorial_popularity called")
-            
-            # get top tutorials ordered by views
-            results = db.session.execute(
-                select(Tutorial, Category)
-                .join(Category, Tutorial.category_id == Category.id)
-                .where(Tutorial.status != 'deleted')
-                .where(Tutorial.series_type == 'series')  # only get series, not individual videos
-                .order_by(Tutorial.views.desc())
-                .limit(10)
-            ).all()
-            
-            popularity_data = []
-            
-            for row in results:
-                tutorial = row[0]
-                category = row[1] if len(row) > 1 else None
-                
-                # get bookmark count for this tutorial
-                bookmark_count = db.session.scalar(
-                    select(func.count(user_bookmarks.c.tutorial_id))
-                    .where(user_bookmarks.c.tutorial_id == tutorial.id)
-                ) or 0
-                
-                popularity_data.append({
-                    "id": tutorial.id,
-                    "publicId": tutorial.public_id,
-                    "title": tutorial.title,
-                    "category": category.category_name if category else "Unknown",
-                    "views": tutorial.views,
-                    "bookmarks": bookmark_count
-                })
-            
-            print(f"[DEBUG] Found {len(popularity_data)} tutorials for popularity chart")
-            
-            return ResponseService.success_response(popularity_data)
             
         except Exception as e:
-            current_app.logger.error(f"get tutorial popularity error: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            raise APIError("internal server error", 500)
-
-    @staticmethod
-    def get_tutorial_interaction_details(params: Dict[str, Any] | None = None):
-        """get detailed tutorial interaction data for table with pagination and filtering"""
-        try:
-            print(f"[DEBUG] get_tutorial_interaction_details called with params: {params}")
-            
-            # build base query
-            query = select(Tutorial, Category)
-            query = query.join(Category, Tutorial.category_id == Category.id)
-            query = query.where(Tutorial.status != 'deleted')
-            query = query.where(Tutorial.series_type == 'series')
-            
-            # apply filters if provided
-            if params:
-                if params.get('search'):
-                    search_term = params['search']
-                    query = query.where(
-                        or_(
-                            Tutorial.title.ilike(f'%{search_term}%'),
-                            Category.category_name.ilike(f'%{search_term}%')
-                        )
-                    )
-                
-                if params.get('category') and params['category'] != 'all':
-                    query = query.where(Category.category_name == params['category'])
-            
-            # get total count before pagination
-            count_query = select(func.count()).select_from(query.subquery())
-            total = db.session.scalar(count_query) or 0
-            
-            # apply sorting
-            sort_by = params.get('sort_by', 'views') if params else 'views'
-            sort_order = params.get('sort_order', 'desc') if params else 'desc'
-            
-            if sort_by == 'title':
-                sort_column = Tutorial.title
-            elif sort_by == 'category':
-                sort_column = Category.category_name
-            elif sort_by == 'views':
-                sort_column = Tutorial.views
-            elif sort_by == 'bookmarks':
-                # will need to sort after fetching bookmark counts
-                sort_column = Tutorial.id
-            elif sort_by == 'completion_rate':
-                # will need to sort after calculating completion rates
-                sort_column = Tutorial.id
-            else:
-                sort_column = Tutorial.views
-            
-            if sort_order == 'desc':
-                query = query.order_by(sort_column.desc())
-            else:
-                query = query.order_by(sort_column.asc())
-            
-            # apply pagination
-            page = int(params.get('page', 1)) if params else 1
-            per_page = int(params.get('per_page', 10)) if params else 10
-            offset = (page - 1) * per_page
-            query = query.offset(offset).limit(per_page)
-            
-            # execute query
-            tutorials = db.session.execute(query).all()
-            
-            interaction_details = []
-            
-            for row in tutorials:
-                tutorial = row[0]
-                category = row[1] if len(row) > 1 else None
-                
-                # get bookmark count
-                bookmark_count = db.session.scalar(
-                    select(func.count(user_bookmarks.c.tutorial_id))
-                    .where(user_bookmarks.c.tutorial_id == tutorial.id)
-                ) or 0
-                
-                # calculate completion rate for this tutorial
-                completion_rate = AnalyticsService._calculate_tutorial_completion_rate(tutorial.id)
-                
-                interaction_details.append({
-                    "tutorialId": str(tutorial.id),
-                    "title": tutorial.title,
-                    "category": category.category_name if category else "Unknown",
-                    "views": tutorial.views,
-                    "bookmarks": bookmark_count,
-                    "completionRate": round(completion_rate, 1)
-                })
-            
-            # sort by bookmarks or completion_rate if needed (client-side for these)
-            if sort_by == 'bookmarks':
-                interaction_details.sort(key=lambda x: x['bookmarks'], reverse=(sort_order == 'desc'))
-            elif sort_by == 'completion_rate':
-                interaction_details.sort(key=lambda x: x['completionRate'], reverse=(sort_order == 'desc'))
-            
-            pagination = ResponseService.pagination_info(page, per_page, total)
-            print(f"[DEBUG] Found {len(interaction_details)} tutorials for interaction table (page {page})")
-            
-            return ResponseService.success_response(interaction_details, pagination=pagination)
-            
-        except Exception as e:
-            current_app.logger.error(f"get tutorial interaction details error: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            raise APIError("internal server error", 500)
-
-    @staticmethod
-    def _calculate_tutorial_completion_rate(tutorial_id: int):
-        """calculate completion rate for a specific tutorial series"""
-        try:
-            # get all videos in this series
-            series_videos = db.session.scalars(
-                select(Tutorial)
-                .where(Tutorial.parent_series_id == tutorial_id)
-                .where(Tutorial.status != 'deleted')
-            ).all()
-            
-            if not series_videos:
-                return 0.0
-            
-            # get unique users who have bookmarked this series
-            users_who_bookmarked = db.session.scalars(
-                select(user_bookmarks.c.user_id).distinct()
-                .where(user_bookmarks.c.tutorial_id == tutorial_id)
-            ).all()
-            
-            if not users_who_bookmarked:
-                return 0.0
-            
-            completed_count = 0
-            
-            for user_id in users_who_bookmarked:
-                # check if user has completed all videos in series
-                videos_completed = db.session.scalar(
-                    select(func.count(UserProgress.id))
-                    .where(UserProgress.user_id == user_id)
-                    .where(UserProgress.series_id == tutorial_id)
-                    .where(UserProgress.is_completed == True)
-                ) or 0
-                
-                # user completed series if they completed all videos
-                if videos_completed >= len(series_videos):
-                    completed_count += 1
-            
-            # calculate completion rate
-            return (completed_count / len(users_who_bookmarked)) * 100
-            
-        except Exception as e:
-            current_app.logger.error(f"calculate tutorial completion rate error: {str(e)}")
+            current_app.logger.error(f"calculate avg completion rate error: {str(e)}")
             return 0.0
 
     @staticmethod
     def get_feedback_analytics():
-        """get feedback management analytics"""
+        """get feedback analytics for admin dashboard"""
         try:
             print(f"[DEBUG] get_feedback_analytics called")
             
@@ -335,31 +138,29 @@ class AnalyticsService:
                 select(func.count(Feedback.id))
             ) or 0
             
-            # get new items count (status = 'New')
-            new_items = db.session.scalar(
+            # get feedback by status
+            new_feedback = db.session.scalar(
                 select(func.count(Feedback.id))
-                .where(Feedback.status == 'New')
+                .where(Feedback.status == 'new')
             ) or 0
             
-            # get in progress count (status = 'In Progress')
-            in_progress = db.session.scalar(
+            in_progress_feedback = db.session.scalar(
                 select(func.count(Feedback.id))
-                .where(Feedback.status == 'In Progress')
+                .where(Feedback.status == 'in_progress')
             ) or 0
             
-            # get resolved count (status = 'Resolved')
-            resolved = db.session.scalar(
+            resolved_feedback = db.session.scalar(
                 select(func.count(Feedback.id))
-                .where(Feedback.status == 'Resolved')
+                .where(Feedback.status == 'resolved')
             ) or 0
             
-            print(f"[DEBUG] Feedback analytics calculated: total={total_feedback}, new={new_items}, in_progress={in_progress}, resolved={resolved}")
+            print(f"[DEBUG] Feedback analytics: total={total_feedback}, new={new_feedback}, in_progress={in_progress_feedback}, resolved={resolved_feedback}")
             
             return ResponseService.success_response({
-                "totalFeedback": total_feedback,
-                "newItems": new_items,
-                "inProgress": in_progress,
-                "resolved": resolved
+                "total": total_feedback,
+                "new": new_feedback,
+                "inProgress": in_progress_feedback,
+                "resolved": resolved_feedback
             })
             
         except Exception as e:
@@ -367,211 +168,693 @@ class AnalyticsService:
             import traceback
             traceback.print_exc()
             raise APIError("internal server error", 500)
-
+    
     @staticmethod
-    def get_feedback_distributions():
-        """get feedback distribution data for charts"""
+    def get_user_learning_analytics(params: Optional[dict] = None):
+        """get comprehensive admin-focused analytics for dashboard"""
         try:
-            print(f"[DEBUG] get_feedback_distributions called")
+            from ..models.quiz_attempt import QuizAttempt
+            from ..models.user import User
+            from ..models.review import Review
             
-            # get distribution by status
-            status_dist = db.session.execute(
-                select(Feedback.status, func.count(Feedback.id))
-                .group_by(Feedback.status)
-            ).all()
+            print(f"[DEBUG] get_user_learning_analytics called with params: {params}")
             
-            status_data = []
-            status_colors = {
-                'New': '#3B82F6',
-                'In Progress': '#F59E0B',
-                'Resolved': '#10B981',
-                'Closed': '#6B7280'
-            }
+            # ============================================================================
+            # OVERALL STATISTICS - ADMIN FOCUSED
+            # ============================================================================
             
-            for status, count in status_dist:
-                status_data.append({
-                    "name": status,
-                    "value": count,
-                    "color": status_colors.get(status, '#6B7280')
+            # total users
+            total_users = db.session.scalar(select(func.count(User.id))) or 0
+            
+            # total tutorials (series only, not individual videos)
+            total_tutorials = db.session.scalar(
+                select(func.count(Tutorial.id))
+                .where(Tutorial.series_type == 'series')
+                .where(Tutorial.parent_series_id == None)
+            ) or 0
+            
+            # total quizzes (series only)
+            total_quizzes = db.session.scalar(
+                select(func.count(Quiz.id))
+                .where(Quiz.series_type == 'series')
+                .where(Quiz.parent_series_id == None)
+            ) or 0
+            
+            # total tutorial enrollments (bookmarks)
+            total_tutorial_enrollments = db.session.scalar(
+                select(func.count(user_bookmarks.c.tutorial_id))
+            ) or 0
+            
+            # total quiz attempts (enrollments)
+            total_quiz_attempts = db.session.scalar(
+                select(func.count(QuizAttempt.id))
+            ) or 0
+            
+            # average quiz score
+            avg_quiz_score = db.session.scalar(
+                select(func.avg(QuizAttempt.score))
+            ) or 0.0
+            
+            # total categories
+            total_categories = db.session.scalar(select(func.count(Category.id))) or 0
+            
+            print(f"[DEBUG] Overall: users={total_users}, tutorials={total_tutorials}, quizzes={total_quizzes}, enrollments={total_tutorial_enrollments}, attempts={total_quiz_attempts}")
+            
+            # ============================================================================
+            # TUTORIAL ENROLLMENT STATS
+            # ============================================================================
+            
+            tutorial_enrollment_query = (
+                select(
+                    Tutorial.id,
+                    Tutorial.public_id,
+                    Tutorial.title,
+                    Category.category_name,
+                    func.count(user_bookmarks.c.user_id).label('enrollments'),
+                    func.sum(Tutorial.views).label('total_views')
+                )
+                .join(Category, Category.id == Tutorial.category_id)
+                .outerjoin(user_bookmarks, user_bookmarks.c.tutorial_id == Tutorial.id)
+                .where(Tutorial.series_type == 'series')
+                .where(Tutorial.parent_series_id == None)
+                .group_by(Tutorial.id, Tutorial.public_id, Tutorial.title, Category.category_name)
+                .order_by(func.count(user_bookmarks.c.user_id).desc())
+                .limit(10)
+            )
+            
+            tutorial_enrollments = []
+            for row in db.session.execute(tutorial_enrollment_query).all():
+                tutorial_enrollments.append({
+                    "tutorialId": row.public_id,
+                    "title": row.title,
+                    "category": row.category_name,
+                    "enrollments": row.enrollments or 0,
+                    "views": row.total_views or 0
                 })
             
-            # get distribution by type
-            type_dist = db.session.execute(
-                select(Feedback.feedback_type, func.count(Feedback.id))
-                .group_by(Feedback.feedback_type)
-            ).all()
+            print(f"[DEBUG] Found {len(tutorial_enrollments)} tutorial enrollments")
             
-            type_data = []
-            type_colors = {
-                'bug': '#EF4444',
-                'feature': '#3B82F6',
-                'general': '#10B981'
-            }
+            # ============================================================================
+            # QUIZ ENROLLMENT STATS
+            # ============================================================================
             
-            for feedback_type, count in type_dist:
-                # map database type to display name
-                type_display_map = {
-                    'bug': 'Bug Reports',
-                    'feature': 'Feature Requests',
-                    'general': 'General Feedback'
-                }
-                display_name = type_display_map.get(feedback_type, feedback_type.title())
+            quiz_enrollment_query = (
+                select(
+                    Quiz.id,
+                    Quiz.public_id,
+                    Quiz.title,
+                    Category.category_name,
+                    func.count(QuizAttempt.id).label('attempts'),
+                    func.sum(Quiz.views).label('total_views')
+                )
+                .join(Category, Category.id == Quiz.category_id)
+                .outerjoin(QuizAttempt, QuizAttempt.quiz_id == Quiz.id)
+                .where(Quiz.series_type == 'series')
+                .where(Quiz.parent_series_id == None)
+                .group_by(Quiz.id, Quiz.public_id, Quiz.title, Category.category_name)
+                .order_by(func.count(QuizAttempt.id).desc())
+                .limit(10)
+            )
+            
+            quiz_enrollments = []
+            for row in db.session.execute(quiz_enrollment_query).all():
+                quiz_enrollments.append({
+                    "quizId": row.public_id,
+                    "title": row.title,
+                    "category": row.category_name,
+                    "attempts": row.attempts or 0,
+                    "views": row.total_views or 0
+                })
+            
+            print(f"[DEBUG] Found {len(quiz_enrollments)} quiz enrollments")
+            
+            # ============================================================================
+            # RATINGS & REVIEWS COMPARISON
+            # ============================================================================
+            
+            # tutorial ratings
+            tutorial_ratings_query = (
+                select(
+                    Tutorial.id,
+                    Tutorial.public_id,
+                    Tutorial.title,
+                    Category.category_name,
+                    func.avg(Review.rating).label('avg_rating'),
+                    func.count(Review.id).label('total_reviews')
+                )
+                .join(Category, Category.id == Tutorial.category_id)
+                .outerjoin(Review, and_(
+                    Review.target_type == 'tutorial',
+                    Review.target_id == Tutorial.id
+                ))
+                .where(Tutorial.series_type == 'series')
+                .where(Tutorial.parent_series_id == None)
+                .group_by(Tutorial.id, Tutorial.public_id, Tutorial.title, Category.category_name)
+                .having(func.count(Review.id) > 0)
+                .order_by(func.avg(Review.rating).desc())
+                .limit(10)
+            )
+            
+            tutorial_ratings = []
+            for row in db.session.execute(tutorial_ratings_query).all():
+                tutorial_ratings.append({
+                    "contentId": row.public_id,
+                    "title": row.title,
+                    "category": row.category_name,
+                    "type": "tutorial",
+                    "avgRating": round(float(row.avg_rating), 1),
+                    "totalReviews": row.total_reviews
+                })
+            
+            # quiz ratings
+            quiz_ratings_query = (
+                select(
+                    Quiz.id,
+                    Quiz.public_id,
+                    Quiz.title,
+                    Category.category_name,
+                    func.avg(Review.rating).label('avg_rating'),
+                    func.count(Review.id).label('total_reviews')
+                )
+                .join(Category, Category.id == Quiz.category_id)
+                .outerjoin(Review, and_(
+                    Review.target_type == 'quiz',
+                    Review.target_id == Quiz.id
+                ))
+                .where(Quiz.series_type == 'series')
+                .where(Quiz.parent_series_id == None)
+                .group_by(Quiz.id, Quiz.public_id, Quiz.title, Category.category_name)
+                .having(func.count(Review.id) > 0)
+                .order_by(func.avg(Review.rating).desc())
+                .limit(10)
+            )
+            
+            quiz_ratings = []
+            for row in db.session.execute(quiz_ratings_query).all():
+                quiz_ratings.append({
+                    "contentId": row.public_id,
+                    "title": row.title,
+                    "category": row.category_name,
+                    "type": "quiz",
+                    "avgRating": round(float(row.avg_rating), 1),
+                    "totalReviews": row.total_reviews
+                })
+            
+            # combine and sort by rating
+            all_ratings = tutorial_ratings + quiz_ratings
+            all_ratings.sort(key=lambda x: x['avgRating'], reverse=True)
+            
+            print(f"[DEBUG] Found {len(all_ratings)} content items with ratings")
+            
+            # ============================================================================
+            # SERIES COMPLETION RATES
+            # ============================================================================
+            
+            # get tutorial series completion rates
+            series_completion_query = (
+                select(
+                    Tutorial.id,
+                    Tutorial.public_id,
+                    Tutorial.title,
+                    Category.category_name,
+                    func.count(user_bookmarks.c.user_id.distinct()).label('enrolled_users')
+                )
+                .join(Category, Category.id == Tutorial.category_id)
+                .outerjoin(user_bookmarks, user_bookmarks.c.tutorial_id == Tutorial.id)
+                .where(Tutorial.series_type == 'series')
+                .where(Tutorial.parent_series_id == None)
+                .group_by(Tutorial.id, Tutorial.public_id, Tutorial.title, Category.category_name)
+            )
+            
+            series_completions = []
+            for row in db.session.execute(series_completion_query).all():
+                series_id = row.id
+                enrolled_count = row.enrolled_users or 0
                 
-                type_data.append({
-                    "type": display_name,
-                    "count": count,
-                    "color": type_colors.get(feedback_type, '#6B7280')
+                if enrolled_count == 0:
+                    continue
+                
+                # get all videos in this series
+                series_videos = db.session.scalars(
+                    select(Tutorial.id)
+                    .where(Tutorial.parent_series_id == series_id)
+                ).all()
+                
+                if not series_videos:
+                    continue
+                
+                # get enrolled users
+                enrolled_users = db.session.scalars(
+                    select(user_bookmarks.c.user_id).distinct()
+                    .where(user_bookmarks.c.tutorial_id == series_id)
+                ).all()
+                
+                # count users who completed all videos
+                completed_count = 0
+                for user_id in enrolled_users:
+                    completed_videos = db.session.scalar(
+                        select(func.count(UserProgress.id))
+                        .where(UserProgress.user_id == user_id)
+                        .where(UserProgress.series_id == series_id)
+                        .where(UserProgress.is_completed == True)
+                    ) or 0
+                    
+                    if completed_videos >= len(series_videos):
+                        completed_count += 1
+                
+                completion_rate = (completed_count / enrolled_count * 100) if enrolled_count > 0 else 0.0
+                
+                series_completions.append({
+                    "seriesId": row.public_id,
+                    "title": row.title,
+                    "category": row.category_name,
+                    "enrolledUsers": enrolled_count,
+                    "completedUsers": completed_count,
+                    "completionRate": round(completion_rate, 1),
+                    "totalVideos": len(series_videos)
                 })
             
-            print(f"[DEBUG] Feedback distributions calculated: status={len(status_data)}, type={len(type_data)}")
+            series_completions.sort(key=lambda x: x['completionRate'], reverse=True)
+            print(f"[DEBUG] Found {len(series_completions)} series with completion data")
             
-            return ResponseService.success_response({
-                "byStatus": status_data,
-                "byType": type_data
-            })
+            # ============================================================================
+            # TOP PERFORMERS
+            # ============================================================================
+            
+            top_performers_query = (
+                select(
+                    QuizAttempt.user_id,
+                    func.avg(QuizAttempt.score).label('avg_score'),
+                    func.count(QuizAttempt.id).label('total_quizzes'),
+                    func.max(QuizAttempt.completion_date).label('last_activity')
+                )
+                .group_by(QuizAttempt.user_id)
+                .order_by(func.avg(QuizAttempt.score).desc())
+                .limit(10)
+            )
+            
+            top_performers = []
+            for rank, (user_id, avg_score, total_quizzes, last_activity) in enumerate(db.session.execute(top_performers_query).all(), 1):
+                user = db.session.scalar(select(User).where(User.id == user_id))
+                if user:
+                    top_performers.append({
+                        "rank": rank,
+                        "userId": user_id,
+                        "name": user.name,
+                        "email": user.email,
+                        "averageScore": round(float(avg_score), 1),
+                        "totalQuizzes": int(total_quizzes),
+                        "lastActivity": last_activity.strftime("%Y-%m-%d") if last_activity else "N/A"
+                    })
+            
+            print(f"[DEBUG] Found {len(top_performers)} top performers")
+            
+            # ============================================================================
+            # CATEGORY PERFORMANCE - Include ALL categories even if no attempts
+            # ============================================================================
+            
+            categories = db.session.scalars(select(Category).where(Category.status != 'deleted')).all()
+            category_performance = []
+            
+            for category in categories:
+                # get quizzes in this category
+                quizzes_in_category = db.session.scalars(
+                    select(Quiz.id)
+                    .where(Quiz.category_id == category.id)
+                    .where(Quiz.series_type == 'series')
+                    .where(Quiz.parent_series_id == None)
+                ).all()
+                
+                # get attempts for quizzes in this category (even if no quizzes exist)
+                category_attempts = None
+                if quizzes_in_category:
+                    category_attempts = db.session.execute(
+                        select(
+                            func.count(QuizAttempt.id).label('total_attempts'),
+                            func.avg(QuizAttempt.score).label('avg_score'),
+                            func.count(QuizAttempt.user_id.distinct()).label('unique_users')
+                        )
+                        .where(QuizAttempt.quiz_id.in_(quizzes_in_category))
+                    ).first()
+                
+                # include ALL categories, even if no attempts or no quizzes
+                category_performance.append({
+                    "category": category.category_name,
+                    "averageScore": round(float(category_attempts.avg_score or 0), 1) if category_attempts and category_attempts.total_attempts and category_attempts.total_attempts > 0 else 0.0,
+                    "totalAttempts": int(category_attempts.total_attempts or 0) if category_attempts else 0,
+                    "uniqueUsers": int(category_attempts.unique_users or 0) if category_attempts else 0,
+                    "hasQuizzes": len(quizzes_in_category) > 0
+                })
+            
+            # sort by average score and total attempts (descending)
+            category_performance.sort(key=lambda x: (x['averageScore'], x['totalAttempts']), reverse=True)
+            print(f"[DEBUG] Category performance calculated for {len(category_performance)} categories (all categories included)")
+            
+            # ============================================================================
+            # RETURN COMPREHENSIVE DATA
+            # ============================================================================
+            
+            result = {
+                "overall": {
+                    "totalUsers": total_users,
+                    "totalTutorials": total_tutorials,
+                    "totalQuizzes": total_quizzes,
+                    "totalTutorialEnrollments": total_tutorial_enrollments,
+                    "totalQuizAttempts": total_quiz_attempts,
+                    "averageQuizScore": round(float(avg_quiz_score), 1),
+                    "totalCategories": total_categories
+                },
+                "tutorialEnrollments": tutorial_enrollments,
+                "quizEnrollments": quiz_enrollments,
+                "ratingsAndReviews": all_ratings,
+                "seriesCompletions": series_completions,
+                "topPerformers": top_performers,
+                "categoryPerformance": category_performance
+            }
+            
+            print(f"[DEBUG] Admin analytics calculated successfully")
+            
+            return ResponseService.success_response(result)
             
         except Exception as e:
-            current_app.logger.error(f"get feedback distributions error: {str(e)}")
+            current_app.logger.error(f"get user learning analytics error: {str(e)}")
             import traceback
             traceback.print_exc()
             raise APIError("internal server error", 500)
 
     @staticmethod
-    def get_feedback_list(params: Dict[str, Any] | None = None):
-        """get paginated and filtered feedback list for admin"""
+    def get_tutorial_popularity():
+        """get top 10 most popular tutorials by views"""
         try:
-            print(f"[DEBUG] get_feedback_list called with params: {params}")
+            from ..models.user import User
+            
+            print(f"[DEBUG] get_tutorial_popularity called")
+            
+            tutorials = db.session.execute(
+                select(
+                    Tutorial.public_id.label('id'),
+                    Tutorial.title,
+                    Tutorial.views,
+                    Category.category_name.label('category')
+                )
+                .join(Category, Tutorial.category_id == Category.id)
+                .where(Tutorial.status != 'deleted')
+                .order_by(desc(Tutorial.views))
+                .limit(10)
+            ).mappings().all()
+            
+            result = [dict(row) for row in tutorials]
+            print(f"[DEBUG] Tutorial popularity: found {len(result)} tutorials")
+            return ResponseService.success_response(result)
+        except Exception as e:
+            current_app.logger.error(f"get_tutorial_popularity error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise APIError("internal server error", 500)
+
+    @staticmethod
+    def get_tutorial_interaction_details(params: Optional[dict] = None):
+        """get detailed tutorial interaction data with pagination and filtering"""
+        try:
+            from ..models.user import User
+            
+            print(f"[DEBUG] get_tutorial_interaction_details called with params: {params}")
+            
+            if params is None:
+                params = {}
+            
+            page = int(params.get('page', 1))
+            per_page = int(params.get('per_page', 10))
+            category = params.get('category')
             
             # build base query
-            query = select(Feedback, Account)
-            query = query.join(Account, Feedback.submitted_by_user_id == Account.id)
+            query = select(
+                Tutorial.public_id.label('tutorialId'),
+                Tutorial.title,
+                Category.category_name.label('category'),
+                Tutorial.views,
+                func.count(user_bookmarks.c.user_id.distinct()).label('bookmarks'),
+                func.round(
+                    func.cast(
+                        func.count(
+                            func.distinct(
+                                case((user_bookmarks.c.is_completed == True, user_bookmarks.c.user_id))
+                            )
+                        ), 
+                        db.Float
+                    ) / 
+                    func.cast(
+                        func.count(func.distinct(user_bookmarks.c.user_id)), 
+                        db.Float
+                    ) * 100, 
+                    1
+                ).label('completionRate')
+            ).join(Category, Tutorial.category_id == Category.id)\
+            .outerjoin(user_bookmarks, user_bookmarks.c.tutorial_id == Tutorial.id)\
+            .where(Tutorial.status != 'deleted')\
+            .group_by(Tutorial.public_id, Tutorial.title, Category.category_name, Tutorial.views)
             
-            # apply filters if provided
-            if params:
-                if params.get('search'):
-                    search_term = params['search']
-                    query = query.where(
-                        or_(
-                            Feedback.feedback_type.ilike(f'%{search_term}%'),
-                            Feedback.description.ilike(f'%{search_term}%')
-                        )
-                    )
-                
-                if params.get('status') and params['status'] != 'all':
-                    query = query.where(Feedback.status == params['status'])
-                
-                if params.get('feedback_type') and params['feedback_type'] != 'all':
-                    query = query.where(Feedback.feedback_type == params['feedback_type'])
+            # apply category filter
+            if category and category != 'all':
+                query = query.where(Category.category_name == category)
             
-            # get total count
+            # get total count for pagination
             count_query = select(func.count()).select_from(query.subquery())
-            total = db.session.scalar(count_query) or 0
-            
-            # apply sorting
-            sort_by = params.get('sort_by', 'submission_date') if params else 'submission_date'
-            sort_order = params.get('sort_order', 'desc') if params else 'desc'
-            
-            if sort_by == 'id':
-                sort_column = Feedback.id
-            elif sort_by == 'submission_date':
-                sort_column = Feedback.submission_date
-            elif sort_by == 'status':
-                sort_column = Feedback.status
-            elif sort_by == 'feedback_type':
-                sort_column = Feedback.feedback_type
-            else:
-                sort_column = Feedback.submission_date
-            
-            if sort_order == 'desc':
-                query = query.order_by(sort_column.desc())
-            else:
-                query = query.order_by(sort_column.asc())
+            total_count = db.session.scalar(count_query) or 0
             
             # apply pagination
-            page = int(params.get('page', 1)) if params else 1
-            per_page = int(params.get('per_page', 10)) if params else 10
             offset = (page - 1) * per_page
-            query = query.offset(offset).limit(per_page)
+            query = query.limit(per_page).offset(offset)
             
             # execute query
-            results = db.session.execute(query).all()
+            results = db.session.execute(query).mappings().all()
             
-            feedback_list = []
-            for row in results:
-                feedback = row[0]
-                account = row[1] if len(row) > 1 else None
-                
-                # extract a title from description (first 50 chars)
-                title = feedback.description[:50] if feedback.description else feedback.feedback_type
-                
-                feedback_list.append({
-                    'id': str(feedback.id),
-                    'userId': str(feedback.submitted_by_user_id),
-                    'userName': account.name if account else 'Unknown',
-                    'email': account.email if account else 'Unknown',
-                    'type': feedback.feedback_type,
-                    'category': 'General',  # feedback doesn't have category
-                    'title': title,
-                    'description': feedback.description,
-                    'status': feedback.status,
-                    'submittedAt': feedback.submission_date.isoformat() if feedback.submission_date else None,
-                    'updatedAt': feedback.updated_at.isoformat() if feedback.updated_at else None,
-                    'attachments': [feedback.attached_file_path] if feedback.attached_file_path else None,
-                    'adminNotes': feedback.admin_response
+            items = [dict(row) for row in results]
+            total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 0
+            
+            result = {
+                "data": items,
+                "pagination": {
+                    "current_page": page,
+                    "per_page": per_page,
+                    "total_count": total_count,
+                    "total_pages": total_pages
+                }
+            }
+            
+            print(f"[DEBUG] Tutorial interaction details: found {len(items)} items, total={total_count}")
+            return ResponseService.success_response(result)
+        except Exception as e:
+            current_app.logger.error(f"get_tutorial_interaction_details error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise APIError("internal server error", 500)
+
+    @staticmethod
+    def get_feedback_distributions():
+        """get feedback distribution by type and status"""
+        try:
+            print(f"[DEBUG] get_feedback_distributions called")
+            
+            # feedback by status
+            status_data = db.session.execute(
+                select(Feedback.status, func.count(Feedback.id).label('value'))
+                .group_by(Feedback.status)
+            ).mappings().all()
+            
+            # feedback by type
+            type_data = db.session.execute(
+                select(Feedback.feedback_type.label('type'), func.count(Feedback.id).label('count'))
+                .group_by(Feedback.feedback_type)
+            ).mappings().all()
+            
+            # format status data for pie chart
+            status_colors = {
+                'new': '#3B82F6',
+                'in_progress': '#F59E0B',
+                'resolved': '#10B981',
+                'closed': '#6B7280'
+            }
+            
+            by_status = []
+            for row in status_data:
+                by_status.append({
+                    "name": row.status.replace('_', ' ').title(),
+                    "value": row.value,
+                    "color": status_colors.get(row.status, '#7E57C2')
                 })
             
-            pagination = ResponseService.pagination_info(page, per_page, total)
-            return ResponseService.success_response(feedback_list, pagination=pagination)
+            # format type data for pie chart
+            type_colors = {
+                'bug': '#EF4444',
+                'feature': '#3B82F6',
+                'general': '#6B7280'
+            }
             
+            by_type = []
+            for row in type_data:
+                by_type.append({
+                    "type": row.type.replace('_', ' ').title(),
+                    "count": row.count,
+                    "color": type_colors.get(row.type, '#7E57C2')
+                })
+            
+            print(f"[DEBUG] Feedback distributions: by_status={len(by_status)}, by_type={len(by_type)}")
+            
+            return ResponseService.success_response({
+                "byStatus": by_status,
+                "byType": by_type
+            })
         except Exception as e:
-            current_app.logger.error(f"get feedback list error: {str(e)}")
+            current_app.logger.error(f"get_feedback_distributions error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise APIError("internal server error", 500)
+
+    @staticmethod
+    def get_feedback_list(params: Optional[dict] = None):
+        """get paginated and filterable list of feedback items"""
+        try:
+            from ..models.user import User
+            
+            print(f"[DEBUG] get_feedback_list called with params: {params}")
+            
+            if params is None:
+                params = {}
+            
+            page = int(params.get('page', 1))
+            per_page = int(params.get('per_page', 10))
+            search = params.get('search', '')
+            status = params.get('status')
+            feedback_type = params.get('feedback_type')
+            sort_by = params.get('sort_by', 'submission_date')
+            sort_order = params.get('sort_order', 'desc')
+            
+            # build base query - use Account model for user info
+            from ..models.account import Account
+            
+            query = select(
+                Feedback.id,
+                Feedback.public_id,
+                Feedback.submitted_by_user_id,
+                Account.name.label('userName'),
+                Account.email,
+                Feedback.feedback_type,
+                Feedback.description,
+                Feedback.status,
+                Feedback.submission_date,
+                Feedback.admin_response,
+                Feedback.updated_at
+            ).join(Account, Feedback.submitted_by_user_id == Account.id)
+            
+            # apply filters
+            if search:
+                query = query.where(or_(
+                    Feedback.description.ilike(f'%{search}%'),
+                    Feedback.feedback_type.ilike(f'%{search}%'),
+                    Account.name.ilike(f'%{search}%'),
+                    Account.email.ilike(f'%{search}%')
+                ))
+            
+            if status and status != 'all':
+                query = query.where(Feedback.status == status)
+            
+            if feedback_type and feedback_type != 'all':
+                query = query.where(Feedback.feedback_type == feedback_type)
+            
+            # apply sorting
+            if sort_by == 'submission_date':
+                query = query.order_by(desc(Feedback.submission_date) if sort_order == 'desc' else asc(Feedback.submission_date))
+            elif sort_by == 'status':
+                query = query.order_by(desc(Feedback.status) if sort_order == 'desc' else asc(Feedback.status))
+            elif sort_by == 'type':
+                query = query.order_by(desc(Feedback.feedback_type) if sort_order == 'desc' else asc(Feedback.feedback_type))
+            
+            # get total count for pagination
+            count_query = select(func.count()).select_from(query.subquery())
+            total_count = db.session.scalar(count_query) or 0
+            
+            # apply pagination
+            offset = (page - 1) * per_page
+            query = query.limit(per_page).offset(offset)
+            
+            # execute query
+            results = db.session.execute(query).mappings().all()
+            
+            items = []
+            for row in results:
+                items.append({
+                    "id": str(row.public_id),
+                    "userId": str(row.submitted_by_user_id),
+                    "userName": row.userName,
+                    "email": row.email,
+                    "type": row.feedback_type,
+                    "category": row.feedback_type,  # using feedback_type as category
+                    "title": row.description[:50] + '...' if len(row.description) > 50 else row.description,
+                    "description": row.description,
+                    "status": row.status,
+                    "submittedAt": row.submission_date.isoformat() if row.submission_date else None,
+                    "updatedAt": row.updated_at.isoformat() if row.updated_at else (row.submission_date.isoformat() if row.submission_date else None),
+                    "adminNotes": row.admin_response
+                })
+            
+            total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 0
+            
+            result = {
+                "data": items,
+                "pagination": {
+                    "current_page": page,
+                    "per_page": per_page,
+                    "total_count": total_count,
+                    "total_pages": total_pages
+                }
+            }
+            
+            print(f"[DEBUG] Feedback list: found {len(items)} items, total={total_count}")
+            return ResponseService.success_response(result)
+        except Exception as e:
+            current_app.logger.error(f"get_feedback_list error: {str(e)}")
             import traceback
             traceback.print_exc()
             raise APIError("internal server error", 500)
 
     @staticmethod
     def get_quiz_analytics():
-        """get quiz analytics similar to tutorial analytics"""
+        """get overall quiz analytics (total quizzes, views, attempts, avg score)"""
         try:
+            from ..models.quiz_attempt import QuizAttempt
+            
             print(f"[DEBUG] get_quiz_analytics called")
             
-            # get total quiz series count
             total_quizzes = db.session.scalar(
                 select(func.count(Quiz.id))
                 .where(Quiz.status != 'deleted')
-                .where(Quiz.series_type == 'series')
             ) or 0
             
-            # get total views
             total_views = db.session.scalar(
                 select(func.sum(Quiz.views))
                 .where(Quiz.status != 'deleted')
-                .where(Quiz.series_type == 'series')
             ) or 0
             
-            # get total quiz attempts
-            from ..models.quiz_attempt import QuizAttempt
             total_attempts = db.session.scalar(
                 select(func.count(QuizAttempt.id))
             ) or 0
             
-            # get average quiz score
             avg_score = db.session.scalar(
                 select(func.avg(QuizAttempt.score))
             ) or 0.0
+            avg_score = round(float(avg_score), 1)
             
-            print(f"[DEBUG] Quiz analytics calculated: quizzes={total_quizzes}, views={total_views}, attempts={total_attempts}, avg_score={avg_score}")
+            print(f"[DEBUG] Quiz analytics: total_quizzes={total_quizzes}, total_views={total_views}, total_attempts={total_attempts}, avg_score={avg_score}")
             
             return ResponseService.success_response({
                 "totalQuizzes": total_quizzes,
                 "totalViews": total_views,
                 "totalAttempts": total_attempts,
-                "avgScore": round(avg_score, 1)
+                "avgScore": avg_score
             })
-            
         except Exception as e:
-            current_app.logger.error(f"get quiz analytics error: {str(e)}")
+            current_app.logger.error(f"get_quiz_analytics error: {str(e)}")
             import traceback
             traceback.print_exc()
             raise APIError("internal server error", 500)
-

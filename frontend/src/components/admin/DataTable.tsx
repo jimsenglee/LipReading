@@ -178,7 +178,7 @@ const DataTable = <T,>({
                 <tr className="border-b border-gray-200">
                   {/* select all checkbox */}
                   {onItemSelect && onSelectAll && (
-                    <th className="text-left py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                    <th className="text-left py-2 px-3" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={selectedItems.size === data.length && data.length > 0}
                         onCheckedChange={onSelectAll}
@@ -188,7 +188,7 @@ const DataTable = <T,>({
                   
                   {/* numbering column */}
                   <th 
-                    className="text-left py-3 px-4 w-16 cursor-pointer hover:bg-gray-50"
+                    className="text-left py-2 px-3 w-12 cursor-pointer hover:bg-gray-50"
                     onClick={() => onSort && onSort('id')}
                   >
                     <div className="flex items-center gap-2">
@@ -201,7 +201,7 @@ const DataTable = <T,>({
                   {columns.map((column) => (
                     <th
                       key={column.key}
-                      className={`text-left py-3 px-4 ${column.className || ''} ${
+                      className={`text-left py-2 px-3 ${column.className || ''} ${
                         column.sortable ? 'cursor-pointer hover:bg-gray-50' : ''
                       }`}
                       onClick={() => handleColumnClick(column)}
@@ -215,7 +215,7 @@ const DataTable = <T,>({
                   
                   {/* actions column */}
                   {actions.length > 0 && (
-                    <th className="text-left py-3 px-4">Actions</th>
+                    <th className="text-left py-2 px-3">Actions</th>
                   )}
                 </tr>
               </thead>
@@ -253,7 +253,7 @@ const DataTable = <T,>({
                     >
                       {/* select checkbox */}
                       {onItemSelect && (
-                        <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                        <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
                           <Checkbox
                             checked={selectedItems.has(itemId)}
                             onCheckedChange={(checked) => onItemSelect(itemId, checked as boolean)}
@@ -262,20 +262,20 @@ const DataTable = <T,>({
                       )}
                       
                       {/* numbering cell */}
-                      <td className="py-3 px-4 text-sm text-gray-600 font-medium">
+                      <td className="py-2 px-3 text-xs text-gray-600 font-medium">
                         {rowNumber}
                       </td>
                       
                       {/* data columns */}
                       {columns.map((column) => (
-                        <td key={column.key} className={`py-3 px-4 ${column.className || ''}`}>
+                        <td key={column.key} className={`py-2 px-3 ${column.className || ''}`}>
                           {column.render ? column.render(item) : (item as any)[column.key]}
                         </td>
                       ))}
                       
                       {/* action buttons */}
                       {actions.length > 0 && (
-                        <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                        <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-2">
                             {actions.map((action) => (
                               <Button

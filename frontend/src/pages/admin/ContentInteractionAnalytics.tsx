@@ -21,12 +21,17 @@ import {
   AlertCircle,
   Edit,
   BarChart3,
-  PieChart
+  PieChart,
+  TrendingUp,
+  FileText,
+  Target,
+  Calendar,
+  BookOpen
 } from 'lucide-react';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, Tooltip, Legend, ComposedChart } from 'recharts';
 import { toast } from '@/hooks/use-toast';
-import { useContentInteractionAnalytics, useTutorialPopularity, useTutorialInteractions, useFeedbackAnalytics, useFeedbackDistributions, useFeedbackList, useQuizAnalytics, FeedbackItem } from '@/services/analytics/analyticsQueries';
+import { useContentInteractionAnalytics, useTutorialPopularity, useTutorialInteractions, useFeedbackAnalytics, useFeedbackDistributions, useFeedbackList, useQuizAnalytics, useUserLearningAnalytics, FeedbackItem } from '@/services/analytics/analyticsQueries';
 import { useCategories } from '@/services';
 import { useUpdateFeedback } from '@/services/analytics/analyticsMutations';
 
@@ -57,6 +62,11 @@ const ContentInteractionAnalytics = () => {
   const [feedbackSearch, setFeedbackSearch] = useState(''); // debounced state for query
   const [feedbackStatusFilter, setFeedbackStatusFilter] = useState('all');
   const [feedbackTypeFilter, setFeedbackTypeFilter] = useState('all');
+  
+  // time filters for each tab
+  const [tutorialTimeFilter, setTutorialTimeFilter] = useState('all');
+  const [quizTimeFilter, setQuizTimeFilter] = useState('all');
+  const [feedbackTimeFilter, setFeedbackTimeFilter] = useState('all');
 
   const breadcrumbItems = [
     { title: 'Content Interaction Analytics' }
@@ -92,6 +102,7 @@ const ContentInteractionAnalytics = () => {
     sort_order: 'desc'
   });
   const quizAnalyticsQuery = useQuizAnalytics();
+  const userLearningAnalyticsQuery = useUserLearningAnalytics({});
   
   // extract data from queries
   const contentMetrics = contentAnalyticsQuery.data || { totalTutorials: 0, totalViews: 0, totalBookmarks: 0, avgCompletionRate: 0 };
@@ -103,9 +114,13 @@ const ContentInteractionAnalytics = () => {
   const tutorialPopularity = tutorialPopularityQuery.data || [];
   const feedbackDistributions = feedbackDistributionsQuery.data || { byStatus: [], byType: [] };
   const feedbackItemsData = feedbackListQuery.data;
-  const feedbackItems = feedbackItemsData?.data || [];
+  const feedbackItems = Array.isArray(feedbackItemsData?.data) ? feedbackItemsData.data : [];
   const feedbackPagination = feedbackItemsData?.pagination;
   const quizMetrics = quizAnalyticsQuery.data || { totalQuizzes: 0, totalViews: 0, totalAttempts: 0, avgScore: 0 };
+  const userLearningData = userLearningAnalyticsQuery.data;
+  const tutorialEnrollments = userLearningData?.tutorialEnrollments || [];
+  const quizEnrollments = userLearningData?.quizEnrollments || [];
+  const ratingsAndReviews = userLearningData?.ratingsAndReviews || [];
 
   // prepare chart data - use full title, truncate in tooltip if needed
   const tutorialPopularityData = tutorialPopularity.map(t => ({
@@ -226,17 +241,17 @@ const ContentInteractionAnalytics = () => {
         ['In Progress', feedbackMetrics.inProgress.toString()],
         ['Resolved', feedbackMetrics.resolved.toString()],
         [''],
-          ['Feedback Details'],
+        ['Feedback Details'],
           ['ID', 'User', 'Type', 'Category', 'Title', 'Status', 'Submitted Date'],
-          ...feedbackItems.map(item => [
-            item.id,
-            item.userName,
-            item.type,
-            item.category,
-            item.title,
-            item.status,
-            new Date(item.submittedAt).toLocaleDateString()
-          ])
+        ...feedbackItems.map(item => [
+          item.id,
+          item.userName,
+          item.type,
+          item.category,
+          item.title,
+          item.status,
+          new Date(item.submittedAt).toLocaleDateString()
+        ])
       ].map(row => row.join(',')).join('\n');
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -311,44 +326,80 @@ const ContentInteractionAnalytics = () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="content" className="space-y-6">
-          <div className="flex justify-end">
+        <TabsContent value="content" className="space-y-4">
+          {/* Header with Time Filter and Export Button */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="tutorial-time-filter" className="text-xs text-gray-600">Time Period:</Label>
+              <Select value={tutorialTimeFilter} onValueChange={setTutorialTimeFilter}>
+                <SelectTrigger id="tutorial-time-filter" className="w-40 h-8 text-xs">
+                  <Calendar className="h-3 w-3 mr-1" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="last_7_days">Last 7 Days</SelectItem>
+                  <SelectItem value="last_30_days">Last 30 Days</SelectItem>
+                  <SelectItem value="this_month">This Month</SelectItem>
+                  <SelectItem value="last_month">Last Month</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button 
               onClick={exportContentReport}
               disabled={loading}
-              className="bg-primary hover:bg-primary/90 text-white"
+              size="sm"
+              className="bg-primary hover:bg-primary/90 h-8 text-xs"
             >
-              <Download className="mr-2 h-4 w-4" />
-              {loading ? 'Generating...' : 'Export Content Report'}
+              <Download className="h-3 w-3 mr-1" />
+              {loading ? 'Generating...' : 'Export Tutorial Report'}
             </Button>
           </div>
 
-          {/* Content Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Content Metrics - Redesigned KPI Cards */}
+          <div className="grid grid-cols-4 gap-3 mb-4">
             <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-gray-900">{contentMetrics.totalTutorials}</div>
-                <div className="text-sm text-gray-600">Total Tutorials</div>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-3xl font-bold text-gray-900 mb-1">{contentMetrics.totalTutorials}</p>
+                    <p className="text-sm text-gray-600">Total Tutorials</p>
+                  </div>
+                  <BookOpen className="h-6 w-6 text-primary opacity-60" />
+                </div>
               </CardContent>
             </Card>
             <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <Eye className="h-8 w-8 text-primary mx-auto mb-2" />
-                <div className="text-2xl font-bold text-gray-900">{contentMetrics.totalViews.toLocaleString()}</div>
-                <div className="text-sm text-gray-600">Total Views</div>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-3xl font-bold text-blue-600 mb-1">{contentMetrics.totalViews.toLocaleString()}</p>
+                    <p className="text-sm text-gray-600">Total Views</p>
+                  </div>
+                  <Eye className="h-6 w-6 text-blue-600 opacity-60" />
+                </div>
               </CardContent>
             </Card>
             <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <Bookmark className="h-8 w-8 text-primary mx-auto mb-2" />
-                <div className="text-2xl font-bold text-gray-900">{contentMetrics.totalBookmarks.toLocaleString()}</div>
-                <div className="text-sm text-gray-600">Total Bookmarks</div>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-3xl font-bold text-purple-600 mb-1">{contentMetrics.totalBookmarks.toLocaleString()}</p>
+                    <p className="text-sm text-gray-600">Total Bookmarks</p>
+                  </div>
+                  <Bookmark className="h-6 w-6 text-purple-600 opacity-60" />
+                </div>
               </CardContent>
             </Card>
             <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-green-600">{contentMetrics.avgCompletionRate}%</div>
-                <div className="text-sm text-gray-600">Avg Completion</div>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-3xl font-bold text-green-600 mb-1">{contentMetrics.avgCompletionRate}%</p>
+                    <p className="text-sm text-gray-600">Avg Completion</p>
+                  </div>
+                  <Target className="h-6 w-6 text-green-600 opacity-60" />
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -360,7 +411,7 @@ const ContentInteractionAnalytics = () => {
                 <BarChart3 className="h-5 w-5" />
                 Tutorial Popularity
               </CardTitle>
-              <CardDescription>Views vs Bookmarks comparison for top tutorials</CardDescription>
+              <CardDescription>Views vs Bookmarks Comparison for Top Tutorials</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[500px]">
@@ -371,14 +422,13 @@ const ContentInteractionAnalytics = () => {
                       dataKey="name" 
                       stroke="hsl(var(--muted-foreground))"
                       fontSize={11}
-                      angle={-45}
-                      textAnchor="end"
-                      height={150}
+                      angle={0}
+                      textAnchor="middle"
+                      height={60}
                       interval={0}
                       tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                       tickFormatter={(value) => {
-                        // truncate if too long, show in tooltip
-                        return value.length > 25 ? value.substring(0, 25) + '...' : value;
+                        return value.length > 15 ? value.substring(0, 15) + '...' : value;
                       }}
                     />
                     <YAxis 
@@ -530,91 +580,563 @@ const ContentInteractionAnalytics = () => {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
 
-        <TabsContent value="quiz" className="space-y-6">
-          {/* Quiz Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Tutorial Analytics - Horizontal Layout (0 0 / 0 0) */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Tutorial Popularity Chart */}
             <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-gray-900">{quizMetrics.totalQuizzes}</div>
-                <div className="text-sm text-gray-600">Total Quizzes</div>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-1.5 text-primary">
+                  <BarChart3 className="h-3 w-3" />
+                  Tutorial Popularity Chart
+                </CardTitle>
+                <CardDescription className="text-xs">Views vs Bookmarks Comparison for Top Tutorials</CardDescription>
+              </CardHeader>
+              <CardContent className="p-3">
+                {tutorialPopularityData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={tutorialPopularityData.slice(0, 8)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis 
+                        dataKey="name" 
+                        tick={{ fontSize: 9 }}
+                        stroke="#888"
+                        angle={0}
+                        textAnchor="middle"
+                        height={60}
+                        interval={0}
+                        tickFormatter={(value) => {
+                          return value.length > 15 ? value.substring(0, 15) + '...' : value;
+                        }}
+                      />
+                      <YAxis tick={{ fontSize: 9 }} stroke="#888" label={{ value: 'Count', angle: -90, position: 'insideLeft', fontSize: 9 }} />
+                      <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '6px' }} />
+                      <Legend wrapperStyle={{ fontSize: '10px' }} />
+                      <Bar dataKey="views" fill="#7E57C2" radius={[4, 4, 0, 0]} name="Views" />
+                      <Bar dataKey="bookmarks" fill="#10B981" radius={[4, 4, 0, 0]} name="Bookmarks" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-72 text-gray-500 text-xs">No Tutorial Data Available</div>
+                )}
               </CardContent>
             </Card>
+
+            {/* Top Tutorial Enrollments */}
             <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <Eye className="h-8 w-8 text-primary mx-auto mb-2" />
-                <div className="text-2xl font-bold text-gray-900">{quizMetrics.totalViews.toLocaleString()}</div>
-                <div className="text-sm text-gray-600">Total Views</div>
-              </CardContent>
-            </Card>
-            <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-gray-900">{quizMetrics.totalAttempts.toLocaleString()}</div>
-                <div className="text-sm text-gray-600">Total Attempts</div>
-              </CardContent>
-            </Card>
-            <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-blue-600">{quizMetrics.avgScore}%</div>
-                <div className="text-sm text-gray-600">Avg Score</div>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-1.5 text-primary">
+                  <Bookmark className="h-3 w-3" />
+                  Top Tutorial Enrollments
+                </CardTitle>
+                <CardDescription className="text-xs">Most Popular Tutorials by Enrollment Count</CardDescription>
+              </CardHeader>
+              <CardContent className="p-3">
+                {tutorialEnrollments.length > 0 ? (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {tutorialEnrollments.slice(0, 8).map((tutorial, idx) => (
+                      <div key={tutorial.tutorialId} className="flex items-center gap-3 p-2.5 bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-lg hover:border-primary/30 hover:shadow-sm transition-all">
+                        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0">
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate text-gray-900">{tutorial.title}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Badge variant="outline" className="text-xs py-0 px-1.5 font-medium">{tutorial.category}</Badge>
+                            <span className="text-xs text-gray-500">{tutorial.views} Views</span>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold text-primary">{tutorial.enrollments}</p>
+                          <p className="text-xs text-gray-500">Enrollments</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500 text-xs">No Tutorial Enrollment Data Available</div>
+                )}
               </CardContent>
             </Card>
           </div>
 
-          {/* Placeholder for future quiz analytics features */}
+          {/* Tutorial Interactions Table */}
           <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-primary flex items-center gap-2">
-                <Star className="h-5 w-5" />
-                Quiz Performance
-              </CardTitle>
-              <CardDescription>Detailed quiz analytics coming soon</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12 text-gray-500">
-                Additional quiz analytics features will be available here
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm text-primary">Tutorial Interactions</CardTitle>
+                  <CardDescription className="text-xs">Detailed Tutorial Engagement Metrics</CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="category-filter" className="text-xs text-gray-600">Category</Label>
+                  <Select 
+                    value={tutorialCategoryFilter}
+                    onValueChange={(value) => {
+                      setTutorialCategoryFilter(value);
+                      setTutorialPage(1);
+                    }}
+                  >
+                    <SelectTrigger id="category-filter" className="w-32 h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      {categories.map(cat => (
+                        <SelectItem key={cat.id} value={cat.category_name}>{cat.category_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+            </CardHeader>
+            <CardContent className="p-3">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">Tutorial</TableHead>
+                    <TableHead className="text-xs text-right">Views</TableHead>
+                    <TableHead className="text-xs text-right">Bookmarks</TableHead>
+                    <TableHead className="text-xs text-right">Completion Rate</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tutorialInteractions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-gray-500 text-xs">
+                        No Tutorials Found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    tutorialInteractions.map((tutorial) => (
+                    <TableRow key={tutorial.tutorialId} className="hover:bg-gray-50">
+                      <TableCell>
+                        <div>
+                          <div className="font-medium text-xs">{tutorial.title}</div>
+                          <div className="text-xs text-gray-500">{tutorial.category}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Eye className="h-3 w-3 text-gray-400" />
+                          <span className="font-medium text-xs">{tutorial.views.toLocaleString()}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Bookmark className="h-3 w-3 text-gray-400" />
+                          <span className="font-medium text-xs">{tutorial.bookmarks}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="space-y-1">
+                          <div className="font-medium text-xs">{tutorial.completionRate}%</div>
+                          <Progress value={tutorial.completionRate} className="h-1 w-16" />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              
+              {/* Pagination */}
+              {tutorialPagination && (
+                <div className="flex items-center justify-between pt-4 border-t border-gray-200 mt-4">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-gray-600">Show</Label>
+                    <Select 
+                      value={tutorialPerPage.toString()} 
+                      onValueChange={(value) => {
+                        setTutorialPerPage(Number(value));
+                        setTutorialPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="w-20 h-7 text-xs border-primary/20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="15">15</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Label className="text-xs text-gray-600">Entries</Label>
+                  </div>
+                  
+                  <Pagination
+                    currentPage={tutorialPagination.current_page}
+                    totalPages={tutorialPagination.total_pages}
+                    totalCount={tutorialPagination.total_count}
+                    perPage={tutorialPagination.per_page}
+                    onPageChange={setTutorialPage}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="feedback" className="space-y-6">
-          <div className="flex justify-end">
+        <TabsContent value="quiz" className="space-y-4">
+          {/* Header with Time Filter and Export Button */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="quiz-time-filter" className="text-xs text-gray-600">Time Period:</Label>
+              <Select value={quizTimeFilter} onValueChange={setQuizTimeFilter}>
+                <SelectTrigger id="quiz-time-filter" className="w-40 h-8 text-xs">
+                  <Calendar className="h-3 w-3 mr-1" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="last_7_days">Last 7 Days</SelectItem>
+                  <SelectItem value="last_30_days">Last 30 Days</SelectItem>
+                  <SelectItem value="this_month">This Month</SelectItem>
+                  <SelectItem value="last_month">Last Month</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button 
+              onClick={() => {
+                toast({ title: "Quiz Report Export", description: "Feature coming soon" });
+              }}
+              disabled={loading}
+              size="sm"
+              className="bg-primary hover:bg-primary/90 h-8 text-xs"
+            >
+              <Download className="h-3 w-3 mr-1" />
+              {loading ? 'Generating...' : 'Export Quiz Report'}
+            </Button>
+          </div>
+
+          {/* Quiz Metrics - Redesigned KPI Cards */}
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            <Card className="border-primary/20">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-3xl font-bold text-gray-900 mb-1">{quizMetrics.totalQuizzes}</p>
+                    <p className="text-sm text-gray-600">Total Quizzes</p>
+                  </div>
+                  <FileText className="h-6 w-6 text-primary opacity-60" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-primary/20">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-3xl font-bold text-blue-600 mb-1">{quizMetrics.totalViews.toLocaleString()}</p>
+                    <p className="text-sm text-gray-600">Total Views</p>
+                  </div>
+                  <Eye className="h-6 w-6 text-blue-600 opacity-60" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-primary/20">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-3xl font-bold text-purple-600 mb-1">{quizMetrics.totalAttempts.toLocaleString()}</p>
+                    <p className="text-sm text-gray-600">Total Attempts</p>
+                  </div>
+                  <Target className="h-6 w-6 text-purple-600 opacity-60" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-primary/20">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-3xl font-bold text-green-600 mb-1">{quizMetrics.avgScore}%</p>
+                    <p className="text-sm text-gray-600">Avg Score</p>
+                  </div>
+                  <Star className="h-6 w-6 text-green-600 opacity-60" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Quiz Analytics - Horizontal Layout (0 0 / 0 0) */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Top Quizzes by Attempts */}
+            <Card className="border-primary/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-1.5 text-primary">
+                  <TrendingUp className="h-3 w-3" />
+                  Top Quizzes by Attempts
+                </CardTitle>
+                <CardDescription className="text-xs">Most Popular Quizzes Based on Attempt Count</CardDescription>
+              </CardHeader>
+              <CardContent className="p-3">
+                {quizEnrollments.length > 0 ? (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {quizEnrollments.slice(0, 8).map((quiz, idx) => (
+                      <div key={quiz.quizId} className="flex items-center gap-3 p-2.5 bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-lg hover:border-primary/30 hover:shadow-sm transition-all">
+                        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0">
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate text-gray-900">{quiz.title}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Badge variant="outline" className="text-xs py-0 px-1.5 font-medium">{quiz.category}</Badge>
+                            <span className="text-xs text-gray-500">{quiz.views} Views</span>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold text-primary">{quiz.attempts}</p>
+                          <p className="text-xs text-gray-500">Attempts</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500 text-xs">No quiz data available</div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Hardest Quizzes (Lowest Scores) */}
+            <Card className="border-primary/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-1.5 text-primary">
+                  <AlertCircle className="h-3 w-3" />
+                  Hardest Quizzes (Lowest Scores)
+                </CardTitle>
+                <CardDescription className="text-xs">Quizzes with Lowest Average Scores - May Need Review</CardDescription>
+              </CardHeader>
+              <CardContent className="p-3">
+                {ratingsAndReviews.filter(r => r.type === 'quiz').length > 0 ? (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {ratingsAndReviews
+                      .filter(r => r.type === 'quiz')
+                      .sort((a, b) => a.avgRating - b.avgRating)
+                      .slice(0, 8)
+                      .map((quiz) => (
+                        <div key={quiz.contentId} className="flex items-center gap-3 p-2.5 bg-gradient-to-r from-red-50 to-white border border-red-200 rounded-lg hover:border-red-300 hover:shadow-sm transition-all">
+                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-red-700 text-xs font-bold shrink-0">
+                            ⚠
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold truncate text-gray-900">{quiz.title}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <Badge variant="outline" className="text-xs py-0 px-1.5 font-medium">{quiz.category}</Badge>
+                              <span className="text-xs text-gray-500">{quiz.totalReviews} Reviews</span>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="flex items-center gap-1 justify-end mb-0.5">
+                              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                              <p className="text-sm font-bold text-red-600">{quiz.avgRating.toFixed(1)}</p>
+                            </div>
+                            <p className="text-xs text-gray-500">Avg Rating</p>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500 text-xs">No quiz rating data available</div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Quiz Performance Chart */}
+          <Card className="border-primary/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-1.5 text-primary">
+                <BarChart3 className="h-3 w-3" />
+                Quiz Performance by Category
+              </CardTitle>
+               <CardDescription className="text-xs">Average Quiz Scores and Attempt Counts Across Categories</CardDescription>
+            </CardHeader>
+            <CardContent className="p-3">
+              {quizEnrollments.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={quizEnrollments.slice(0, 10)}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis 
+                      dataKey="title" 
+                      tick={{ fontSize: 9 }}
+                      stroke="#888"
+                      angle={0}
+                      textAnchor="middle"
+                      height={60}
+                      interval={0}
+                      tickFormatter={(value) => {
+                        return value.length > 15 ? value.substring(0, 15) + '...' : value;
+                      }}
+                    />
+                    <YAxis yAxisId="left" tick={{ fontSize: 9 }} stroke="#888" label={{ value: 'Attempts', angle: -90, position: 'insideLeft', fontSize: 9 }} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} stroke="#888" label={{ value: 'Views', angle: 90, position: 'insideRight', fontSize: 9 }} />
+                    <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '6px' }} />
+                    <Legend wrapperStyle={{ fontSize: '10px' }} />
+                    <Bar yAxisId="left" dataKey="attempts" fill="#7E57C2" radius={[4, 4, 0, 0]} name="Total Attempts" />
+                    <Line yAxisId="right" type="monotone" dataKey="views" stroke="#10B981" strokeWidth={2} name="Total Views" dot={{ r: 3 }} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-72 text-gray-500 text-xs">No Quiz Data Available for Chart</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Quiz Enrollments Section */}
+          <Card className="border-primary/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-1.5 text-primary">
+                <Star className="h-3 w-3" />
+                Quiz Enrollments
+              </CardTitle>
+              <CardDescription className="text-xs">Top Quizzes by Attempt Count</CardDescription>
+            </CardHeader>
+            <CardContent className="p-3">
+              {quizEnrollments.length > 0 ? (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {quizEnrollments.slice(0, 10).map((quiz, idx) => (
+                    <div key={quiz.quizId} className="flex items-center gap-3 p-2.5 bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-lg hover:border-primary/30 hover:shadow-sm transition-all">
+                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0">
+                        {idx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold truncate text-gray-900">{quiz.title}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Badge variant="outline" className="text-xs py-0 px-1.5 font-medium">{quiz.category}</Badge>
+                          <span className="text-xs text-gray-500">{quiz.views} Views</span>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-purple-600">{quiz.attempts}</p>
+                        <p className="text-xs text-gray-500">Attempts</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500 text-xs">No Quiz Enrollment Data Available</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Ratings & Reviews Section */}
+          <Card className="border-primary/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-1.5 text-primary">
+                <Star className="h-3 w-3" />
+                Ratings & Reviews
+              </CardTitle>
+              <CardDescription className="text-xs">Content Ratings and Review Statistics</CardDescription>
+            </CardHeader>
+            <CardContent className="p-3">
+              {ratingsAndReviews.filter(r => r.type === 'quiz').length > 0 ? (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {ratingsAndReviews
+                    .filter(r => r.type === 'quiz')
+                    .slice(0, 10)
+                    .map((item, idx) => (
+                      <div key={item.contentId} className="flex items-center gap-3 p-2.5 bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-lg hover:border-primary/30 hover:shadow-sm transition-all">
+                        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-yellow-100 text-yellow-700 text-xs font-bold shrink-0">
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate text-gray-900">{item.title}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Badge variant="outline" className="text-xs py-0 px-1.5 font-medium">{item.category}</Badge>
+                            <Badge variant="outline" className="text-xs py-0 px-1.5 font-medium">{item.type}</Badge>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="flex items-center gap-1 justify-end mb-0.5">
+                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                            <p className="text-sm font-bold text-yellow-600">{item.avgRating.toFixed(1)}</p>
+                          </div>
+                          <p className="text-xs text-gray-500">{item.totalReviews} Reviews</p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500 text-xs">No Ratings and Reviews Data Available</div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="feedback" className="space-y-4">
+          {/* Header with Time Filter and Export Button */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="feedback-time-filter" className="text-xs text-gray-600">Time Period:</Label>
+              <Select value={feedbackTimeFilter} onValueChange={setFeedbackTimeFilter}>
+                <SelectTrigger id="feedback-time-filter" className="w-40 h-8 text-xs">
+                  <Calendar className="h-3 w-3 mr-1" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="last_7_days">Last 7 Days</SelectItem>
+                  <SelectItem value="last_30_days">Last 30 Days</SelectItem>
+                  <SelectItem value="this_month">This Month</SelectItem>
+                  <SelectItem value="last_month">Last Month</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button 
               onClick={exportFeedbackReport}
               disabled={loading}
-              className="bg-primary hover:bg-primary/90 text-white"
+              size="sm"
+              className="bg-primary hover:bg-primary/90 h-8 text-xs"
             >
-              <Download className="mr-2 h-4 w-4" />
+              <Download className="h-3 w-3 mr-1" />
               {loading ? 'Generating...' : 'Export Feedback Report'}
             </Button>
           </div>
 
-          {/* Feedback Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Feedback Metrics - Redesigned KPI Cards */}
+          <div className="grid grid-cols-4 gap-3 mb-4">
             <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-gray-900">{feedbackMetrics.totalFeedback}</div>
-                <div className="text-sm text-gray-600">Total Feedback</div>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-3xl font-bold text-gray-900 mb-1">{feedbackMetrics.totalFeedback}</p>
+                    <p className="text-sm text-gray-600">Total Feedback</p>
+                  </div>
+                  <MessageSquare className="h-6 w-6 text-primary opacity-60" />
+                </div>
               </CardContent>
             </Card>
             <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-blue-600">{feedbackMetrics.newItems}</div>
-                <div className="text-sm text-gray-600">New Items</div>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-3xl font-bold text-blue-600 mb-1">{feedbackMetrics.newItems}</p>
+                    <p className="text-sm text-gray-600">New Items</p>
+                  </div>
+                  <AlertCircle className="h-6 w-6 text-blue-600 opacity-60" />
+                </div>
               </CardContent>
             </Card>
             <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-yellow-600">{feedbackMetrics.inProgress}</div>
-                <div className="text-sm text-gray-600">In Progress</div>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-3xl font-bold text-yellow-600 mb-1">{feedbackMetrics.inProgress}</p>
+                    <p className="text-sm text-gray-600">In Progress</p>
+                  </div>
+                  <Edit className="h-6 w-6 text-yellow-600 opacity-60" />
+                </div>
               </CardContent>
             </Card>
             <Card className="border-primary/20">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-green-600">{feedbackMetrics.resolved}</div>
-                <div className="text-sm text-gray-600">Resolved</div>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-3xl font-bold text-green-600 mb-1">{feedbackMetrics.resolved}</p>
+                    <p className="text-sm text-gray-600">Resolved</p>
+                  </div>
+                  <Target className="h-6 w-6 text-green-600 opacity-60" />
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -628,7 +1150,7 @@ const ContentInteractionAnalytics = () => {
                   <PieChart className="h-5 w-5" />
                   Feedback by Status
                 </CardTitle>
-                <CardDescription>Distribution of feedback items by current status</CardDescription>
+                <CardDescription>Distribution of Feedback Items by Current Status</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
@@ -675,7 +1197,7 @@ const ContentInteractionAnalytics = () => {
                   <PieChart className="h-5 w-5" />
                   Feedback by Type
                 </CardTitle>
-                <CardDescription>Breakdown of feedback categories</CardDescription>
+                <CardDescription>Breakdown of Feedback Categories</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
@@ -723,7 +1245,7 @@ const ContentInteractionAnalytics = () => {
                 <MessageSquare className="h-5 w-5" />
                 Feedback Items ({feedbackPagination?.total_count || 0})
               </CardTitle>
-              <CardDescription>User feedback, bug reports, and feature requests</CardDescription>
+              <CardDescription>User Feedback, Bug Reports, and Feature Requests</CardDescription>
             </CardHeader>
             <CardContent>
               {/* Filters */}
@@ -848,7 +1370,7 @@ const ContentInteractionAnalytics = () => {
                       </SelectContent>
                     </Select>
                     <Label className="text-sm font-medium text-gray-700">entries</Label>
-                  </div>
+                </div>
                   
                   <Pagination
                     currentPage={feedbackPagination.current_page}
@@ -857,7 +1379,7 @@ const ContentInteractionAnalytics = () => {
                     perPage={feedbackPagination.per_page}
                     onPageChange={setFeedbackPage}
                   />
-                </div>
+                          </div>
               )}
             </CardContent>
           </Card>
@@ -876,24 +1398,24 @@ const ContentInteractionAnalytics = () => {
       >
         {selectedFeedback && (
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="status">Status</Label>
-              <Select 
-                value={selectedFeedback.status} 
-                onValueChange={(value) => setSelectedFeedback({
-                  ...selectedFeedback,
+              <div>
+                <Label htmlFor="status">Status</Label>
+                <Select 
+                  value={selectedFeedback.status} 
+                  onValueChange={(value) => setSelectedFeedback({
+                    ...selectedFeedback,
                   status: value
-                })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
+                  })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
                   <SelectItem value="In Progress">In Progress</SelectItem>
                   <SelectItem value="Resolved">Resolved</SelectItem>
                   <SelectItem value="Closed">Closed</SelectItem>
-                </SelectContent>
-              </Select>
+                  </SelectContent>
+                </Select>
             </div>
             
             <div>

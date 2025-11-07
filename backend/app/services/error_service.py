@@ -8,10 +8,12 @@ from flask import jsonify, current_app
 
 class APIError(Exception):
     """Custom API error class"""
-    def __init__(self, message: str, status_code: int = 400, details: Any = None):
+    def __init__(self, message: str, status_code: int = 400, field: str | None = None, details: Any = None, extra_data: dict | None = None):
         self.message = message
         self.status_code = status_code
+        self.field = field
         self.details = details
+        self.extra_data = extra_data or {}
         super().__init__(self.message)
 
 
@@ -75,6 +77,10 @@ def handle_api_error(error):
     
     if hasattr(error, 'tutorial_id') and error.tutorial_id:
         response_data['tutorial_id'] = error.tutorial_id
+    
+    # add extra_data (for rate limiting, lockout info, etc.)
+    if hasattr(error, 'extra_data') and error.extra_data:
+        response_data.update(error.extra_data)
     
     return jsonify(response_data), error.status_code
 

@@ -129,3 +129,20 @@ def get_quiz_analytics():
         traceback.print_exc()
         return ResponseService.error_response(f"failed to get quiz analytics: {str(e)}", 500)
 
+
+@analytics_bp.get('/analytics/user-learning')
+@jwt_required()
+@AuthService.require_admin()
+def get_user_learning_analytics():
+    """get comprehensive user learning analytics for admin dashboard"""
+    try:
+        params = request.args.to_dict()
+        result = AnalyticsService.get_user_learning_analytics(params)
+        return result
+    except APIError as e:
+        return handle_api_error(e)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return ResponseService.error_response(f"failed to get user learning analytics: {str(e)}", 500)
+

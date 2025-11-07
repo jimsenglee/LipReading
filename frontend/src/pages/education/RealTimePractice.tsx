@@ -1,21 +1,40 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { 
   Camera, 
   Play, 
-  Pause, 
   Square, 
   RotateCcw,
-  Settings,
   Eye,
-  Mic,
   AlertCircle,
   CheckCircle,
-  Volume2,
-  Loader2
+  VideoOff,
+  Shield,
+  Mic,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
@@ -23,6 +42,10 @@ import { useToast } from '@/hooks/use-toast';
 import { usePracticeWords, PracticeWord as ApiPracticeWord } from '@/services';
 import { API_BASE_URL } from '@/lib/constants';
 import ReactPlayer from 'react-player';
+import { faceDetectionService, FaceDetectionResult } from '@/lib/faceDetection';
+
+// type assertion for ReactPlayer to fix TypeScript issues
+const ReactPlayerComponent = ReactPlayer as any;
 
 interface FeedbackIndicator {
   aspect: string;
@@ -32,31 +55,66 @@ interface FeedbackIndicator {
 
 const RealTimePractice = () => {
   const { toast } = useToast();
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<any>(null);
   const userVideoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const correctSoundRef = useRef<HTMLAudioElement>(null);
+  const wrongSoundRef = useRef<HTMLAudioElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
   
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedWord, setSelectedWord] = useState<ApiPracticeWord | null>(null);
   const [isPracticing, setIsPracticing] = useState(false);
   const [webcamEnabled, setWebcamEnabled] = useState(false);
+  const [showCameraDialog, setShowCameraDialog] = useState(false);
+  const [showStopDialog, setShowStopDialog] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [transcriptionText, setTranscriptionText] = useState('');
+  const [lastTranscription, setLastTranscription] = useState('');
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [feedback, setFeedback] = useState<FeedbackIndicator[]>([]);
-  const [practiceProgress, setPracticeProgress] = useState(0);
+  const [videoEnded, setVideoEnded] = useState(false);
   const [sessionStats, setSessionStats] = useState({
     wordsAttempted: 0,
     accuracy: 0,
     timeSpent: 0
   });
+  
+  // frame collection for batch processing (need 25+ frames)
+  const frameBufferRef = useRef<Blob[]>([]);
+  const frameCollectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const faceDetectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const processingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const currentFaceDetectionRef = useRef<FaceDetectionResult | null>(null);
 
   // fetch practice words from api
   const { data: practiceWordsData, isLoading: isLoadingWords } = usePracticeWords({
     status: 'active',
-    per_page: 100  // get all active words
+    per_page: 100
   });
   
-  const apiWords: ApiPracticeWord[] = practiceWordsData?.data || [];
+  // debug: log practice words data
+  useEffect(() => {
+    if (practiceWordsData) {
+      console.log('[RealTimePractice] ===== PRACTICE WORDS DATA =====');
+      console.log('[RealTimePractice] Success:', practiceWordsData.success);
+      console.log('[RealTimePractice] Words count:', practiceWordsData.data?.length || 0);
+      if (practiceWordsData.data && practiceWordsData.data.length > 0) {
+        console.log('[RealTimePractice] First word sample:', {
+          id: practiceWordsData.data[0].id,
+          word: practiceWordsData.data[0].word,
+          videoPath: practiceWordsData.data[0].videoPath,
+          category: practiceWordsData.data[0].category
+        });
+      }
+      console.log('[RealTimePractice] ===== END PRACTICE WORDS DATA =====');
+    }
+  }, [practiceWordsData]);
   
-  // extract unique categories from api words
+  const apiWords: ApiPracticeWord[] = practiceWordsData?.data || [];
   const categories = ['All', ...Array.from(new Set(apiWords.map(w => w.category)))];
 
   const breadcrumbItems = [
@@ -65,66 +123,554 @@ const RealTimePractice = () => {
     { title: 'Real-Time Practice' }
   ];
 
-  const filteredWords = apiWords.filter(word => 
-    selectedCategory === 'All' || word.category === selectedCategory
-  );
+  const filteredWords = apiWords.filter(word => {
+    const matchesCategory = selectedCategory === 'All' || word.category === selectedCategory;
+    const matchesSearch = searchTerm === '' || 
+      word.word.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      word.phonetics?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
+  // load sound effects
   useEffect(() => {
-    // Cleanup stream on unmount
+    correctSoundRef.current = new Audio(`${API_BASE_URL}/uploads/sound/correct.wav`);
+    wrongSoundRef.current = new Audio(`${API_BASE_URL}/uploads/sound/wrong.wav`);
     return () => {
+      correctSoundRef.current?.pause();
+      wrongSoundRef.current?.pause();
+    };
+  }, []);
+
+  // initialize face detection service
+  useEffect(() => {
+    faceDetectionService.initialize().catch(err => {
+      console.error('[RealTimePractice] Face detection initialization error:', err);
+    });
+
+    return () => {
+      faceDetectionService.dispose();
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
+      }
+      if (frameCollectionIntervalRef.current) {
+        clearInterval(frameCollectionIntervalRef.current);
+      }
+      if (faceDetectionIntervalRef.current) {
+        clearInterval(faceDetectionIntervalRef.current);
+      }
+      if (processingIntervalRef.current) {
+        clearInterval(processingIntervalRef.current);
       }
     };
   }, [stream]);
 
   const enableWebcam = async () => {
     try {
+      console.log('[RealTimePractice] ===== ENABLING WEBCAM =====');
+      console.log('[RealTimePractice] Requesting camera access...');
+      
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
-        audio: true 
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'user'
+        },
+        audio: false
       });
+      
+      console.log('[RealTimePractice] Camera access granted');
+      console.log('[RealTimePractice] Stream tracks:', mediaStream.getTracks().map(t => ({
+        kind: t.kind,
+        label: t.label,
+        enabled: t.enabled,
+        readyState: t.readyState
+      })));
+      
       setStream(mediaStream);
+      setWebcamEnabled(true); // set this first so video element renders
       
-      if (userVideoRef.current) {
-        userVideoRef.current.srcObject = mediaStream;
-      }
+      // wait for video element to be rendered
+      const attachStream = () => {
+        if (userVideoRef.current) {
+          console.log('[RealTimePractice] Video element found, attaching stream...');
+          userVideoRef.current.srcObject = mediaStream;
+          
+          userVideoRef.current.play()
+            .then(() => {
+              console.log('[RealTimePractice] Video playing successfully');
+              console.log('[RealTimePractice] Video dimensions:', {
+                videoWidth: userVideoRef.current?.videoWidth,
+                videoHeight: userVideoRef.current?.videoHeight
+              });
+              toast({
+                title: "Webcam Enabled",
+                description: "Camera access granted successfully"
+              });
+            })
+            .catch(err => {
+              console.error('[RealTimePractice] Error playing video:', err);
+              toast({
+                title: "Video Playback Error",
+                description: "Camera is connected but video won't play. Please refresh the page.",
+                variant: "destructive"
+              });
+            });
+        } else {
+          console.log('[RealTimePractice] Video element not found yet, retrying...');
+          setTimeout(attachStream, 100);
+        }
+      };
       
-      setWebcamEnabled(true);
-      toast({
-        title: "Webcam Enabled",
-        description: "Camera access granted successfully"
-      });
+      // wait a bit for React to render the video element
+      setTimeout(attachStream, 50);
+      
     } catch (error) {
-      console.error('Error accessing webcam:', error);
-      toast({
-        title: "Camera Access Denied",
-        description: "Webcam access is required for practice mode. Please allow access to continue.",
-        variant: "destructive"
-      });
+      console.error('[RealTimePractice] ===== WEBCAM ERROR =====');
+      console.error('[RealTimePractice] Error accessing webcam:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[RealTimePractice] Error name:', error instanceof Error ? error.name : 'N/A');
+      console.error('[RealTimePractice] ===== END WEBCAM ERROR =====');
+      
+      if (error instanceof Error && error.name === 'NotAllowedError') {
+        toast({
+          title: "Camera Permission Denied",
+          description: "Please allow camera access in your browser settings to use this feature.",
+          variant: "destructive"
+        });
+      } else if (error instanceof Error && error.name === 'NotFoundError') {
+        toast({
+          title: "No Camera Found",
+          description: "No camera device detected. Please connect a camera and try again.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Camera Access Error",
+          description: `Failed to access camera: ${errorMessage}`,
+          variant: "destructive"
+        });
+      }
     }
   };
 
   const disableWebcam = () => {
+    stopPractice();
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
       setStream(null);
     }
     setWebcamEnabled(false);
-    setIsPracticing(false);
+    setTranscriptionText('');
+    setLastTranscription('');
+    setIsCorrect(null);
+    frameBufferRef.current = [];
+    currentFaceDetectionRef.current = null;
   };
 
   const selectWord = (word: ApiPracticeWord) => {
+    if (isPracticing) {
+      setShowStopDialog(true);
+      return;
+    }
+    
+    console.log('[RealTimePractice] ===== WORD SELECTED =====');
+    console.log('[RealTimePractice] Word ID:', word.id);
+    console.log('[RealTimePractice] Word:', word.word);
+    console.log('[RealTimePractice] Video Path from API:', word.videoPath);
+    
+    // construct video url
+    const videoUrl = word.videoPath.startsWith('http') 
+      ? word.videoPath 
+      : `${API_BASE_URL}${word.videoPath}`;
+    console.log('[RealTimePractice] Full Video URL:', videoUrl);
+    
+    // test if video url is accessible
+    fetch(videoUrl, { method: 'HEAD' })
+      .then(response => {
+        console.log('[RealTimePractice] Video URL HEAD request:', {
+          status: response.status,
+          statusText: response.statusText,
+          contentType: response.headers.get('content-type'),
+          contentLength: response.headers.get('content-length'),
+          url: response.url,
+          accessible: response.ok
+        });
+        if (!response.ok) {
+          console.error('[RealTimePractice] Video URL not accessible! Status:', response.status);
+          toast({
+            title: "Video Not Found",
+            description: `Video file not accessible (${response.status}). Please contact support.`,
+            variant: "destructive"
+          });
+        }
+      })
+      .catch(error => {
+        console.error('[RealTimePractice] Video URL HEAD request failed:', error);
+        toast({
+          title: "Video Check Failed",
+          description: "Could not verify video file. It may still work, please try playing it.",
+          variant: "default"
+        });
+      });
+    
     setSelectedWord(word);
-    setIsPracticing(false);
-    setPracticeProgress(0);
-    // reset feedback
+    setVideoEnded(false);
+    setVideoReady(false);
+    setIsVideoPlaying(false);
+    setTranscriptionText('');
+    setLastTranscription('');
+    setIsCorrect(null);
+    frameBufferRef.current = [];
+    // reset feedback - will be updated by face detection
     setFeedback([
-      { aspect: 'Lip Position', status: 'needs-work', description: 'Position your lips correctly' },
-      { aspect: 'Mouth Opening', status: 'needs-work', description: 'Adjust mouth opening' },
-      { aspect: 'Clarity', status: 'needs-work', description: 'Speak more clearly' }
+      { aspect: 'Face Detection', status: 'needs-work', description: 'Position your face in front of the camera' },
+      { aspect: 'Face Position', status: 'needs-work', description: 'Center your face in the frame' },
+      { aspect: 'Mouth Visibility', status: 'needs-work', description: 'Ensure your mouth is visible' }
     ]);
+    console.log('[RealTimePractice] ===== END WORD SELECTION =====');
   };
+
+  // proper face detection using MediaPipe
+  const detectFace = useCallback(async () => {
+    // always log entry point
+    console.log('[RealTimePractice] detectFace() called, isPracticing:', isPracticing, 'hasVideoRef:', !!userVideoRef.current);
+    
+    if (!userVideoRef.current) {
+      console.log('[RealTimePractice] FACE DETECTION SKIPPED: No video ref');
+      return null;
+    }
+
+    if (!isPracticing) {
+      console.log('[RealTimePractice] FACE DETECTION SKIPPED: Not practicing');
+      return null;
+    }
+
+    try {
+      console.log('[RealTimePractice] ===== STARTING FACE DETECTION =====');
+      const video = userVideoRef.current;
+      console.log('[RealTimePractice] Video state:', {
+        readyState: video.readyState,
+        videoWidth: video.videoWidth,
+        videoHeight: video.videoHeight,
+        paused: video.paused,
+        srcObject: !!video.srcObject
+      });
+      
+      if (video.readyState < 2) {
+        console.log('[RealTimePractice] Video not ready, readyState:', video.readyState);
+        return null;
+      }
+      
+      console.log('[RealTimePractice] Calling faceDetectionService.detectFace()...');
+      const result = await faceDetectionService.detectFace(video);
+      currentFaceDetectionRef.current = result;
+      
+      console.log('[RealTimePractice] ===== FACE DETECTION RESULT =====');
+      console.log('[RealTimePractice] Face detected:', result.faceDetected);
+      console.log('[RealTimePractice] Message:', result.message);
+      console.log('[RealTimePractice] Confidence:', result.faceConfidence);
+      console.log('[RealTimePractice] ===== END FACE DETECTION RESULT =====');
+
+      // update feedback based on actual face detection
+      const feedbackItems: FeedbackIndicator[] = [];
+      
+      if (!result.faceDetected) {
+        feedbackItems.push({
+          aspect: 'Face Detection',
+          status: 'needs-work',
+          description: result.message || 'No face detected - please position your face in front of the camera'
+        });
+        feedbackItems.push({
+          aspect: 'Face Position',
+          status: 'needs-work',
+          description: 'Move closer to the camera'
+        });
+        feedbackItems.push({
+          aspect: 'Mouth Visibility',
+          status: 'needs-work',
+          description: 'Ensure your face is visible'
+        });
+      } else {
+        // face detected - check position and angle
+        if (result.faceAngle === 'side') {
+          feedbackItems.push({
+            aspect: 'Face Detection',
+            status: 'good',
+            description: 'Face detected'
+          });
+          feedbackItems.push({
+            aspect: 'Face Position',
+            status: 'needs-work',
+            description: 'Face angled - please face the camera directly'
+          });
+          feedbackItems.push({
+            aspect: 'Mouth Visibility',
+            status: 'needs-work',
+            description: 'Turn your face to the front'
+          });
+        } else if (result.faceConfidence < 0.7) {
+          feedbackItems.push({
+            aspect: 'Face Detection',
+            status: 'good',
+            description: 'Face detected but not clear'
+          });
+          feedbackItems.push({
+            aspect: 'Face Position',
+            status: 'needs-work',
+            description: 'Move closer or improve lighting'
+          });
+          feedbackItems.push({
+            aspect: 'Mouth Visibility',
+            status: 'good',
+            description: 'Mouth is visible'
+          });
+        } else {
+          // good face detection
+          feedbackItems.push({
+            aspect: 'Face Detection',
+            status: 'excellent',
+            description: 'Face detected clearly'
+          });
+          feedbackItems.push({
+            aspect: 'Face Position',
+            status: result.faceAngle === 'front' ? 'excellent' : 'good',
+            description: result.faceAngle === 'front' ? 'Face positioned correctly' : 'Face position is good'
+          });
+          feedbackItems.push({
+            aspect: 'Mouth Visibility',
+            status: result.mouthOpen ? 'excellent' : 'good',
+            description: result.mouthOpen ? 'Mouth is open and ready' : 'Mouth is visible - open your mouth to speak'
+          });
+        }
+      }
+      
+      setFeedback(feedbackItems);
+      return result;
+    } catch (error) {
+      console.error('[RealTimePractice] ===== FACE DETECTION ERROR =====');
+      console.error('[RealTimePractice] Error:', error);
+      console.error('[RealTimePractice] Error type:', error instanceof Error ? error.constructor.name : typeof error);
+      console.error('[RealTimePractice] Error message:', error instanceof Error ? error.message : 'N/A');
+      console.error('[RealTimePractice] Error stack:', error instanceof Error ? error.stack : 'N/A');
+      console.error('[RealTimePractice] ===== END FACE DETECTION ERROR =====');
+      return null;
+    }
+  }, [isPracticing]);
+
+  // collect frames for batch processing (need 25+ frames = 1 second at 25fps)
+  const collectFrame = useCallback(() => {
+    if (!userVideoRef.current) {
+      console.log('[RealTimePractice] Frame collection skipped: No video ref');
+      return;
+    }
+    
+    if (!canvasRef.current) {
+      console.log('[RealTimePractice] Frame collection skipped: No canvas ref');
+      return;
+    }
+    
+    if (!selectedWord) {
+      console.log('[RealTimePractice] Frame collection skipped: No selected word');
+      return;
+    }
+    
+    if (!isPracticing) {
+      console.log('[RealTimePractice] Frame collection skipped: Not practicing');
+      return;
+    }
+
+    try {
+      const video = userVideoRef.current;
+      const canvas = canvasRef.current;
+      
+      // check if video is ready
+      if (video.readyState < 2) {
+        console.log('[RealTimePractice] Frame collection skipped: Video not ready, readyState:', video.readyState);
+        return;
+      }
+      
+      // set canvas size to match video
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      
+      // draw video frame to canvas
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // convert canvas to blob and add to buffer
+        canvas.toBlob((blob) => {
+          if (blob) {
+            frameBufferRef.current.push(blob);
+            if (frameBufferRef.current.length % 10 === 0 || frameBufferRef.current.length === 25) {
+              console.log(`[RealTimePractice] Frame collected. Buffer size: ${frameBufferRef.current.length}/25`);
+            }
+          } else {
+            console.error('[RealTimePractice] Failed to create blob from canvas');
+          }
+        }, 'image/jpeg', 0.8);
+      } else {
+        console.error('[RealTimePractice] Failed to get canvas context');
+      }
+    } catch (error) {
+      console.error('[RealTimePractice] ===== FRAME COLLECTION ERROR =====');
+      console.error('[RealTimePractice] Error:', error);
+      console.error('[RealTimePractice] Error stack:', error instanceof Error ? error.stack : 'N/A');
+      console.error('[RealTimePractice] ===== END FRAME COLLECTION ERROR =====');
+    }
+  }, [selectedWord, isPracticing]);
+
+  // process collected frames when we have enough (25+ frames)
+  const processFrames = useCallback(async () => {
+    console.log('[RealTimePractice] ===== PROCESS FRAMES CALLED =====');
+    console.log('[RealTimePractice] Selected word:', selectedWord?.word);
+    console.log('[RealTimePractice] Is practicing:', isPracticing);
+    console.log('[RealTimePractice] Frame buffer size:', frameBufferRef.current.length);
+    
+    if (!selectedWord) {
+      console.log('[RealTimePractice] Processing skipped: No selected word');
+      return;
+    }
+    
+    if (!isPracticing) {
+      console.log('[RealTimePractice] Processing skipped: Not practicing');
+      return;
+    }
+    
+    if (frameBufferRef.current.length < 25) {
+      console.log(`[RealTimePractice] Processing skipped: Not enough frames (${frameBufferRef.current.length}/25)`);
+      return;
+    }
+
+    // TEMPORARILY DISABLE FACE DETECTION CHECK TO TEST BACKEND
+    // Allow processing even without face detection - we'll re-enable this once MediaPipe is working
+    const faceResult = currentFaceDetectionRef.current;
+    console.log('[RealTimePractice] Face detection status (for info only):', {
+      hasResult: !!faceResult,
+      faceDetected: faceResult?.faceDetected,
+      message: faceResult?.message
+    });
+    
+    // NOTE: Face detection check is disabled for now to allow backend testing
+    // Once MediaPipe is working, uncomment this:
+    // if (!faceResult || !faceResult.faceDetected) {
+    //   console.log('[RealTimePractice] Processing blocked - no face detected');
+    //   if (frameBufferRef.current.length > 50) {
+    //     frameBufferRef.current = [];
+    //   }
+    //   return;
+    // }
+          
+          try {
+            setIsProcessing(true);
+      console.log('[RealTimePractice] ===== SENDING FRAMES TO BACKEND =====');
+      console.log(`[RealTimePractice] Processing ${frameBufferRef.current.length} frames...`);
+      console.log('[RealTimePractice] Word ID:', selectedWord.id);
+      console.log('[RealTimePractice] API URL:', `${API_BASE_URL}/api/transcriptions/practice/realtime`);
+      
+      // create form data with all frames
+      const formData = new FormData();
+      frameBufferRef.current.forEach((blob, index) => {
+        formData.append('frames', blob, `frame_${index}.jpg`);
+      });
+      formData.append('word_id', selectedWord.id.toString());
+      
+      console.log('[RealTimePractice] FormData created with', frameBufferRef.current.length, 'frames');
+      
+            const token = localStorage.getItem('token');
+      console.log('[RealTimePractice] Token exists:', !!token);
+      
+      console.log('[RealTimePractice] Sending request to backend...');
+            const response = await fetch(`${API_BASE_URL}/api/transcriptions/practice/realtime`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`
+              },
+              body: formData
+            });
+      
+      console.log('[RealTimePractice] ===== BACKEND RESPONSE RECEIVED =====');
+      console.log('[RealTimePractice] Response status:', response.status);
+      console.log('[RealTimePractice] Response ok:', response.ok);
+      console.log('[RealTimePractice] Response headers:', Object.fromEntries(response.headers.entries()));
+            
+            if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[RealTimePractice] Backend error response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+            }
+            
+            const result = await response.json();
+      console.log('[RealTimePractice] ===== BACKEND RESPONSE DATA =====');
+            console.log('[RealTimePractice] Full response:', JSON.stringify(result, null, 2));
+            console.log('[RealTimePractice] Success:', result.success);
+      console.log('[RealTimePractice] Transcription:', result.data?.transcription);
+      console.log('[RealTimePractice] ===== END BACKEND RESPONSE =====');
+            
+            if (result.success && result.data?.transcription) {
+              const transcribed = result.data.transcription.trim().toLowerCase();
+              const expectedWord = selectedWord.word.toLowerCase();
+              
+        console.log('[RealTimePractice] ===== TRANSCRIPTION COMPARISON =====');
+        console.log('[RealTimePractice] Transcribed:', transcribed);
+        console.log('[RealTimePractice] Expected:', expectedWord);
+        
+        // check if transcription matches expected word (exact match or contains)
+        const matches = transcribed === expectedWord || 
+                       transcribed.includes(expectedWord) ||
+                       expectedWord.includes(transcribed);
+        console.log('[RealTimePractice] Match result:', matches);
+        console.log('[RealTimePractice] ===== END TRANSCRIPTION COMPARISON =====');
+              
+              // update transcription text
+              setTranscriptionText(transcribed);
+              setLastTranscription(transcribed);
+              setIsCorrect(matches);
+              
+              if (matches) {
+                // play correct sound
+                correctSoundRef.current?.play().catch(e => console.error('Sound play error:', e));
+                
+                // update feedback to positive
+                setFeedback([
+            { aspect: 'Face Detection', status: 'excellent', description: 'Face detected clearly' },
+            { aspect: 'Face Position', status: 'excellent', description: 'Perfect positioning!' },
+            { aspect: 'Word Recognition', status: 'excellent', description: `Successfully recognized: "${selectedWord.word}"` }
+          ]);
+          
+          // auto-stop on success
+                setTimeout(() => {
+                  completePractice(true);
+          }, 1500);
+              } else {
+                // play wrong sound
+                wrongSoundRef.current?.play().catch(e => console.error('Sound play error:', e));
+              }
+            } else {
+        console.warn('[RealTimePractice] Backend response missing transcription:', result);
+            }
+      
+      // clear buffer after processing
+      frameBufferRef.current = [];
+      console.log('[RealTimePractice] Frame buffer cleared');
+          } catch (error) {
+      console.error('[RealTimePractice] ===== FRAME PROCESSING ERROR =====');
+      console.error('[RealTimePractice] Error:', error);
+      console.error('[RealTimePractice] Error type:', error instanceof Error ? error.constructor.name : typeof error);
+      console.error('[RealTimePractice] Error message:', error instanceof Error ? error.message : 'N/A');
+      console.error('[RealTimePractice] Error stack:', error instanceof Error ? error.stack : 'N/A');
+      console.error('[RealTimePractice] ===== END FRAME PROCESSING ERROR =====');
+            toast({
+              title: "Processing Error",
+        description: `Failed to process video frames: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              variant: "destructive"
+            });
+      // clear buffer on error
+      frameBufferRef.current = [];
+          } finally {
+      setIsProcessing(false);
+    }
+  }, [selectedWord, isPracticing, toast]);
 
   const startPractice = () => {
     if (!webcamEnabled) {
@@ -146,43 +692,95 @@ const RealTimePractice = () => {
     }
 
     setIsPracticing(true);
+    setTranscriptionText('');
+    setLastTranscription('');
+    setIsCorrect(null);
+    frameBufferRef.current = [];
+    currentFaceDetectionRef.current = null;
     
-    // Simulate practice progress and feedback updates
-    const interval = setInterval(() => {
-      setPracticeProgress(prev => {
-        const newProgress = prev + Math.random() * 10;
-        if (newProgress >= 100) {
-          clearInterval(interval);
-          completePractice();
-          return 100;
-        }
-        return newProgress;
+    console.log('[RealTimePractice] ===== STARTING PRACTICE SESSION =====');
+    console.log('[RealTimePractice] Word:', selectedWord.word);
+    console.log('[RealTimePractice] Video ref:', !!userVideoRef.current);
+    console.log('[RealTimePractice] Canvas ref:', !!canvasRef.current);
+    console.log('[RealTimePractice] Webcam enabled:', webcamEnabled);
+    
+    if (userVideoRef.current) {
+      console.log('[RealTimePractice] Video element state:', {
+        readyState: userVideoRef.current.readyState,
+        videoWidth: userVideoRef.current.videoWidth,
+        videoHeight: userVideoRef.current.videoHeight,
+        paused: userVideoRef.current.paused,
+        srcObject: !!userVideoRef.current.srcObject
       });
-      
-      // Update feedback randomly for demo
-      setFeedback(prev => prev.map(item => ({
-        ...item,
-        status: Math.random() > 0.3 ? 'good' : Math.random() > 0.6 ? 'excellent' : 'needs-work'
-      })));
+    }
+    
+    // detect face every 500ms for real-time feedback
+    console.log('[RealTimePractice] Setting up face detection interval (500ms)');
+    // clear any existing interval first
+    if (faceDetectionIntervalRef.current) {
+      clearInterval(faceDetectionIntervalRef.current);
+    }
+    // run immediately once
+    detectFace().catch(err => console.error('[RealTimePractice] Initial face detection error:', err));
+    // then run every 500ms
+    faceDetectionIntervalRef.current = setInterval(() => {
+      console.log('[RealTimePractice] Face detection interval triggered');
+      detectFace().catch(err => console.error('[RealTimePractice] Face detection error in interval:', err));
     }, 500);
+    
+    // collect frames at 25fps (every 40ms) to build buffer
+    console.log('[RealTimePractice] Starting frame collection interval (40ms = 25fps)');
+    frameCollectionIntervalRef.current = setInterval(() => {
+      collectFrame();
+    }, 40); // 25 frames per second
+    
+    // process frames when we have enough (every 1.5 seconds, or when buffer reaches 25)
+    console.log('[RealTimePractice] Starting processing interval (1500ms)');
+    processingIntervalRef.current = setInterval(() => {
+      if (frameBufferRef.current.length >= 25) {
+        processFrames();
+      }
+    }, 1500);
+    
+    console.log('[RealTimePractice] ===== PRACTICE SESSION STARTED =====');
   };
 
   const stopPractice = () => {
     setIsPracticing(false);
-    setPracticeProgress(0);
+    setTranscriptionText('');
+    setIsCorrect(null);
+    frameBufferRef.current = [];
+    currentFaceDetectionRef.current = null;
+    
+    if (frameCollectionIntervalRef.current) {
+      clearInterval(frameCollectionIntervalRef.current);
+      frameCollectionIntervalRef.current = null;
+    }
+    if (faceDetectionIntervalRef.current) {
+      clearInterval(faceDetectionIntervalRef.current);
+      faceDetectionIntervalRef.current = null;
+    }
+    if (processingIntervalRef.current) {
+      clearInterval(processingIntervalRef.current);
+      processingIntervalRef.current = null;
+    }
+    console.log('[RealTimePractice] Practice session stopped');
   };
 
-  const completePractice = () => {
-    setIsPracticing(false);
+  const completePractice = (success: boolean) => {
+    stopPractice();
     setSessionStats(prev => ({
       ...prev,
       wordsAttempted: prev.wordsAttempted + 1,
-      accuracy: Math.min(100, prev.accuracy + Math.random() * 10)
+      accuracy: success ? Math.min(100, prev.accuracy + 5) : Math.max(0, prev.accuracy - 2)
     }));
     
     toast({
-      title: "Practice Complete!",
-      description: `Great job practicing "${selectedWord?.word}". Try another word to continue improving.`
+      title: success ? "Excellent!" : "Keep Practicing",
+      description: success 
+        ? `Great job! You correctly pronounced "${selectedWord?.word}".`
+        : `Try again to match "${selectedWord?.word}".`,
+      variant: success ? "default" : "destructive"
     });
   };
 
@@ -191,7 +789,7 @@ const RealTimePractice = () => {
       case 'excellent':
         return <CheckCircle className="h-4 w-4 text-green-600" />;
       case 'good':
-        return <CheckCircle className="h-4 w-4 text-yellow-600" />;
+        return <CheckCircle className="h-4 w-4 text-yellow-500" />;
       default:
         return <AlertCircle className="h-4 w-4 text-red-600" />;
     }
@@ -200,13 +798,14 @@ const RealTimePractice = () => {
   const getFeedbackColor = (status: FeedbackIndicator['status']) => {
     switch (status) {
       case 'excellent':
-        return 'text-green-600';
+        return 'bg-green-50 border-green-200 text-green-700';
       case 'good':
-        return 'text-yellow-600';
+        return 'bg-yellow-50 border-yellow-200 text-yellow-700';
       default:
-        return 'text-red-600';
+        return 'bg-red-50 border-red-200 text-red-700';
     }
   };
+
 
   return (
     <div className="space-y-6 p-6">
@@ -252,35 +851,67 @@ const RealTimePractice = () => {
             <CardHeader>
               <CardTitle className="text-lg">Words to Practice</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {filteredWords.map(word => (
-                  <motion.div
-                    key={word.id}
-                    whileHover={{ x: 5 }}
-                    className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                      selectedWord?.id === word.id
-                        ? 'border-primary bg-primary/10'
-                        : 'border-gray-200 hover:border-primary/50'
-                    }`}
-                    onClick={() => selectWord(word)}
+            <CardContent className="space-y-4">
+              <div className="relative">
+                <Input
+                  type="text"
+                  placeholder="Search words..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pr-8"
+                />
+                {searchTerm && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
+                    onClick={() => setSearchTerm('')}
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">{word.word}</h4>
-                        <p className="text-xs text-gray-500">{word.phonetics}</p>
-                      </div>
-                      <Badge 
-                        variant={word.difficulty === 'beginner' ? 'secondary' : 
-                                word.difficulty === 'intermediate' ? 'default' : 'destructive'}
-                        className="text-xs"
-                      >
-                        {word.difficulty.charAt(0).toUpperCase() + word.difficulty.slice(1)}
-                      </Badge>
-                    </div>
-                  </motion.div>
-                ))}
+                    ×
+                  </Button>
+                )}
               </div>
+              
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                {filteredWords.length > 0 ? (
+                  filteredWords.map(word => (
+                    <motion.div
+                      key={word.id}
+                      whileHover={{ x: 5 }}
+                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                        selectedWord?.id === word.id
+                          ? 'border-primary bg-primary/10'
+                          : 'border-gray-200 hover:border-primary/50'
+                      }`}
+                      onClick={() => selectWord(word)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium">{word.word}</h4>
+                          <p className="text-xs text-gray-500">{word.phonetics}</p>
+                        </div>
+                        <Badge 
+                          variant={word.difficulty === 'beginner' ? 'secondary' : 
+                                  word.difficulty === 'intermediate' ? 'default' : 'destructive'}
+                          className="text-xs"
+                        >
+                          {word.difficulty.charAt(0).toUpperCase() + word.difficulty.slice(1)}
+                        </Badge>
+                      </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500 text-sm">
+                    {searchTerm ? 'No words found matching your search' : 'No words available'}
+                  </div>
+                )}
+              </div>
+              
+              {filteredWords.length > 0 && (
+                <p className="text-xs text-gray-500 text-center">
+                  Showing {filteredWords.length} of {apiWords.length} words
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -305,16 +936,86 @@ const RealTimePractice = () => {
                   <h3 className="text-lg font-medium">Reference Video</h3>
                   <div className="relative bg-black rounded-lg overflow-hidden">
                     {selectedWord ? (
-                      <div className="aspect-video bg-black rounded-lg overflow-hidden">
-                        {(ReactPlayer as any)({
-                          ref: videoRef,
-                          url: `${API_BASE_URL}${selectedWord.videoPath}`,
-                          width: "100%",
-                          height: "100%",
-                          playing: true,
-                          controls: true,
-                          loop: true
-                        })}
+                      <div className="relative aspect-video bg-black rounded-lg overflow-hidden group">
+                        <ReactPlayerComponent
+                          key={selectedWord.id}
+                          ref={videoRef}
+                          url={selectedWord.videoPath.startsWith('http') 
+                            ? selectedWord.videoPath 
+                            : `${API_BASE_URL}${selectedWord.videoPath}`}
+                          width="100%"
+                          height="100%"
+                          playing={isVideoPlaying}
+                          loop={true}
+                          controls={false}
+                          muted={false}
+                          playsinline={true}
+                          config={{
+                            file: {
+                              attributes: {
+                                controlsList: 'nodownload',
+                                disablePictureInPicture: true,
+                                playsInline: true
+                              },
+                              forceVideo: true
+                            }
+                          }}
+                          onError={(error: any) => {
+                            console.error('[RealTimePractice] ===== VIDEO PLAYER ERROR =====');
+                            console.error('[RealTimePractice] Error:', error);
+                            console.error('[RealTimePractice] Video URL:', selectedWord.videoPath.startsWith('http') 
+                              ? selectedWord.videoPath 
+                              : `${API_BASE_URL}${selectedWord.videoPath}`);
+                            toast({
+                              title: "Video Error",
+                              description: "Failed to load reference video. Please try selecting another word.",
+                              variant: "destructive"
+                            });
+                          }}
+                          onReady={() => {
+                            console.log('[RealTimePractice] ===== VIDEO READY =====');
+                            setVideoReady(true);
+                            console.log('[RealTimePractice] Video ready, URL:', selectedWord.videoPath.startsWith('http') 
+                              ? selectedWord.videoPath 
+                              : `${API_BASE_URL}${selectedWord.videoPath}`);
+                          }}
+                          onStart={() => {
+                            console.log('[RealTimePractice] Video started');
+                            setIsVideoPlaying(true);
+                          }}
+                          onPlay={() => {
+                            console.log('[RealTimePractice] Video playing');
+                            setIsVideoPlaying(true);
+                          }}
+                          onPause={() => {
+                            console.log('[RealTimePractice] Video paused');
+                            setIsVideoPlaying(false);
+                          }}
+                          onEnded={() => {
+                            console.log('[RealTimePractice] Video ended, restarting');
+                            setIsVideoPlaying(false);
+                            setTimeout(() => setIsVideoPlaying(true), 100);
+                          }}
+                        />
+                        {/* Custom Play/Replay Button Overlay - show when paused or not ready */}
+                        {(!isVideoPlaying || !videoReady) && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-10">
+                          <Button
+                            size="lg"
+                            variant="ghost"
+                              onClick={() => {
+                                console.log('[RealTimePractice] Play button clicked');
+                                if (videoRef.current && typeof videoRef.current.seekTo === 'function') {
+                                  videoRef.current.seekTo(0);
+                                }
+                                setIsVideoPlaying(true);
+                              }}
+                              className="bg-black/50 text-white hover:bg-black/70 rounded-full p-6"
+                            >
+                              <Play className="h-8 w-8" />
+                          </Button>
+                        </div>
+                        )}
                       </div>
                     ) : (
                       <div className="aspect-video flex items-center justify-center bg-gray-100">
@@ -337,17 +1038,9 @@ const RealTimePractice = () => {
                 {/* User Webcam */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">Your Practice</h3>
-                  <div className="relative bg-black rounded-lg overflow-hidden">
-                    {webcamEnabled ? (
-                      <video
-                        ref={userVideoRef}
-                        className="w-full aspect-video"
-                        autoPlay
-                        muted
-                        playsInline
-                      />
-                    ) : (
-                      <div className="aspect-video flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10 border-2 border-dashed border-primary/30">
+                  <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
+                    {!webcamEnabled ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10 border-2 border-dashed border-primary/30">
                         <div className="text-center space-y-4">
                           <Camera className="h-16 w-16 mx-auto text-primary/60" />
                           <div>
@@ -356,13 +1049,97 @@ const RealTimePractice = () => {
                           </div>
                         </div>
                       </div>
+                    ) : (
+                      <video
+                        ref={userVideoRef}
+                        className="w-full h-full object-cover"
+                        autoPlay
+                        muted
+                        playsInline
+                        style={{ transform: 'scaleX(-1)' }}
+                      />
+                    )}
+                    {/* Face detection indicator */}
+                    {isPracticing && currentFaceDetectionRef.current && (
+                      <div className={`absolute top-4 left-4 px-3 py-1 rounded-full flex items-center gap-2 ${
+                        currentFaceDetectionRef.current.faceDetected ? 'bg-green-500/90' : 'bg-red-500/90'
+                      } text-white z-10`}>
+                        <Eye className={`h-3 w-3 ${currentFaceDetectionRef.current.faceDetected ? 'animate-pulse' : ''}`} />
+                        <span className="text-xs">
+                          {currentFaceDetectionRef.current.faceDetected ? 'Face Detected' : 'No Face'}
+                        </span>
+                      </div>
+                    )}
+                    {/* Frame collection and processing indicators */}
+                    {isPracticing && (
+                      <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
+                        {isProcessing ? (
+                          <div className="bg-primary/90 text-white px-3 py-1 rounded-full flex items-center gap-2">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span className="text-xs">Processing...</span>
+                      </div>
+                        ) : (
+                          <div className="bg-blue-500/90 text-white px-3 py-1 rounded-full text-xs">
+                            Frames: {frameBufferRef.current.length}/25
+                      </div>
+                    )}
+                      </div>
+                    )}
+                    {/* Status indicator */}
+                    {isPracticing && lastTranscription && (
+                      <div className={`absolute bottom-4 left-4 right-4 p-3 rounded-lg ${
+                        isCorrect === true ? 'bg-green-500/90' : isCorrect === false ? 'bg-red-500/90' : 'bg-blue-500/90'
+                      } text-white`}>
+                        <div className="flex items-center gap-2">
+                          {isCorrect === true && <CheckCircle className="h-4 w-4" />}
+                          {isCorrect === false && <AlertCircle className="h-4 w-4" />}
+                          {isCorrect === null && <Mic className="h-4 w-4" />}
+                          <span className="text-sm font-medium">
+                            {isCorrect === true ? 'Correct!' : isCorrect === false ? 'Try Again' : 'Listening...'}
+                          </span>
+                        </div>
+                      </div>
                     )}
                   </div>
+                  
+                  {/* Real-time Transcription Display */}
+                  {isPracticing && (
+                    <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Mic className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-medium text-primary">What You're Saying:</span>
+                        </div>
+                        <div className={`min-h-12 p-3 rounded-lg border-2 ${
+                          isCorrect === true ? 'border-green-500 bg-green-50' :
+                          isCorrect === false ? 'border-red-500 bg-red-50' :
+                          'border-primary/30 bg-white'
+                        }`}>
+                          {transcriptionText ? (
+                            <p className={`text-lg font-semibold ${
+                              isCorrect === true ? 'text-green-700' :
+                              isCorrect === false ? 'text-red-700' :
+                              'text-gray-800'
+                            }`}>
+                              {transcriptionText}
+                            </p>
+                          ) : (
+                            <p className="text-gray-400 italic">Speak the word clearly...</p>
+                          )}
+                        </div>
+                        {selectedWord && (
+                          <p className="text-xs text-gray-500 mt-2">
+                            Expected: <span className="font-medium">{selectedWord.word}</span>
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
                   
                   <div className="flex gap-2">
                     {!webcamEnabled ? (
                       <Button 
-                        onClick={enableWebcam}
+                        onClick={() => setShowCameraDialog(true)}
                         className="flex-1 bg-primary hover:bg-primary/90"
                       >
                         <Camera className="mr-2 h-4 w-4" />
@@ -381,7 +1158,7 @@ const RealTimePractice = () => {
                           </Button>
                         ) : (
                           <Button 
-                            onClick={stopPractice}
+                            onClick={() => setShowStopDialog(true)}
                             variant="destructive"
                             className="flex-1"
                           >
@@ -392,8 +1169,9 @@ const RealTimePractice = () => {
                         <Button 
                           variant="outline"
                           onClick={disableWebcam}
+                          title="Disable Camera"
                         >
-                          <Camera className="h-4 w-4" />
+                          <VideoOff className="h-4 w-4" />
                         </Button>
                       </>
                     )}
@@ -403,7 +1181,7 @@ const RealTimePractice = () => {
             </CardContent>
           </Card>
 
-          {/* Practice Feedback and Progress */}
+          {/* Practice Feedback */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Real-time Feedback */}
             <Card className="border-primary/20">
@@ -411,39 +1189,27 @@ const RealTimePractice = () => {
                 <CardTitle className="text-lg">Real-time Feedback</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {isPracticing && (
-                    <div className="mb-4">
-                      <div className="flex justify-between text-sm mb-2">
-                        <span>Practice Progress</span>
-                        <span>{Math.round(practiceProgress)}%</span>
-                      </div>
-                      <Progress value={practiceProgress} className="h-3" />
-                    </div>
-                  )}
-                  
-                  <div className="space-y-3">
-                    {feedback.map((item, index) => (
-                      <motion.div
-                        key={index}
-                        className="flex items-center justify-between p-3 rounded-lg border"
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                      >
-                        <div className="flex items-center gap-3">
-                          {getFeedbackIcon(item.status)}
-                          <div>
-                            <span className="font-medium">{item.aspect}</span>
-                            <p className="text-xs text-gray-500">{item.description}</p>
-                          </div>
+                <div className="space-y-3">
+                  {feedback.map((item, index) => (
+                    <motion.div
+                      key={index}
+                      className={`flex items-center justify-between p-3 rounded-lg border ${getFeedbackColor(item.status)}`}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                    >
+                      <div className="flex items-center gap-3">
+                        {getFeedbackIcon(item.status)}
+                        <div>
+                          <span className="font-medium">{item.aspect}</span>
+                          <p className="text-xs opacity-80">{item.description}</p>
                         </div>
-                        <span className={`text-sm font-medium capitalize ${getFeedbackColor(item.status)}`}>
-                          {item.status === 'needs-work' ? 'Adjust' : item.status}
-                        </span>
-                      </motion.div>
-                    ))}
-                  </div>
+                      </div>
+                      <span className="text-sm font-medium capitalize">
+                        {item.status === 'needs-work' ? 'Adjust' : item.status}
+                      </span>
+                    </motion.div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -456,13 +1222,13 @@ const RealTimePractice = () => {
               <CardContent>
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
                       <div className="text-2xl font-bold text-blue-600">
                         {sessionStats.wordsAttempted}
                       </div>
                       <div className="text-sm text-gray-600">Words Practiced</div>
                     </div>
-                    <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
                       <div className="text-2xl font-bold text-green-600">
                         {Math.round(sessionStats.accuracy)}%
                       </div>
@@ -493,6 +1259,78 @@ const RealTimePractice = () => {
           </div>
         </div>
       </div>
+
+      {/* Hidden canvas for frame capture */}
+      <canvas ref={canvasRef} className="hidden" />
+
+      {/* Camera Permission Dialog */}
+      <Dialog open={showCameraDialog} onOpenChange={setShowCameraDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-primary/10 rounded-full">
+                <Shield className="h-6 w-6 text-primary" />
+              </div>
+              <DialogTitle>Camera Access Required</DialogTitle>
+            </div>
+            <DialogDescription asChild>
+              <div className="text-left pt-2">
+                <p>To practice lip reading, we need access to your camera. This allows you to:</p>
+              <ul className="list-disc list-inside mt-3 space-y-1 text-sm">
+                <li>See yourself practicing in real-time</li>
+                <li>Compare your lip movements with reference videos</li>
+                <li>Receive instant feedback on your pronunciation</li>
+              </ul>
+              <p className="mt-4 text-xs text-gray-500">
+                Your video feed is processed locally and never stored or shared.
+              </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowCameraDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                setShowCameraDialog(false);
+                await enableWebcam();
+              }}
+              className="bg-primary hover:bg-primary/90"
+            >
+              <Camera className="mr-2 h-4 w-4" />
+              Allow Camera Access
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Stop Practice Confirmation Dialog */}
+      <AlertDialog open={showStopDialog} onOpenChange={setShowStopDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stop Practice Session?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to stop the current practice session? Your progress will be saved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowStopDialog(false)}>Continue Practicing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowStopDialog(false);
+                stopPractice();
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Stop Practice
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

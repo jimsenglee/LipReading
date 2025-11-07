@@ -32,23 +32,23 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false })
   };
 
   return (
-    <nav className="bg-background/90 backdrop-blur-md shadow-sm border-b border-border fixed top-0 left-0 right-0 z-50">
+    <nav className="bg-background/95 backdrop-blur-md border-b border-primary/20 fixed top-0 left-0 right-0 z-50">
       {/* Full width container - stick to walls */}
-      <div className="flex justify-between items-center h-16 px-4">
+      <div className="flex justify-between items-center h-16 px-4 md:px-6">
         {/* Left side - Burger + Logo moved to far left */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-4">
           {/* Enhanced Hamburger Menu Button - Only show for logged in users */}
           {user && (
             <motion.button
               onClick={onToggleSidebar}
               className={cn(
-                "p-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/30",
+                "p-2.5 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/30",
                 "border border-transparent",
                 sidebarOpen 
-                  ? 'bg-gradient-to-br from-red-50 to-red-100 hover:from-red-100 hover:to-red-200 text-red-600 border-red-200/50 shadow-lg shadow-red-100/50 dark:from-red-900/20 dark:to-red-800/20 dark:hover:from-red-800/30 dark:hover:to-red-700/30 dark:text-red-400 dark:border-red-700/50 dark:shadow-red-900/20' 
-                  : 'bg-gradient-to-br from-primary/5 to-primary/10 hover:from-primary/10 hover:to-primary/20 text-foreground hover:text-primary border-primary/10 shadow-lg shadow-primary/5'
+                  ? 'bg-gradient-to-br from-red-50 to-red-100 hover:from-red-100 hover:to-red-200 text-red-600 border-red-200/50 dark:from-red-900/20 dark:to-red-800/20 dark:hover:from-red-800/30 dark:hover:to-red-700/30 dark:text-red-400 dark:border-red-700/50' 
+                  : 'bg-gradient-to-br from-primary/5 to-primary/10 hover:from-primary/10 hover:to-primary/20 text-foreground hover:text-primary border-primary/10'
               )}
-              whileHover={{ scale: 1.05, y: -1 }}
+              whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
             >
@@ -78,19 +78,19 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false })
             </motion.button>
           )}
             
-            {/* Brand Logo - closer to burger button */}
+            {/* Brand Logo - cleaner design */}
             <Link 
               to={user ? (user.role === 'admin' ? '/admin' : '/dashboard') : '/'} 
-              className="flex items-center space-x-2 group"
+              className="flex items-center space-x-2.5 group"
             >
               <motion.div
                 whileHover={{ rotate: 360, scale: 1.1 }}
                 transition={{ duration: 0.6, type: "spring", stiffness: 200 }}
               >
-                <Video className="h-8 w-8 text-primary" />
+                <Video className="h-7 w-7 text-primary" />
               </motion.div>
               <motion.span 
-                className="text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent"
+                className="text-lg font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent"
                 whileHover={{ scale: 1.05 }}
                 transition={{ type: "spring", stiffness: 400 }}
               >
@@ -100,11 +100,11 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false })
         </div>
 
         {/* Right side - User menu moved to far right */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3 md:space-x-4">
             {user ? (
               <>
                 <motion.span 
-                  className="text-sm text-foreground hidden sm:block"
+                  className="text-sm font-medium text-foreground hidden md:block"
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.2 }}
@@ -113,9 +113,9 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen = false })
                 </motion.span>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-8 w-8 rounded-full hover:scale-110 transition-transform">
-                      <Avatar className="h-8 w-8 border-2 border-primary/20">
-                        <AvatarFallback className="bg-primary/10 text-primary">
+                    <Button variant="ghost" className="relative h-9 w-9 rounded-full hover:scale-110 transition-transform border-2 border-primary/20">
+                      <Avatar className="h-9 w-9">
+                        <AvatarFallback className="bg-primary/10 text-primary font-semibold">
                           {user.name.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>

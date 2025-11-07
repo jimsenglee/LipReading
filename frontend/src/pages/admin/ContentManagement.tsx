@@ -860,16 +860,16 @@ const ContentManagement: React.FC = () => {
   // ============================================================================
   
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <AnimatedBreadcrumb items={breadcrumbItems} />
       
       {/* Header - Following UserManagement Pattern */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
             Content Management
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="text-gray-600 mt-0.5 text-sm">
             Manage tutorials, quizzes, and educational content
           </p>
         </div>
@@ -1006,7 +1006,7 @@ const ContentManagement: React.FC = () => {
         </TabsList>
 
         {/* Tutorial Series Tab */}
-        <TabsContent value="tutorials" className="space-y-6">
+        <TabsContent value="tutorials" className="space-y-4">
           {/* Search and Filters - Separate Section */}
           <Card className="border-primary/20">
             <CardContent className="p-6">
@@ -1077,7 +1077,7 @@ const ContentManagement: React.FC = () => {
         </TabsContent>
 
         {/* Quiz Series Tab */}
-        <TabsContent value="quizzes" className="space-y-6">
+        <TabsContent value="quizzes" className="space-y-4">
           {/* Search and Filters - Separate Section */}
           <Card className="border-primary/20">
             <CardContent className="p-6">
@@ -1148,7 +1148,7 @@ const ContentManagement: React.FC = () => {
         </TabsContent>
 
         {/* Categories Tab */}
-        <TabsContent value="categories" className="space-y-6">
+        <TabsContent value="categories" className="space-y-4">
           {/* Search and Filters - Separate Section */}
           <Card className="border-primary/20">
             <CardContent className="p-6">
@@ -1211,7 +1211,7 @@ const ContentManagement: React.FC = () => {
         </TabsContent>
 
         {/* Practice Words Tab */}
-        <TabsContent value="practice-words" className="space-y-6">
+        <TabsContent value="practice-words" className="space-y-4">
           {/* Search and Filters */}
           <Card className="border-primary/20">
             <CardContent className="p-6">
@@ -1275,7 +1275,7 @@ const ContentManagement: React.FC = () => {
         </TabsContent>
 
         {/* Drafts Tab */}
-        <TabsContent value="drafts" className="space-y-6">
+        <TabsContent value="drafts" className="space-y-4">
           <Card className="border-primary/20">
             <CardContent className="p-6">
               <div className="space-y-4">

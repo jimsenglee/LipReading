@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,23 +7,38 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Video, ArrowLeft, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import BackButton from '@/components/ui/back-button';
+import { useVerifyResetToken, useResetPassword } from '@/services';
 
 const ResetPassword = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const navigate = useNavigate();
 
   // Get token from URL parameters (e.g., /reset-password?token=abc123)
   const resetToken = searchParams.get('token');
+  
+  // verify token on mount
+  const { data: tokenVerification, isLoading: isVerifyingToken, isError: isTokenError } = useVerifyResetToken(resetToken);
+  const resetPasswordMutation = useResetPassword();
+  
+  useEffect(() => {
+    if (isTokenError) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Token",
+        description: "This password reset link is invalid or has expired.",
+      });
+    }
+  }, [isTokenError, toast]);
 
   const validatePassword = (password: string) => {
+    // align with backend validation (min 6 chars) but frontend can have stricter requirements
     const requirements = {
-      length: password.length >= 8,
+      length: password.length >= 6, // backend minimum
       uppercase: /[A-Z]/.test(password),
       lowercase: /[a-z]/.test(password),
       number: /\d/.test(password),
@@ -38,6 +53,15 @@ const ResetPassword = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!resetToken) {
+      toast({
+        variant: "destructive",
+        title: "Missing Token",
+        description: "Reset token is missing from the URL.",
+      });
+      return;
+    }
     
     if (!isValidPassword) {
       toast({
@@ -57,26 +81,37 @@ const ResetPassword = () => {
       return;
     }
 
-    setIsLoading(true);
-    
-    // Simulate API call for password reset
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    setIsLoading(false);
-    
-    toast({
-      title: "Password Reset Successfully!",
-      description: "Your password has been updated. You can now login with your new password.",
-    });
-
-    // Redirect to login page after successful reset
-    setTimeout(() => {
-      navigate('/login');
-    }, 2000);
+    try {
+      await resetPasswordMutation.mutateAsync({ token: resetToken, password });
+      toast({
+        title: "Password Reset Successfully!",
+        description: "Your password has been updated. You can now login with your new password.",
+      });
+      // navigation is handled by the mutation
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Failed to reset password. Please try again.",
+      });
+    }
   };
 
-  // Check if token is missing or invalid
-  if (!resetToken) {
+  // show loading state while verifying token
+  if (isVerifyingToken) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/10 px-4 animate-fade-in">
+        <Card className="w-full max-w-md border-primary/20 shadow-lg animate-scale-in">
+          <CardContent className="flex items-center justify-center py-12">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // check if token is missing or invalid
+  if (!resetToken || isTokenError || !tokenVerification?.valid) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/10 px-4 animate-fade-in">
         <Card className="w-full max-w-md border-red-200 shadow-lg animate-scale-in">
@@ -163,7 +198,7 @@ const ResetPassword = () => {
                 <div className="space-y-1">
                   <div className={`flex items-center gap-2 text-xs ${passwordRequirements.length ? 'text-green-600' : 'text-gray-500'}`}>
                     {passwordRequirements.length ? <CheckCircle className="h-3 w-3" /> : <div className="h-3 w-3 border border-gray-300 rounded-full" />}
-                    At least 8 characters
+                    At least 6 characters
                   </div>
                   <div className={`flex items-center gap-2 text-xs ${passwordRequirements.uppercase ? 'text-green-600' : 'text-gray-500'}`}>
                     {passwordRequirements.uppercase ? <CheckCircle className="h-3 w-3" /> : <div className="h-3 w-3 border border-gray-300 rounded-full" />}
@@ -225,9 +260,9 @@ const ResetPassword = () => {
             <Button 
               type="submit" 
               className="w-full bg-primary hover:bg-primary/90"
-              disabled={isLoading || !isValidPassword || !passwordsMatch}
+              disabled={resetPasswordMutation.isPending || !isValidPassword || !passwordsMatch}
             >
-              {isLoading ? 'Updating Password...' : 'Update Password'}
+              {resetPasswordMutation.isPending ? 'Updating Password...' : 'Update Password'}
             </Button>
 
             <div className="text-center">

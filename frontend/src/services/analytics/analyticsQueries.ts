@@ -431,3 +431,134 @@ export const useQuizAnalytics = () => {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
+
+// ============================================================================
+// USER LEARNING ANALYTICS
+// ============================================================================
+
+export interface UserLearningAnalyticsParams {
+  date_range?: number; // days (default: 30)
+  category?: string;
+}
+
+export interface OverallStats {
+  totalUsers: number;
+  totalTutorials: number;
+  totalQuizzes: number;
+  totalTutorialEnrollments: number;
+  totalQuizAttempts: number;
+  averageQuizScore: number;
+  totalCategories: number;
+}
+
+export interface TutorialEnrollment {
+  tutorialId: string;
+  title: string;
+  category: string;
+  enrollments: number;
+  views: number;
+}
+
+export interface QuizEnrollment {
+  quizId: string;
+  title: string;
+  category: string;
+  attempts: number;
+  views: number;
+}
+
+export interface RatingAndReview {
+  contentId: string;
+  title: string;
+  category: string;
+  type: 'tutorial' | 'quiz';
+  avgRating: number;
+  totalReviews: number;
+}
+
+export interface SeriesCompletion {
+  seriesId: string;
+  title: string;
+  category: string;
+  enrolledUsers: number;
+  completedUsers: number;
+  completionRate: number;
+  totalVideos: number;
+}
+
+export interface TopPerformer {
+  rank: number;
+  userId: number;
+  name: string;
+  email: string;
+  averageScore: number;
+  totalQuizzes: number;
+  totalTimeSpent: string;
+  lastActivity: string;
+}
+
+export interface CategoryPerformance {
+  category: string;
+  averageScore: number;
+  totalAttempts: number;
+  uniqueUsers: number;
+  improvementRate: number;
+}
+
+export interface QuizNeedingAttention {
+  quizId: string;
+  title: string;
+  category: string;
+  averageScore: number;
+  attempts: number;
+  difficultyRating: number;
+  needsReview: boolean;
+}
+
+export interface PerformanceTrend {
+  month: string;
+  avgScore: number;
+  completionRate: number;
+}
+
+export interface UserLearningAnalytics {
+  overall: OverallStats;
+  tutorialEnrollments: TutorialEnrollment[];
+  quizEnrollments: QuizEnrollment[];
+  ratingsAndReviews: RatingAndReview[];
+  seriesCompletions: SeriesCompletion[];
+  topPerformers: TopPerformer[];
+  categoryPerformance: CategoryPerformance[];
+}
+
+export const useUserLearningAnalytics = (params: UserLearningAnalyticsParams = {}) => {
+  return useQuery({
+    queryKey: ['analytics', 'user-learning', params],
+    queryFn: async (): Promise<UserLearningAnalytics> => {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No authentication token found');
+      
+      const queryParams = new URLSearchParams();
+      
+      if (params.date_range) queryParams.append('date_range', params.date_range.toString());
+      if (params.category) queryParams.append('category', params.category);
+      
+      const response = await fetch(`${API_BASE_URL}/api/analytics/user-learning?${queryParams.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('[UserLearningAnalytics] API response:', result);
+      return result.data;
+    },
+    staleTime: 3 * 60 * 1000, // 3 minutes
+    refetchOnWindowFocus: false,
+  });
+};

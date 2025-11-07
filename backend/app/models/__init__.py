@@ -21,5 +21,7 @@ from .feedback import Feedback  # noqa: F401
 from .report import Report  # noqa: F401
 from .review import Review  # noqa: F401
 from .user_progress import UserProgress  # noqa: F401
+from .login_activity import LoginActivity  # noqa: F401
+from .password_reset_token import PasswordResetToken  # noqa: F401
 
 

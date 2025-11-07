@@ -1,382 +1,344 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import { useFeedbackToast } from '@/components/ui/feedback-toast';
+import { useProgressReports } from '@/services/progress/progressQueries';
+import QuizDetailModal from '@/components/education/QuizDetailModal';
+import TutorialDetailModal from '@/components/education/TutorialDetailModal';
 import { 
   BarChart3, 
   TrendingUp, 
   Target,
   Calendar,
   Award,
-  AlertCircle,
-  CheckCircle,
   Clock,
   Download,
-  FileText,
-  PieChart,
-  LineChart,
-  Eye,
   BookOpen,
-  Brain
+  Brain,
+  Trophy,
+  ArrowUp,
+  ArrowDown,
+  Eye,
+  PlayCircle,
+  Search,
+  Filter,
+  SortDesc,
+  ExternalLink
 } from 'lucide-react';
-import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart as RechartsBarChart, Bar, Cell } from 'recharts';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer, 
+  PieChart, 
+  Pie, 
+  Cell,
+  AreaChart,
+  Area,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar
+} from 'recharts';
+
+// improved color palette - distinct, accessible colors for pie chart
+// using colorblind-friendly palette with high contrast
+const PIE_CHART_COLORS = [
+  '#3B82F6', // blue
+  '#10B981', // green
+  '#F59E0B', // amber
+  '#EF4444', // red
+  '#8B5CF6', // purple
+  '#06B6D4', // cyan
+  '#F97316', // orange
+  '#EC4899', // pink
+  '#14B8A6', // teal
+  '#6366F1', // indigo
+];
 
 const Reports = () => {
   const feedbackToast = useFeedbackToast();
-  const [selectedFormat, setSelectedFormat] = useState('pdf');
+  const [timeRange, setTimeRange] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  
+  // search and filter states for recent activities
+  const [quizSearchQuery, setQuizSearchQuery] = useState('');
+  const [tutorialSearchQuery, setTutorialSearchQuery] = useState('');
+  const [selectedQuiz, setSelectedQuiz] = useState<any>(null);
+  const [selectedTutorial, setSelectedTutorial] = useState<any>(null);
   
   const breadcrumbItems = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'My Progress' }
   ];
 
-  // Quiz Performance Mock Data
-  const quizCategories = [
-    { category: 'Vowel Sounds', averageScore: 87, totalQuizzes: 15, color: '#7E57C2' },
-    { category: 'Consonant Blends', averageScore: 82, totalQuizzes: 12, color: '#AB47BC' },
-    { category: 'Silent Letters', averageScore: 75, totalQuizzes: 9, color: '#BA68C8' },
-    { category: 'Common Words', averageScore: 91, totalQuizzes: 18, color: '#512DA8' },
-    { category: 'Sentence Reading', averageScore: 78, totalQuizzes: 8, color: '#CE93D8' }
-  ];
+  // fetch real data from backend
+  const { data: reportsData, isLoading, error } = useProgressReports({
+    time_range: timeRange,
+    category: categoryFilter
+  });
 
-  // Enhanced data for charts with proper structure
-  const categoryChartData = quizCategories.map(cat => ({
-    category: cat.category,
+  console.log('[DEBUG] Progress reports response:', reportsData);
+  console.log('[DEBUG] Loading state:', isLoading);
+  console.log('[DEBUG] Error state:', error);
+
+  // format data for charts
+  const quizTrendData = useMemo(() => {
+    if (!reportsData?.quizTrend) return [];
+    return reportsData.quizTrend.map(item => ({
+      date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      score: item.score,
+      count: item.count
+    }));
+  }, [reportsData]);
+
+  const categoryPieData = useMemo(() => {
+    if (!reportsData?.categoryPerformance) return [];
+    return reportsData.categoryPerformance.map(cat => ({
+      name: cat.category,
+      value: cat.count,
+      percentage: cat.percentage,
+      averageScore: cat.averageScore
+    }));
+  }, [reportsData]);
+
+  // radar chart data for skills assessment
+  const radarData = useMemo(() => {
+    if (!reportsData?.categoryPerformance) return [];
+    return reportsData.categoryPerformance.slice(0, 6).map(cat => ({
+      skill: cat.category.length > 15 ? cat.category.substring(0, 15) + '...' : cat.category,
     score: cat.averageScore,
-    quizzes: cat.totalQuizzes
-  }));
+      fullName: cat.category
+    }));
+  }, [reportsData]);
 
-  const quizTrendData = [
-    { date: '2024-12-01', score: 72, quizName: 'Vowel Recognition Basics' },
-    { date: '2024-12-05', score: 78, quizName: 'Silent E Practice' },
-    { date: '2024-12-10', score: 82, quizName: 'Consonant Clusters' },
-    { date: '2024-12-15', score: 75, quizName: 'Word Ending Sounds' },
-    { date: '2024-12-20', score: 89, quizName: 'Vowel Teams' },
-    { date: '2024-12-25', score: 85, quizName: 'R-Controlled Vowels' },
-    { date: '2025-01-02', score: 91, quizName: 'Common Sight Words' },
-    { date: '2025-01-08', score: 87, quizName: 'Sentence Comprehension' },
-    { date: '2025-01-15', score: 93, quizName: 'Advanced Vowel Patterns' },
-    { date: '2025-01-22', score: 88, quizName: 'Complex Consonants' }
-  ];
+  // weekly tutorial engagement (mock for now, can be enhanced with real data)
+  const weeklyEngagementData = useMemo(() => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    // generate mock data based on recent tutorials
+    const baseTime = reportsData?.recentTutorials?.length ? 100 : 50;
+    return days.map(day => ({
+      day,
+      watchTime: Math.floor(Math.random() * 100) + baseTime
+    }));
+  }, [reportsData]);
 
-  const recentQuizzes = [
-    {
-      id: 'quiz-001',
-      quizName: 'Advanced Vowel Patterns',
-      category: 'Vowel Sounds',
-      score: 93,
-      completedDate: new Date('2025-01-22'),
-      duration: '8:45',
-      questions: [
-        { question: 'Identify the vowel sound in "boat"', userAnswer: 'Long O', correctAnswer: 'Long O', isCorrect: true },
-        { question: 'What vowel sound is in "rain"?', userAnswer: 'Long A', correctAnswer: 'Long A', isCorrect: true },
-        { question: 'Choose the correct vowel in "light"', userAnswer: 'Long I', correctAnswer: 'Long I', isCorrect: true },
-        { question: 'Identify vowel sound in "coin"', userAnswer: 'OI diphthong', correctAnswer: 'OI diphthong', isCorrect: true },
-        { question: 'What sound does "ough" make in "through"?', userAnswer: 'OO sound', correctAnswer: 'OO sound', isCorrect: true },
-        { question: 'Vowel sound in "beauty"', userAnswer: 'Long U', correctAnswer: 'Long U', isCorrect: true },
-        { question: 'Sound in "great"', userAnswer: 'Long A', correctAnswer: 'Long A', isCorrect: true },
-        { question: 'Vowel in "piece"', userAnswer: 'Long E', correctAnswer: 'Long E', isCorrect: true },
-        { question: 'Sound in "could"', userAnswer: 'Short U', correctAnswer: 'UH sound', isCorrect: false },
-        { question: 'Vowel in "height"', userAnswer: 'Long A', correctAnswer: 'Long I', isCorrect: false }
-      ]
-    },
-    {
-      id: 'quiz-002',
-      quizName: 'Complex Consonants',
-      category: 'Consonant Blends',
-      score: 88,
-      completedDate: new Date('2025-01-22'),
-      duration: '12:30',
-      questions: [
-        { question: 'Sound of "ch" in "school"', userAnswer: 'K sound', correctAnswer: 'K sound', isCorrect: true },
-        { question: 'Pronunciation of "ph"', userAnswer: 'F sound', correctAnswer: 'F sound', isCorrect: true },
-        { question: 'Sound of "th" in "think"', userAnswer: 'Voiceless TH', correctAnswer: 'Voiceless TH', isCorrect: true },
-        { question: 'Sound of "gh" in "laugh"', userAnswer: 'F sound', correctAnswer: 'F sound', isCorrect: true },
-        { question: 'Sound of "qu"', userAnswer: 'KW sound', correctAnswer: 'KW sound', isCorrect: true },
-        { question: 'Sound of "x" in "exact"', userAnswer: 'GZ sound', correctAnswer: 'GZ sound', isCorrect: true },
-        { question: 'Sound of "c" in "city"', userAnswer: 'S sound', correctAnswer: 'S sound', isCorrect: true },
-        { question: 'Sound of "g" in "gem"', userAnswer: 'J sound', correctAnswer: 'J sound', isCorrect: true },
-        { question: 'Sound of "s" in "treasure"', userAnswer: 'S sound', correctAnswer: 'ZH sound', isCorrect: false },
-        { question: 'Silent letter in "knife"', userAnswer: 'K', correctAnswer: 'K', isCorrect: true }
-      ]
-    },
-    {
-      id: 'quiz-003',
-      quizName: 'Sentence Comprehension',
-      category: 'Sentence Reading',
-      score: 87,
-      completedDate: new Date('2025-01-08'),
-      duration: '15:20',
-      questions: [
-        { question: 'Read: "The cat sat on the mat"', userAnswer: 'Correct', correctAnswer: 'Correct', isCorrect: true },
-        { question: 'Read: "She sells seashells"', userAnswer: 'Correct', correctAnswer: 'Correct', isCorrect: true },
-        { question: 'Read: "How are you today?"', userAnswer: 'Correct', correctAnswer: 'Correct', isCorrect: true },
-        { question: 'Read: "The quick brown fox"', userAnswer: 'Correct', correctAnswer: 'Correct', isCorrect: true },
-        { question: 'Read: "Beautiful butterfly"', userAnswer: 'Beautiful butterfly', correctAnswer: 'Beautiful butterfly', isCorrect: true },
-        { question: 'Read: "Would you like some?"', userAnswer: 'Would you like some?', correctAnswer: 'Would you like some?', isCorrect: true },
-        { question: 'Read: "Through thick and thin"', userAnswer: 'Through thick and thin', correctAnswer: 'Through thick and thin', isCorrect: true },
-        { question: 'Read: "Knowledge is power"', userAnswer: 'Knowledge is power', correctAnswer: 'Knowledge is power', isCorrect: true },
-        { question: 'Read: "Extraordinary experience"', userAnswer: 'Extraordinary experience', correctAnswer: 'Extraordinary experience', isCorrect: true },
-        { question: 'Read: "Pneumonia symptoms"', userAnswer: 'Pneumonia symptoms', correctAnswer: 'Pneumonia symptoms', isCorrect: false }
-      ]
+  // format recent quizzes - sorted by latest date first
+  const recentQuizzes = useMemo(() => {
+    if (!reportsData?.recentQuizzes) return [];
+    const formatted = reportsData.recentQuizzes
+      .map(quiz => ({
+        ...quiz,
+        completedDate: quiz.completionDate ? new Date(quiz.completionDate) : new Date(0)
+      }))
+      .sort((a, b) => b.completedDate.getTime() - a.completedDate.getTime()); // latest first
+    
+    // filter by search query
+    if (quizSearchQuery.trim()) {
+      const query = quizSearchQuery.toLowerCase();
+      return formatted.filter(quiz => 
+        quiz.quizTitle.toLowerCase().includes(query) ||
+        quiz.categoryName.toLowerCase().includes(query)
+      );
     }
-  ];
+    return formatted;
+  }, [reportsData, quizSearchQuery]);
 
-  // Summary Metrics
-  const summaryMetrics = {
-    totalQuizzes: quizCategories.reduce((sum, cat) => sum + cat.totalQuizzes, 0),
-    averageScore: Math.round(quizCategories.reduce((sum, cat) => sum + (cat.averageScore * cat.totalQuizzes), 0) / quizCategories.reduce((sum, cat) => sum + cat.totalQuizzes, 0)),
-    bestCategory: quizCategories.reduce((best, cat) => cat.averageScore > best.averageScore ? cat : best, quizCategories[0]).category
+  // format recent tutorials - sorted by latest accessed first
+  const recentTutorials = useMemo(() => {
+    if (!reportsData?.recentTutorials) return [];
+    const formatted = [...reportsData.recentTutorials]
+      .sort((a, b) => {
+        const dateA = a.lastAccessedAt ? new Date(a.lastAccessedAt).getTime() : 0;
+        const dateB = b.lastAccessedAt ? new Date(b.lastAccessedAt).getTime() : 0;
+        return dateB - dateA; // latest first
+      });
+    
+    // filter by search query
+    if (tutorialSearchQuery.trim()) {
+      const query = tutorialSearchQuery.toLowerCase();
+      return formatted.filter(tutorial => 
+        tutorial.title.toLowerCase().includes(query) ||
+        tutorial.categoryName.toLowerCase().includes(query)
+      );
+    }
+    return formatted;
+  }, [reportsData, tutorialSearchQuery]);
+
+  const kpiData = reportsData?.kpiCards || {
+    totalQuizzes: 0,
+    averageScore: 0,
+    bestCategory: 'N/A',
+    mostImproved: 'N/A',
+    improvement: 0
   };
 
-  const performanceMetrics = [
-    {
-      name: 'Word Error Rate (WER)',
-      value: '13%',
-      trend: '-5%',
-      status: 'improving',
-      description: 'Percentage of incorrectly transcribed words'
-    },
-    {
-      name: 'Character Error Rate (CER)',
-      value: '8%',
-      trend: '-3%',
-      status: 'improving',
-      description: 'Percentage of incorrectly transcribed characters'
-    },
-    {
-      name: 'Match Error Rate (MER)',
-      value: '11%',
-      trend: '-2%',
-      status: 'improving',
-      description: 'Overall transcription accuracy metric'
-    }
-  ];
-
-  const sessionHistory = [
-    {
-      date: '2024-01-15',
-      duration: '15:30',
-      accuracy: 89,
-      type: 'Real-time',
-      words: 245,
-      improvements: ['Better lip positioning', 'Clearer articulation']
-    },
-    {
-      date: '2024-01-14',
-      duration: '12:45',
-      accuracy: 85,
-      type: 'Video Upload',
-      words: 189,
-      improvements: ['Lighting optimization needed', 'Good pace maintained']
-    },
-    {
-      date: '2024-01-13',
-      duration: '18:20',
-      accuracy: 92,
-      type: 'Real-time',
-      words: 320,
-      improvements: ['Excellent session', 'Consistent accuracy']
-    },
-    {
-      date: '2024-01-12',
-      duration: '10:15',
-      accuracy: 78,
-      type: 'Practice Mode',
-      words: 156,
-      improvements: ['Head movement detected', 'Background noise present']
-    }
-  ];
-
-  const suggestions = [
-    {
-      category: 'Technical',
-      title: 'Improve Lighting Setup',
-      description: 'Better lighting on your face could improve accuracy by 5-8%',
-      priority: 'high'
-    },
-    {
-      category: 'Practice',
-      title: 'Focus on Consonant Pairs',
-      description: 'B/P and F/V sounds need more practice based on your error patterns',
-      priority: 'medium'
-    },
-    {
-      category: 'Environment',
-      title: 'Reduce Background Distractions',
-      description: 'A cleaner background helps the system focus on lip movements',
-      priority: 'low'
-    },
-    {
-      category: 'Technique',
-      title: 'Maintain Steady Head Position',
-      description: 'Minimizing head movement improves tracking accuracy',
-      priority: 'medium'
-    }
-  ];
-
-  // Quiz data for learning progress dashboard
-  const quizHistory = [
-    { id: '1', category: 'Basic Vowels', score: 85, date: '2024-01-15', questions: 10 },
-    { id: '2', category: 'Consonant Pairs', score: 92, date: '2024-01-14', questions: 15 },
-    { id: '3', category: 'Common Words', score: 78, date: '2024-01-13', questions: 20 },
-    { id: '4', category: 'Numbers', score: 95, date: '2024-01-12', questions: 12 },
-    { id: '5', category: 'Basic Vowels', score: 88, date: '2024-01-11', questions: 10 }
-  ];
-
-  const overallStats = {
-    averageScore: 87.6,
-    quizzesCompleted: quizHistory.length,
-    totalQuestions: quizHistory.reduce((sum, quiz) => sum + quiz.questions, 0),
-    bestCategory: 'Numbers',
-    improvementNeeded: 'Common Words'
-  };
-
-  const categoryScores = [
-    { category: 'Basic Vowels', average: 86.5, attempts: 2 },
-    { category: 'Consonant Pairs', average: 92, attempts: 1 },
-    { category: 'Common Words', average: 78, attempts: 1 },
-    { category: 'Numbers', average: 95, attempts: 1 }
-  ];
-
-  // Download report functionality
+  // download report handler (placeholder for future PDF implementation)
   const handleDownloadReport = () => {
-    const reportData = {
-      generatedDate: new Date().toLocaleDateString(),
-      userStats: overallStats,
-      quizHistory,
-      categoryBreakdown: categoryScores,
-      transcriptionHistory: sessionHistory
-    };
-
-    // Simulate different file formats
-    if (selectedFormat === 'pdf') {
-      // In real app, would generate PDF
-      feedbackToast.success(
-        "PDF Report Generated",
-        "Your learning progress report has been downloaded as PDF."
-      );
-    } else if (selectedFormat === 'excel') {
-      // In real app, would generate Excel file
-      feedbackToast.success(
-        "Excel Report Generated", 
-        "Your learning progress report has been downloaded as Excel file."
-      );
-    } else if (selectedFormat === 'csv') {
-      // In real app, would generate CSV
-      feedbackToast.success(
-        "CSV Report Generated",
-        "Your learning progress report has been downloaded as CSV file."
-      );
-    }
+    feedbackToast.info(
+      "PDF Report",
+      "PDF report generation will be implemented in a future update."
+    );
   };
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <AnimatedBreadcrumb items={breadcrumbItems} />
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading your progress reports...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  const getAccuracyColor = (accuracy) => {
-    if (accuracy >= 90) return 'text-green-600';
-    if (accuracy >= 80) return 'text-yellow-600';
-    return 'text-red-600';
-  };
+  if (error) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <AnimatedBreadcrumb items={breadcrumbItems} />
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <Target className="h-5 w-5 text-red-600" />
+              <div>
+                <p className="font-medium text-red-900">Error loading reports</p>
+                <p className="text-sm text-red-700">Please try refreshing the page.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
       <AnimatedBreadcrumb items={breadcrumbItems} />
       
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">My Progress</h1>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            Learning Progress Reports
+          </h1>
           <p className="text-gray-600 mt-1">
-            Track your learning journey and quiz performance
+            Track your lip reading learning journey with comprehensive analytics and insights.
           </p>
         </div>
+        <div className="flex items-center gap-3">
+          <Select value={timeRange} onValueChange={setTimeRange}>
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="week">This Week</SelectItem>
+              <SelectItem value="month">This Month</SelectItem>
+              <SelectItem value="year">This Year</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {reportsData?.categoryPerformance?.map(cat => (
+                <SelectItem key={cat.category} value={cat.category}>
+                  {cat.category}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         <Button 
           onClick={handleDownloadReport}
           className="bg-primary hover:bg-primary/90 text-white"
         >
           <Download className="h-4 w-4 mr-2" />
-          Export Report
+            Export
         </Button>
+        </div>
       </div>
 
-      <Tabs defaultValue="learning" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 bg-primary/5 border border-primary/20">
-          <TabsTrigger value="learning" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <Brain className="h-4 w-4" />
-            Learning Progress
-          </TabsTrigger>
-          <TabsTrigger value="transcription" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-            <FileText className="h-4 w-4" />
-            Transcription History
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="learning" className="space-y-6">
-          {/* Summary Metrics Cards */}
+      {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <Card className="border-primary/20 hover:shadow-lg transition-all duration-300">
+        <Card className="border-blue-200 bg-blue-50/50 hover:shadow-lg transition-all duration-300">
               <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-primary/10 rounded-lg">
-                    <BookOpen className="h-6 w-6 text-primary" />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 mb-1">Total Quizzes</p>
+                <p className="text-3xl font-bold text-blue-600">{kpiData.totalQuizzes}</p>
+                <p className="text-xs text-gray-500 mt-1">+{reportsData?.summary?.thisWeekQuizzes || 0} this week</p>
                   </div>
-                  <div>
-                    <div className="text-2xl font-bold text-primary">{summaryMetrics.totalQuizzes}</div>
-                    <div className="text-sm text-gray-600">Total Quizzes</div>
+              <div className="p-3 bg-blue-100 rounded-lg">
+                <BookOpen className="h-6 w-6 text-blue-600" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-primary/20 hover:shadow-lg transition-all duration-300">
+        <Card className="border-green-200 bg-green-50/50 hover:shadow-lg transition-all duration-300">
               <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-green-100 rounded-lg">
-                    <Target className="h-6 w-6 text-green-600" />
-                  </div>
+            <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-green-600">{summaryMetrics.averageScore}%</div>
-                    <div className="text-sm text-gray-600">Average Score</div>
+                <p className="text-sm font-medium text-gray-600 mb-1">Average Score</p>
+                <p className="text-3xl font-bold text-green-600">{kpiData.averageScore}%</p>
+                <div className="flex items-center gap-1 mt-1">
+                  {kpiData.improvement >= 0 ? (
+                    <ArrowUp className="h-3 w-3 text-green-600" />
+                  ) : (
+                    <ArrowDown className="h-3 w-3 text-red-600" />
+                  )}
+                  <p className={`text-xs ${kpiData.improvement >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {Math.abs(kpiData.improvement).toFixed(1)}% {kpiData.improvement >= 0 ? 'improvement' : 'decrease'}
+                  </p>
+                </div>
+              </div>
+              <div className="p-3 bg-green-100 rounded-lg">
+                <TrendingUp className="h-6 w-6 text-green-600" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-primary/20 hover:shadow-lg transition-all duration-300">
+        <Card className="border-purple-200 bg-purple-50/50 hover:shadow-lg transition-all duration-300">
               <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-yellow-100 rounded-lg">
-                    <Award className="h-6 w-6 text-yellow-600" />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 mb-1">Best Category</p>
+                <p className="text-xl font-bold text-purple-600">{kpiData.bestCategory}</p>
+                <p className="text-xs text-gray-500 mt-1">Top performing area</p>
                   </div>
-                  <div>
-                    <div className="text-2xl font-bold text-yellow-600">{summaryMetrics.bestCategory}</div>
-                    <div className="text-sm text-gray-600">Best Category</div>
+              <div className="p-3 bg-purple-100 rounded-lg">
+                <Trophy className="h-6 w-6 text-purple-600" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-primary/20 hover:shadow-lg transition-all duration-300">
+        <Card className="border-orange-200 bg-orange-50/50 hover:shadow-lg transition-all duration-300">
               <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-blue-100 rounded-lg">
-                    <TrendingUp className="h-6 w-6 text-blue-600" />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 mb-1">Most Improved</p>
+                <p className="text-xl font-bold text-orange-600">{kpiData.mostImproved}</p>
+                <p className="text-xs text-gray-500 mt-1">+{Math.abs(kpiData.improvement).toFixed(0)} points</p>
                   </div>
-                  <div>
-                    <div className="text-2xl font-bold text-blue-600">+12%</div>
-                    <div className="text-sm text-gray-600">This Month</div>
+              <div className="p-3 bg-orange-100 rounded-lg">
+                <Target className="h-6 w-6 text-orange-600" />
                   </div>
                 </div>
               </CardContent>
@@ -385,37 +347,34 @@ const Reports = () => {
 
           {/* Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Line Chart - Quiz Scores Over Time */}
+        {/* Quiz Performance Trend - Line Chart */}
             <Card className="border-primary/20">
               <CardHeader>
                 <CardTitle className="text-primary flex items-center gap-2">
                   <LineChart className="h-5 w-5" />
-                  Quiz Scores Over Time
+              Quiz Performance Trend
                 </CardTitle>
-                <CardDescription>Track your performance improvement</CardDescription>
+            <CardDescription>
+              Individual quiz scores over time showing your learning progress ({timeRange === 'all' ? 'All Time' : timeRange})
+            </CardDescription>
               </CardHeader>
               <CardContent>
+            {quizTrendData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
-                  <RechartsLineChart data={quizTrendData}>
+                <LineChart data={quizTrendData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis 
                       dataKey="date" 
                       stroke="#6b7280"
                       fontSize={12}
-                      tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     />
                     <YAxis 
                       stroke="#6b7280"
                       fontSize={12}
-                      domain={[60, 100]}
+                    domain={[0, 100]}
                     />
                     <Tooltip 
-                      formatter={(value, name) => [`${value}%`, 'Score']}
-                      labelFormatter={(value) => new Date(value).toLocaleDateString('en-US', { 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })}
+                    formatter={(value: any) => [`${value}%`, 'Score']}
                       contentStyle={{
                         backgroundColor: 'white',
                         border: '1px solid #e5e7eb',
@@ -430,233 +389,441 @@ const Reports = () => {
                       dot={{ fill: '#7E57C2', strokeWidth: 2, r: 4 }}
                       activeDot={{ r: 6, stroke: '#7E57C2', strokeWidth: 2 }}
                     />
-                  </RechartsLineChart>
+                </LineChart>
                 </ResponsiveContainer>
+            ) : (
+              <div className="h-[300px] flex items-center justify-center text-gray-500">
+                <p>No quiz data available yet. Start taking quizzes to see your progress!</p>
+              </div>
+            )}
+            <p className="text-xs text-gray-500 mt-4 text-center">
+              Tip: Hover over data points for detailed quiz information
+            </p>
+            <p className="text-xs text-gray-400 mt-1 text-center">
+              {quizTrendData.length} quiz attempts shown
+            </p>
               </CardContent>
             </Card>
 
-            {/* Bar Chart - Average Scores by Category */}
+        {/* Category Performance Distribution - Pie Chart */}
             <Card className="border-primary/20">
               <CardHeader>
                 <CardTitle className="text-primary flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Performance by Category
+              <PieChart className="h-5 w-5" />
+              Category Performance Distribution
                 </CardTitle>
-                <CardDescription>Average scores across quiz categories</CardDescription>
+            <CardDescription>
+              Detailed breakdown of learning focus areas and quiz activity
+            </CardDescription>
               </CardHeader>
               <CardContent>
+            {categoryPieData.length > 0 ? (
+              <>
                 <ResponsiveContainer width="100%" height={300}>
-                  <RechartsBarChart data={categoryChartData} layout="horizontal">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis 
-                      type="number" 
-                      stroke="#6b7280"
-                      fontSize={12}
-                      domain={[0, 100]}
-                    />
-                    <YAxis 
-                      type="category" 
-                      dataKey="category" 
-                      stroke="#6b7280"
-                      fontSize={12}
-                      width={120}
-                    />
+                  <PieChart>
+                    <Pie
+                      data={categoryPieData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => {
+                        // only show label if slice is large enough (>5%)
+                        if (percent < 0.05) return '';
+                        return `${(percent * 100).toFixed(0)}%`;
+                      }}
+                      outerRadius={100}
+                      innerRadius={40}
+                      fill="#8884d8"
+                      dataKey="value"
+                      paddingAngle={2}
+                    >
+                      {categoryPieData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={PIE_CHART_COLORS[index % PIE_CHART_COLORS.length]}
+                          stroke="#fff"
+                          strokeWidth={2}
+                        />
+                      ))}
+                    </Pie>
                     <Tooltip 
-                      formatter={(value) => [`${value}%`, 'Average Score']}
+                      formatter={(value: any, name: string, props: any) => [
+                        `${value} quizzes (${props.payload.percentage}%)`,
+                        props.payload.name || 'Category'
+                      ]}
                       contentStyle={{
                         backgroundColor: 'white',
                         border: '1px solid #e5e7eb',
-                        borderRadius: '8px'
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                       }}
                     />
-                    <Bar dataKey="score" radius={[0, 4, 4, 0]}>
-                      {categoryChartData.map((entry, index) => (
-                        <Cell 
-                          key={`cell-${index}`} 
-                          fill={entry.score >= 85 ? '#10B981' : entry.score >= 70 ? '#F59E0B' : '#EF4444'} 
-                        />
-                      ))}
-                    </Bar>
-                  </RechartsBarChart>
+                    <Legend 
+                      verticalAlign="bottom" 
+                      height={36}
+                      formatter={(value, entry) => (
+                        <span style={{ color: entry.color, fontSize: '12px' }}>
+                          {value}
+                        </span>
+                      )}
+                    />
+                  </PieChart>
                 </ResponsiveContainer>
+                {/* category legend with colors */}
+                <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                  {categoryPieData.slice(0, 6).map((entry, index) => (
+                    <div key={entry.name} className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: PIE_CHART_COLORS[index % PIE_CHART_COLORS.length] }}
+                      />
+                      <span className="text-gray-700 truncate">{entry.name}</span>
+                      <span className="text-gray-500 ml-auto">{entry.percentage}%</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="h-[300px] flex items-center justify-center text-gray-500">
+                <p>No category data available yet.</p>
+              </div>
+            )}
               </CardContent>
             </Card>
           </div>
 
-          {/* Recent Quizzes Table */}
+      {/* Weekly Tutorial Engagement and Skills Assessment - Side by Side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Weekly Tutorial Engagement - Area Chart */}
+        <Card className="border-primary/20">
+          <CardHeader>
+            <CardTitle className="text-primary flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Weekly Tutorial Engagement
+            </CardTitle>
+            <CardDescription>
+              Tutorial watching time and completion tracking across the week
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={weeklyEngagementData}>
+                <defs>
+                  <linearGradient id="colorWatchTime" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.1}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis 
+                  dataKey="day" 
+                  stroke="#6b7280"
+                  fontSize={12}
+                />
+                <YAxis 
+                  stroke="#6b7280"
+                  fontSize={12}
+                  label={{ value: 'Watch Time (min)', angle: -90, position: 'insideLeft' }}
+                />
+                <Tooltip 
+                  formatter={(value: any) => [`${value} min`, 'Watch Time']}
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="watchTime" 
+                  stroke="#3B82F6" 
+                  strokeWidth={2}
+                  fillOpacity={1} 
+                  fill="url(#colorWatchTime)" 
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+            <p className="text-xs text-gray-500 mt-4 text-center">
+              Daily tutorial engagement metrics
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Skills Assessment Overview - Radar Chart */}
           <Card className="border-primary/20">
             <CardHeader>
+            <CardTitle className="text-primary flex items-center gap-2">
+              <Target className="h-5 w-5" />
+              Skills Assessment Overview
+            </CardTitle>
+            <CardDescription>
+              Average accuracy rates across different learning skill areas
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {radarData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <RadarChart data={radarData}>
+                  <PolarGrid stroke="#e5e7eb" />
+                  <PolarAngleAxis 
+                    dataKey="skill" 
+                    tick={{ fontSize: 11, fill: '#6b7280' }}
+                  />
+                  <PolarRadiusAxis 
+                    angle={90} 
+                    domain={[0, 100]} 
+                    tick={{ fontSize: 10, fill: '#9ca3af' }}
+                  />
+                  <Radar
+                    name="Accuracy"
+                    dataKey="score"
+                    stroke="#8B5CF6"
+                    fill="#8B5CF6"
+                    fillOpacity={0.6}
+                    strokeWidth={2}
+                  />
+                  <Tooltip 
+                    formatter={(value: any, name: string, props: any) => [
+                      `${value}%`,
+                      props.payload.fullName || name
+                    ]}
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[300px] flex items-center justify-center text-gray-500">
+                <p>No skills assessment data available yet.</p>
+              </div>
+            )}
+            <p className="text-xs text-gray-500 mt-4 text-center">
+              Performance across different skill categories
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent Activity Section - Enhanced with Search and Modals */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Quizzes - Enhanced */}
+        <Card className="border-primary/20 shadow-lg">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between mb-2">
               <CardTitle className="text-primary flex items-center gap-2">
                 <Clock className="h-5 w-5" />
-                Recent Quizzes
+                Recent Quiz Activity
               </CardTitle>
-              <CardDescription>Your latest quiz attempts with detailed results</CardDescription>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <SortDesc className="h-4 w-4" />
+                <span>Latest First</span>
+              </div>
+            </div>
+            <CardDescription>
+              Your latest quiz attempts with detailed performance data
+            </CardDescription>
+            {/* Search Bar */}
+            <div className="mt-4 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search quizzes by title or category..."
+                value={quizSearchQuery}
+                onChange={(e) => setQuizSearchQuery(e.target.value)}
+                className="pl-10 border-primary/20 focus:border-primary"
+              />
+            </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {recentQuizzes.map((quiz) => (
+            <div className="max-h-[500px] overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+              {recentQuizzes.length > 0 ? (
+                recentQuizzes.map((quiz) => {
+                  const passed = quiz.score >= 70;
+                  const scoreColor = quiz.score >= 90 ? 'text-green-600' : quiz.score >= 70 ? 'text-yellow-600' : 'text-red-600';
+                  return (
                   <div 
                     key={quiz.id} 
-                    className="border border-primary/10 rounded-lg p-4 hover:bg-primary/5 transition-colors cursor-pointer"
-                    onClick={() => window.location.href = `/quiz-result/${quiz.id}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="flex flex-col">
-                          <div className="font-medium text-gray-900">{quiz.quizName}</div>
-                          <div className="text-sm text-gray-600">{quiz.category}</div>
+                      onClick={() => setSelectedQuiz(quiz)}
+                      className="group border-2 border-primary/10 rounded-xl p-4 hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer bg-gradient-to-r from-white to-primary/5"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start gap-2 mb-2">
+                            <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+                              passed ? 'bg-green-500' : 'bg-red-500'
+                            }`} />
+                            <div className="flex-1">
+                              <div className="font-semibold text-gray-900 group-hover:text-primary transition-colors truncate">
+                                {quiz.quizTitle}
                         </div>
-                      </div>
-                      <div className="flex items-center gap-6">
-                        <div className="text-sm text-gray-600">
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {quiz.categoryName}
+                                </Badge>
+                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
                           {quiz.completedDate.toLocaleDateString('en-US', { 
                             month: 'short', 
-                            day: 'numeric' 
+                                    day: 'numeric',
+                                    year: 'numeric'
                           })}
+                                </span>
+                              </div>
+                            </div>
                         </div>
-                        <div className="text-sm text-gray-600">{quiz.duration}</div>
-                        <div className={`text-lg font-bold ${
-                          quiz.score >= 90 ? 'text-green-600' : 
-                          quiz.score >= 70 ? 'text-yellow-600' : 
-                          'text-red-600'
-                        }`}>
+                          <div className="flex items-center gap-2 mt-2">
+                            <div className={`text-2xl font-bold ${scoreColor}`}>
                           {quiz.score}%
+                            </div>
+                            <Badge className={
+                              passed
+                                ? 'bg-green-100 text-green-800 border-green-300'
+                                : 'bg-red-100 text-red-800 border-red-300'
+                            }>
+                              {passed ? 'Passed' : 'Failed'}
+                            </Badge>
+                          </div>
                         </div>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          className="border-primary/20 text-primary hover:bg-primary/10"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.location.href = `/quiz-result/${quiz.id}`;
-                          }}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View Details
-                        </Button>
+                        <ExternalLink className="h-5 w-5 text-gray-400 group-hover:text-primary transition-colors flex-shrink-0 mt-1" />
                       </div>
                     </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <BookOpen className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <p className="font-medium">No quizzes found</p>
+                  <p className="text-sm mt-1">
+                    {quizSearchQuery
+                      ? 'Try a different search query'
+                      : 'Start taking quizzes to see your progress here!'}
+                  </p>
                   </div>
-                ))}
+              )}
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        <TabsContent value="transcription" className="space-y-6">
-          <Card className="border-primary/20">
-            <CardHeader>
+        {/* Recent Tutorials - Enhanced */}
+        <Card className="border-primary/20 shadow-lg">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between mb-2">
               <CardTitle className="text-primary flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Transcription History Management
+                <PlayCircle className="h-5 w-5" />
+                Recent Tutorials
               </CardTitle>
-              <CardDescription>View, search, filter, rename, and delete your past transcription sessions</CardDescription>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <SortDesc className="h-4 w-4" />
+                <span>Latest First</span>
+              </div>
+            </div>
+            <CardDescription>
+              Your latest tutorial sessions and learning progress
+            </CardDescription>
+            {/* Search Bar */}
+            <div className="mt-4 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search tutorials by title or category..."
+                value={tutorialSearchQuery}
+                onChange={(e) => setTutorialSearchQuery(e.target.value)}
+                className="pl-10 border-primary/20 focus:border-primary"
+              />
+            </div>
             </CardHeader>
             <CardContent>
-              {/* Search and Filter Controls */}
-              <div className="flex flex-col md:flex-row gap-4 mb-6">
+            <div className="max-h-[500px] overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+              {recentTutorials.length > 0 ? (
+                recentTutorials.map((tutorial) => {
+                  const isCompleted = tutorial.isCompleted;
+                  return (
+                    <div
+                      key={tutorial.id}
+                      onClick={() => setSelectedTutorial(tutorial)}
+                      className="group border-2 border-primary/10 rounded-xl p-4 hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer bg-gradient-to-r from-white to-primary/5"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start gap-2 mb-2">
+                            <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+                              isCompleted ? 'bg-green-500' : 'bg-blue-500'
+                            }`} />
                 <div className="flex-1">
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
-                    Search Transcriptions
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Search by title or content..."
-                    className="w-full px-3 py-2 border border-primary/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
+                              <div className="font-semibold text-gray-900 group-hover:text-primary transition-colors truncate">
+                                {tutorial.title}
                 </div>
-                <div className="flex gap-2">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">
-                      Date Range
-                    </label>
-                    <input
-                      type="date"
-                      className="px-3 py-2 border border-primary/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">
-                      To
-                    </label>
-                    <input
-                      type="date"
-                      className="px-3 py-2 border border-primary/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    />
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {tutorial.categoryName}
+                                </Badge>
+                                {tutorial.lastAccessedAt && (
+                                  <span className="text-xs text-gray-500 flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    {new Date(tutorial.lastAccessedAt).toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric'
+                                    })}
+                                  </span>
+                                )}
                   </div>
                 </div>
               </div>
-
-              {/* Transcription Sessions List */}
-              <div className="space-y-4">
-                {sessionHistory.map((session, index) => (
-                  <div key={index} className="border border-primary/10 rounded-lg p-4 hover:bg-primary/5 transition-colors">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-4">
-                        <div className="font-medium cursor-pointer text-primary hover:underline">
-                          Session {index + 1} - {session.date}
+                          <div className="mt-3">
+                            <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
+                              <span className="font-medium">Progress</span>
+                              <span className="font-bold">{tutorial.progressPercentage}%</span>
                         </div>
-                        <Badge variant="outline" className="border-primary/20">{session.type}</Badge>
-                        <div className="text-sm text-gray-600">{session.duration}</div>
+                            <Progress value={tutorial.progressPercentage} className="h-3" />
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className={`text-lg font-bold ${getAccuracyColor(session.accuracy)}`}>
-                          {session.accuracy}%
+                          <div className="mt-2">
+                            <Badge className={
+                              isCompleted
+                                ? 'bg-green-100 text-green-800 border-green-300'
+                                : 'bg-blue-100 text-blue-800 border-blue-300'
+                            }>
+                              {isCompleted ? 'Completed' : 'In Progress'}
+                            </Badge>
+                    </div>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-primary border-primary/20 hover:bg-primary/10"
-                        >
-                          Rename
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-red-600 border-red-200 hover:bg-red-50"
-                        >
-                          Delete
-                        </Button>
+                        <ExternalLink className="h-5 w-5 text-gray-400 group-hover:text-primary transition-colors flex-shrink-0 mt-1" />
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <div className="text-sm text-gray-600 mb-1">Session Details</div>
-                        <div className="text-sm">
-                          <span className="font-medium">{session.words}</span> words processed
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-gray-600 mb-1">Key Insights</div>
-                        <ul className="text-sm space-y-1">
-                          {session.improvements.map((improvement, idx) => (
-                            <li key={idx} className="flex items-center gap-2">
-                              <div className="w-1.5 h-1.5 bg-primary rounded-full"></div>
-                              {improvement}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <PlayCircle className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <p className="font-medium">No tutorials found</p>
+                  <p className="text-sm mt-1">
+                    {tutorialSearchQuery
+                      ? 'Try a different search query'
+                      : 'Start watching tutorials to see your progress here!'}
+                  </p>
                   </div>
-                ))}
-              </div>
-              
-              <div className="mt-6 text-center">
-                <Button 
-                  onClick={() => window.location.href = '/transcription'}
-                  className="bg-primary hover:bg-primary/90 text-white"
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Start New Transcription
-                </Button>
+              )}
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+      </div>
+
+      {/* Detail Modals */}
+      <QuizDetailModal
+        isOpen={selectedQuiz !== null}
+        onClose={() => setSelectedQuiz(null)}
+        quiz={selectedQuiz}
+      />
+      <TutorialDetailModal
+        isOpen={selectedTutorial !== null}
+        onClose={() => setSelectedTutorial(null)}
+        tutorial={selectedTutorial}
+      />
     </div>
   );
 };
 
 export default Reports;
+

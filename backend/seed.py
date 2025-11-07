@@ -127,12 +127,12 @@ def seed_programmatic() -> int:
     db.session.flush()
     print_marker(f"{len(all_users) - 1} users + 1 admin created (password: 1234)")
 
-    # Create domain categories + quiz taxonomy (Words, Phrases, Consonants, Vowels, Numbers)
+    # Create domain categories + quiz taxonomy (Words, Phrases, Consonants, Vowels, Numbers, Verbs)
     print_marker("Creating categories...")
     categories = []
     category_names = [
         'General', 'Advanced', 'Business', 'Medical', 'Technology', 'Education', 'Entertainment', 'Sports', 'Science', 'Arts',
-        'Words', 'Phrases', 'Consonants', 'Vowels', 'Numbers'
+        'Words', 'Phrases', 'Consonants', 'Vowels', 'Numbers', 'Verbs'
     ]
     for i, name in enumerate(category_names, 1):
         category = Category()
@@ -377,6 +377,39 @@ def seed_programmatic() -> int:
         series_quiz.updated_at = datetime.utcnow()
         quiz_series_list.append(series_quiz)
     
+    # create quiz series for other categories (Vowels, Consonants, Numbers, Verbs) - text-based questions
+    other_categories = ['Vowels', 'Consonants', 'Numbers', 'Verbs']
+    QUIZ_CHUNK_OTHER = 8  # 8 questions per series for categories without video files
+    
+    for cat_name in other_categories:
+        cat_id = get_cat_id(cat_name)
+        # create 5-8 quiz series per category
+        num_series = random.randint(5, 8)
+        for series_idx in range(num_series):
+            series_quiz = Quiz()
+            series_quiz.public_id = f'QZ-{cat_name[:3].upper()}-S-{str(series_idx+1).zfill(3)}'
+            series_quiz.category_id = cat_id
+            series_quiz.title = f'{cat_name} Quiz Series {series_idx+1}'
+            series_quiz.status = 'active'
+            series_quiz.description = f'Practice recognizing {cat_name.lower()} from lip movements - Series {series_idx+1}.'
+            series_quiz.difficulty = 'beginner' if series_idx < 2 else ('intermediate' if series_idx < 5 else 'advanced')
+            series_quiz.author = 'Admin User'
+            series_quiz.thumbnail_path = None
+            series_quiz.views = random.randint(3, 20)  # add views for analytics
+            series_quiz.series_type = 'series'  # parent series
+            series_quiz.parent_series_id = None  # no parent
+            series_quiz.total_questions = QUIZ_CHUNK_OTHER  # will be updated later
+            series_quiz.estimated_duration = QUIZ_CHUNK_OTHER * 25  # 25 seconds per question
+            series_quiz.tags = json.dumps(["quiz", cat_name.lower(), "lip reading", "series"])
+            series_quiz.passing_score = 70
+            series_quiz.max_attempts = 3
+            series_quiz.shuffle_questions = False
+            series_quiz.shuffle_answers = True
+            series_quiz.show_results_immediately = True
+            series_quiz.created_at = datetime.utcnow() - timedelta(days=random.randint(1, 60))
+            series_quiz.updated_at = datetime.utcnow()
+            quiz_series_list.append(series_quiz)
+    
     # add all parent series to database and flush to get IDs
     db.session.add_all(quiz_series_list)
     db.session.flush()
@@ -454,6 +487,42 @@ def seed_programmatic() -> int:
                 true_false_question.points = 1
                 true_false_question.explanation = f'The statement is {true_false_question.correct_answer}. Question words include: what, when, where, who, why, how.'
                 quiz_questions.append(true_false_question)
+                question_id += 1
+    
+    # create text-based questions for Vowels, Consonants, Numbers, Verbs categories
+    vowels_list = ['A', 'E', 'I', 'O', 'U', 'AE', 'AI', 'AU', 'EA', 'EI', 'EU', 'IA', 'IE', 'IO', 'OA', 'OE', 'OI', 'OU', 'UA', 'UE', 'UI', 'UO']
+    consonants_list = ['B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'X', 'Y', 'Z', 'CH', 'SH', 'TH', 'PH', 'GH']
+    numbers_list = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty']
+    verbs_list = ['Say', 'Speak', 'Talk', 'Tell', 'Ask', 'Answer', 'Listen', 'Hear', 'See', 'Watch', 'Look', 'Read', 'Write', 'Think', 'Know', 'Understand', 'Learn', 'Teach', 'Show', 'Explain', 'Describe', 'Express']
+    
+    category_data_map = {
+        'Vowels': vowels_list,
+        'Consonants': consonants_list,
+        'Numbers': numbers_list,
+        'Verbs': verbs_list
+    }
+    
+    for cat_name, data_list in category_data_map.items():
+        cat_quiz_series = [q for q in quiz_series_list if q.tags and cat_name.lower() in json.loads(q.tags)]
+        for series_quiz in cat_quiz_series:
+            # create questions for this series
+            for q_idx in range(QUIZ_CHUNK_OTHER):
+                if q_idx >= len(data_list):
+                    break
+                
+                correct_item = data_list[q_idx]
+                incorrect_items = [item for item in data_list if item != correct_item]
+                incorrect_options = random.sample(incorrect_items, min(3, len(incorrect_items)))
+                
+                quiz_question = QuizQuestion()
+                quiz_question.quiz_id = series_quiz.id
+                quiz_question.question_type = 'text_mcq'
+                quiz_question.question_text = f'Which {cat_name.lower()} is being demonstrated in the lip movement?'
+                quiz_question.correct_answer = correct_item
+                quiz_question.incorrect_options = json.dumps(incorrect_options)
+                quiz_question.points = 1
+                quiz_question.explanation = f'The correct answer is "{correct_item}". Practice recognizing {cat_name.lower()} from lip movements.'
+                quiz_questions.append(quiz_question)
                 question_id += 1
     
     db.session.add_all(quiz_questions)
@@ -616,50 +685,93 @@ def seed_programmatic() -> int:
         db.session.commit()
         print_marker(f"Created {len(bookmark_records)} enrollments (bookmarks) for tutorials")
     
-    # create quiz attempts for analytics display
-    print_marker("Creating quiz attempts...")
+    # create comprehensive quiz attempts for ALL categories for analytics display
+    print_marker("Creating comprehensive quiz attempts across all categories...")
     quiz_attempts = []
-    if quiz_series_list:
-        for i, quiz in enumerate(quiz_series_list[:10]):  # attempts for first 10 quiz series
-            # user1 attempts multiple quizzes with varying scores
-            attempt1 = QuizAttempt()
-            attempt1.public_id = f'QA-20250101-{str(i*3+1).zfill(4)}'
-            attempt1.user_id = user1.id
-            attempt1.quiz_id = quiz.id
-            attempt1.attempt_number = 1
-            attempt1.score = round(random.uniform(60, 95), 1)
-            attempt1.passed = attempt1.score >= quiz.passing_score
-            attempt1.answers_json = None
-            quiz_attempts.append(attempt1)
+    user_list = [u for u in all_users if u.account_type == 'User']
+    
+    if quiz_series_list and user_list:
+        # create attempts for quizzes from all categories
+        for quiz_idx, quiz in enumerate(quiz_series_list):
+            # determine how many users attempt this quiz based on category
+            quiz_category = None
+            for cat in categories:
+                if cat.id == quiz.category_id:
+                    quiz_category = cat.category_name
+                    break
             
-            # user2 attempts first 5 quizzes
-            if i < 5:
-                attempt2 = QuizAttempt()
-                attempt2.public_id = f'QA-20250101-{str(i*3+2).zfill(4)}'
-                attempt2.user_id = user2.id
-                attempt2.quiz_id = quiz.id
-                attempt2.attempt_number = 1
-                attempt2.score = round(random.uniform(75, 100), 1)
-                attempt2.passed = attempt2.score >= quiz.passing_score
-                attempt2.answers_json = None
-                quiz_attempts.append(attempt2)
+            # more attempts for Words and Phrases (they have video files)
+            if quiz_category in ['Words', 'Phrases']:
+                num_attempts = random.randint(3, 8)
+            else:
+                num_attempts = random.randint(2, 5)
             
-            # user3 attempts first 3 quizzes
-            if i < 3:
-                attempt3 = QuizAttempt()
-                attempt3.public_id = f'QA-20250101-{str(i*3+3).zfill(4)}'
-                attempt3.user_id = user3.id
-                attempt3.quiz_id = quiz.id
-                attempt3.attempt_number = 1
-                attempt3.score = round(random.uniform(50, 85), 1)
-                attempt3.passed = attempt3.score >= quiz.passing_score
-                attempt3.answers_json = None
-                quiz_attempts.append(attempt3)
+            # select random users to attempt this quiz
+            selected_users = random.sample(user_list, min(num_attempts, len(user_list)))
+            
+            for user_idx, user in enumerate(selected_users):
+                attempt = QuizAttempt()
+                attempt.public_id = f'QA-{datetime.now().strftime("%Y%m%d")}-{str(quiz_idx * 10 + user_idx + 1).zfill(4)}'
+                attempt.user_id = user.id
+                attempt.quiz_id = quiz.id
+                attempt.attempt_number = 1
+                
+                # vary scores based on difficulty and category
+                if quiz.difficulty == 'beginner':
+                    attempt.score = round(random.uniform(70, 100), 1)
+                elif quiz.difficulty == 'intermediate':
+                    attempt.score = round(random.uniform(60, 90), 1)
+                else:  # advanced
+                    attempt.score = round(random.uniform(50, 85), 1)
+                
+                attempt.passed = attempt.score >= quiz.passing_score
+                attempt.completion_date = datetime.utcnow() - timedelta(days=random.randint(0, 30))
+                attempt.answers_json = None
+                quiz_attempts.append(attempt)
     
     if quiz_attempts:
         db.session.add_all(quiz_attempts)
         db.session.commit()
-    print_marker(f"Created {len(quiz_attempts)} quiz attempts")
+    print_marker(f"Created {len(quiz_attempts)} quiz attempts across all categories")
+    
+    # create user progress for tutorial series completion tracking
+    print_marker("Creating user progress for tutorial series completion...")
+    user_progress_records = []
+    if tutorials and user_list:
+        # get tutorial series (parent tutorials)
+        tutorial_series = [t for t in tutorials if t.series_type == 'series' and t.parent_series_id == None]
+        
+        for series in tutorial_series:
+            # get all videos in this series (for now, tutorials are parent series themselves)
+            # in a real scenario, we'd have child videos, but for now we'll create progress for the series itself
+            # get users enrolled in this series (bookmarked)
+            enrolled_users = []
+            for bookmark in bookmark_records:
+                if bookmark['tutorial_id'] == series.id:
+                    user = next((u for u in user_list if u.id == bookmark['user_id']), None)
+                    if user:
+                        enrolled_users.append(user)
+            
+            # for each enrolled user, create progress record
+            # since we don't have child videos, we'll mark the series as completed if user watched it
+            for user in enrolled_users:
+                # randomly decide if user completed (60-80% completion rate)
+                completed = random.random() < random.uniform(0.6, 0.8)
+                
+                progress = UserProgress()
+                progress.public_id = f'UP-{datetime.now().strftime("%Y%m%d")}-{random.randint(1000, 9999)}'
+                progress.user_id = user.id
+                progress.tutorial_id = series.id  # use series id as tutorial_id
+                progress.series_id = series.id
+                progress.is_completed = completed
+                progress.created_at = datetime.utcnow() - timedelta(days=random.randint(1, 30))
+                progress.updated_at = datetime.utcnow() - timedelta(days=random.randint(0, 10))
+                user_progress_records.append(progress)
+    
+    if user_progress_records:
+        db.session.add_all(user_progress_records)
+        db.session.commit()
+        print_marker(f"Created {len(user_progress_records)} user progress records for series completion tracking")
     
     # create practice words with actual video files
     print_marker("Creating practice words...")

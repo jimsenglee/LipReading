@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useFeedbackToast } from '@/components/ui/feedback-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { useGenerate2FASecret, useEnable2FA, useDisable2FA } from '@/services';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +29,8 @@ import {
   Trash2,
   ExternalLink,
   CheckCircle,
-  Clock
+  Clock,
+  QrCode
 } from 'lucide-react';
 
 // Sample data for demonstration - will be replaced with API data
@@ -73,63 +79,132 @@ const sampleConnectedApps = [
 ];
 
 const SecuritySettings: React.FC = () => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [isEnabling2FA, setIsEnabling2FA] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [showVerificationInput, setShowVerificationInput] = useState(false);
+  const [qrCodeUri, setQrCodeUri] = useState('');
+  const [secret, setSecret] = useState('');
+  const [disablePassword, setDisablePassword] = useState('');
+  const [showDisableDialog, setShowDisableDialog] = useState(false);
   const feedbackToast = useFeedbackToast();
+  
+  const generate2FASecretQuery = useGenerate2FASecret();
+  const enable2FAMutation = useEnable2FA();
+  const disable2FAMutation = useDisable2FA();
 
-  // Handle 2FA Enable Process
-  const handleEnable2FA = async () => {
-    setIsEnabling2FA(true);
-    
-    // Simulate sending verification email
-    setTimeout(() => {
-      setShowVerificationInput(true);
-      setIsEnabling2FA(false);
-      feedbackToast.info(
-        "Verification Code Sent",
-        "Please check your email for the 6-digit verification code."
+  // fetch 2FA status from user
+  useEffect(() => {
+    if (user?.twoFactorEnabled !== undefined) {
+      setTwoFactorEnabled(user.twoFactorEnabled);
+    }
+  }, [user]);
+
+  // Handle 2FA Enable Process - generate secret and QR code
+  const handleGenerate2FA = async () => {
+    try {
+      setIsEnabling2FA(true);
+      const result = await generate2FASecretQuery.refetch();
+      
+      if (result.data) {
+        setSecret(result.data.secret);
+        setQrCodeUri(result.data.qr_code_uri);
+        setShowVerificationInput(true);
+        feedbackToast.info(
+          "QR Code Generated",
+          "Scan the QR code with your authenticator app and enter the verification code."
+        );
+      }
+    } catch (error: any) {
+      feedbackToast.error(
+        "Error",
+        error.response?.data?.error || "Failed to generate 2FA secret. Please try again."
       );
-    }, 1000);
+    } finally {
+      setIsEnabling2FA(false);
+    }
   };
 
-  // Handle 2FA Verification
-  const handleVerify2FA = () => {
-    // Null value check
+  // Handle 2FA Verification and Enable
+  const handleVerifyAndEnable2FA = async () => {
     if (!verificationCode.trim()) {
       feedbackToast.error(
         "Code Required", 
-        "Please enter the verification code."
+        "Please enter the verification code from your authenticator app."
       );
       return;
     }
 
-    // code validation (sample)
-    if (verificationCode === '123456') {
-      // code is expired check (sample)
-      const sampleExpired = false;
-      
-      if (sampleExpired) {
-        feedbackToast.error(
-          "Code Expired",
-          "The verification code has expired. Please try again."
-        );
-        return;
-      }
+    if (!/^\d{6}$/.test(verificationCode)) {
+      feedbackToast.error(
+        "Invalid Format",
+        "Please enter a 6-digit verification code."
+      );
+      return;
+    }
 
-      // Success
+    if (!secret) {
+      feedbackToast.error(
+        "Error",
+        "2FA secret not found. Please try again."
+      );
+      return;
+    }
+
+    try {
+      await enable2FAMutation.mutateAsync({ secret, verificationCode });
+      
       setTwoFactorEnabled(true);
       setShowVerificationInput(false);
       setVerificationCode('');
+      setSecret('');
+      setQrCodeUri('');
+      
+      // refresh user data
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      
       feedbackToast.success(
         "2FA Enabled",
         "Two-factor authentication has been successfully enabled."
       );
-    } else {
+    } catch (error: any) {
       feedbackToast.error(
         "Invalid Code",
-        "The verification code is incorrect."
+        error.response?.data?.error || "The verification code is incorrect. Please try again."
+      );
+    }
+  };
+
+  // Handle 2FA Disable
+  const handleDisable2FA = async () => {
+    if (!disablePassword.trim()) {
+      feedbackToast.error(
+        "Password Required",
+        "Please enter your password to disable 2FA."
+      );
+      return;
+    }
+
+    try {
+      await disable2FAMutation.mutateAsync({ password: disablePassword });
+      
+      setTwoFactorEnabled(false);
+      setShowDisableDialog(false);
+      setDisablePassword('');
+      
+      // refresh user data
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      
+      feedbackToast.success(
+        "2FA Disabled",
+        "Two-factor authentication has been successfully disabled."
+      );
+    } catch (error: any) {
+      feedbackToast.error(
+        "Error",
+        error.response?.data?.error || "Failed to disable 2FA. Please check your password and try again."
       );
     }
   };
@@ -152,13 +227,13 @@ const SecuritySettings: React.FC = () => {
             Two-Factor Authentication (2FA)
           </CardTitle>
           <CardDescription>
-            Add an extra layer of security to your account with email verification
+            Add an extra layer of security to your account with TOTP-based two-factor authentication
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <div className="font-medium">Email-based 2FA</div>
+              <div className="font-medium">TOTP-based 2FA</div>
               <div className="text-sm text-gray-600">
                 Status: {twoFactorEnabled ? (
                   <Badge className="bg-green-100 text-green-800 border-green-200">
@@ -175,52 +250,110 @@ const SecuritySettings: React.FC = () => {
             
             {!twoFactorEnabled && !showVerificationInput && (
               <Button 
-                onClick={handleEnable2FA}
+                onClick={handleGenerate2FA}
                 disabled={isEnabling2FA}
                 className="bg-primary hover:bg-primary/90"
               >
-                {isEnabling2FA ? 'Sending Code...' : 'Enable 2FA'}
+                {isEnabling2FA ? 'Generating...' : 'Enable 2FA'}
               </Button>
             )}
 
             {twoFactorEnabled && (
-              <Button 
-                variant="outline"
-                onClick={() => setTwoFactorEnabled(false)}
-                className="border-red-200 text-red-600 hover:bg-red-50"
-              >
-                Disable 2FA
-              </Button>
+              <AlertDialog open={showDisableDialog} onOpenChange={setShowDisableDialog}>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="outline"
+                    className="border-red-200 text-red-600 hover:bg-red-50"
+                  >
+                    Disable 2FA
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Disable Two-Factor Authentication</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Please enter your password to disable 2FA. This will reduce your account security.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="disable-password">Password</Label>
+                      <Input
+                        id="disable-password"
+                        type="password"
+                        placeholder="Enter your password"
+                        value={disablePassword}
+                        onChange={(e) => setDisablePassword(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setDisablePassword('')}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={handleDisable2FA}
+                      disabled={disable2FAMutation.isPending}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      {disable2FAMutation.isPending ? 'Disabling...' : 'Disable 2FA'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
           </div>
 
-          {/* Verification Input */}
+          {/* QR Code and Verification Input */}
           {showVerificationInput && (
             <div className="space-y-4 p-4 bg-primary/5 border border-primary/20 rounded-lg">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Verification Code</label>
-                <input
-                  type="text"
-                  placeholder="Enter 6-digit code from email"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="w-full px-3 py-2 border border-primary/20 rounded-md focus:border-primary focus:ring-1 focus:ring-primary"
-                  maxLength={6}
-                />
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">Scan QR Code</Label>
+                  <div className="flex justify-center p-4 bg-white rounded-lg border border-primary/20">
+                    {qrCodeUri ? (
+                      <img 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUri)}`}
+                        alt="2FA QR Code"
+                        className="w-48 h-48"
+                      />
+                    ) : (
+                      <div className="w-48 h-48 flex items-center justify-center">
+                        <QrCode className="h-12 w-12 text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-600 mt-2 text-center">
+                    Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="verification-code">Verification Code</Label>
+                  <Input
+                    id="verification-code"
+                    type="text"
+                    placeholder="Enter 6-digit code from authenticator app"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="text-center text-lg font-mono tracking-widest"
+                    maxLength={6}
+                  />
+                </div>
               </div>
               <div className="flex gap-2">
                 <Button 
-                  onClick={handleVerify2FA}
-                  disabled={verificationCode.length !== 6}
-                  className="bg-primary hover:bg-primary/90"
+                  onClick={handleVerifyAndEnable2FA}
+                  disabled={verificationCode.length !== 6 || enable2FAMutation.isPending}
+                  className="bg-primary hover:bg-primary/90 flex-1"
                 >
-                  Verify & Enable
+                  {enable2FAMutation.isPending ? 'Verifying...' : 'Verify & Enable'}
                 </Button>
                 <Button 
                   variant="outline"
                   onClick={() => {
                     setShowVerificationInput(false);
                     setVerificationCode('');
+                    setSecret('');
+                    setQrCodeUri('');
                   }}
                   className="border-primary/20 text-primary"
                 >

@@ -377,20 +377,20 @@ const UserManagement = () => {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <AnimatedBreadcrumb items={breadcrumbItems} />
           {/* Header */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
             User Management
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="text-gray-600 mt-0.5 text-sm">
                 Manage users, monitor activity, and control access
           </p>
         </div>
             
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col sm:flex-row gap-2">
               {/* bulk actions component */}
               <BulkActions
                 selectedCount={selectedUsers.size}
@@ -423,10 +423,10 @@ const UserManagement = () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="users" className="space-y-6">
+        <TabsContent value="users" className="space-y-4">
               {/* search and filters - always show */}
               <Card className="border-primary/20">
-              <CardContent className="p-6">
+              <CardContent className="p-4">
                   <SearchFilterBar
                     searchTerm={searchTerm}
                     onSearchChange={handleSearch}
@@ -479,7 +479,7 @@ const UserManagement = () => {
 
         </TabsContent>
 
-        <TabsContent value="activity" className="space-y-6">
+        <TabsContent value="activity" className="space-y-4">
               <Card className="border-primary/20">
                 <CardContent className="pt-6">
                   <div className="text-center py-12">

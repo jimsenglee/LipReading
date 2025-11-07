@@ -14,7 +14,7 @@ export default {
 	theme: {
 		container: {
 			center: true,
-			padding: '2rem',
+			padding: '1.5rem', /* reduced from 2rem (75% scaling) */
 			screens: {
 				'2xl': '1400px'
 			}

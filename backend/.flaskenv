@@ -6,4 +6,5 @@ MYSQL_HOST=127.0.0.1
 MYSQL_PORT=3306
 MYSQL_DB=my_fyp_database
 SECRET_KEY=dev-secret
-COLAB_SERVER_URL=https://8fa10000aeeb.ngrok-free.app/
+COLAB_SERVER_URL=https://ad61393caed2.ngrok-free.app/
+FRONTEND_URL=http://localhost:8080

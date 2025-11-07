@@ -215,10 +215,10 @@ class ApiClient {
   }
 
   // auth endpoints
-  async login(email: string, password: string): Promise<LoginResponse> {
-    return this.request<LoginResponse>('/auth/login', {
+  async login(email: string, password: string, remember_me?: boolean): Promise<LoginResponse | { requires_2fa: boolean; temp_token: string; message: string }> {
+    return this.request<LoginResponse | { requires_2fa: boolean; temp_token: string; message: string }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, remember_me: remember_me || false }),
     });
   }
 
@@ -251,6 +251,61 @@ class ApiClient {
 
   async getCurrentUser(): Promise<UserResponse> {
     return this.request<UserResponse>('/auth/me');
+  }
+
+  async checkGoogleUser(email: string): Promise<{ is_google_user: boolean; exists: boolean }> {
+    return this.request<{ is_google_user: boolean; exists: boolean }>(`/auth/check-google-user?email=${encodeURIComponent(email)}`);
+  }
+
+  async requestPasswordReset(email: string): Promise<{ message: string; email_exists?: boolean; cooldown_seconds?: number }> {
+    return this.request<{ message: string; email_exists?: boolean; cooldown_seconds?: number }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async verifyResetToken(token: string): Promise<{ valid: boolean; message: string }> {
+    return this.request<{ valid: boolean; message: string }>(`/auth/verify-reset-token?token=${encodeURIComponent(token)}`);
+  }
+
+  async resetPassword(token: string, password: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    });
+  }
+
+  async generate2FASecret(): Promise<{ secret: string; qr_code_uri: string }> {
+    return this.request<{ secret: string; qr_code_uri: string }>('/auth/2fa/generate', {
+      method: 'POST',
+    });
+  }
+
+  async enable2FA(secret: string, verificationCode: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/auth/2fa/enable', {
+      method: 'POST',
+      body: JSON.stringify({ secret, verification_code: verificationCode }),
+    });
+  }
+
+  async disable2FA(password: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/auth/2fa/disable', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+  }
+
+  async verify2FA(tempToken: string, code: string): Promise<{ token: string; user: any }> {
+    return this.request<{ token: string; user: any }>('/auth/2fa/verify', {
+      method: 'POST',
+      body: JSON.stringify({ temp_token: tempToken, code }),
+    });
+  }
+
+  async send2FACode(): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/auth/2fa/send-code', {
+      method: 'POST',
+    });
   }
 
   // data endpoints
@@ -332,6 +387,24 @@ class ApiClient {
 
   async getUserProgress(): Promise<{ success: boolean; progress: any }> {
     return this.request<{ success: boolean; progress: any }>('/progress/user/progress');
+  }
+
+  async getProgressReports(params?: any): Promise<{ success: boolean; data?: any }> {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.keys(params).forEach(key => {
+        if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
+          queryParams.append(key, params[key].toString());
+        }
+      });
+    }
+    const queryString = queryParams.toString();
+    const url = `/progress/reports${queryString ? `?${queryString}` : ''}`;
+    return this.request<{ success: boolean; data?: any }>(url);
+  }
+
+  async getProgressStatistics(): Promise<{ success: boolean; data?: any }> {
+    return this.request<{ success: boolean; data?: any }>('/progress/statistics');
   }
 
   async submitSeriesRating(seriesId: number, rating: number, review?: string): Promise<{ success: boolean; message: string }> {

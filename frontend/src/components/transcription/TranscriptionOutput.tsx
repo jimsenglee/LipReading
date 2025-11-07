@@ -258,20 +258,25 @@ const TranscriptionOutput: React.FC<TranscriptionOutputProps> = ({
               {/* Video Container */}
               <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
                 {/* ReactPlayer integration */}
-                {(ReactPlayer as any)({
-                  ref: videoRef,
-                  src: videoSrc,
-                  width: "100%",
-                  height: "100%",
-                  playing: isPlaying,
-                  volume: isMuted ? 0 : volume,
-                  playbackRate: playbackSpeed,
-                  onProgress: (state: any) => setCurrentTime(state.playedSeconds),
-                  onDuration: (duration: any) => setDuration(duration),
-                  onPlay: () => setIsPlaying(true),
-                  onPause: () => setIsPlaying(false),
-                  controls: false
-                })}
+                <ReactPlayer
+                  ref={videoRef}
+                  url={videoSrc}
+                  width="100%"
+                  height="100%"
+                  playing={isPlaying}
+                  volume={isMuted ? 0 : volume}
+                  playbackRate={playbackSpeed}
+                  // @ts-ignore - ReactPlayer onProgress type
+                  onProgress={(state: { playedSeconds: number }) => setCurrentTime(state.playedSeconds)}
+                  // @ts-ignore - ReactPlayer onDuration type
+                  onDuration={(duration: number) => setDuration(duration)}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onBuffer={() => setIsBuffering(true)}
+                  onBufferEnd={() => setIsBuffering(false)}
+                  controls={false}
+                  style={{ position: 'absolute', top: 0, left: 0 }}
+                />
 
                 {/* Loading Spinner */}
                 {isBuffering && (

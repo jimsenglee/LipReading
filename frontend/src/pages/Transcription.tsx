@@ -1,15 +1,14 @@
 
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
 import AnimatedBreadcrumb from '@/components/ui/animated-breadcrumb';
 import RealTimeTranscription from '@/components/transcription/RealTimeTranscription';
 import VideoUploadZone from '@/components/transcription/VideoUploadZone';
+import TranscriptionHistory from '@/components/transcription/TranscriptionHistory';
 import { 
   Video, 
   Upload,
-  History,
-  BookOpen
+  History
 } from 'lucide-react';
 
 const Transcription = () => {
@@ -20,14 +19,18 @@ const Transcription = () => {
     { title: 'Transcription' }
   ];
 
-  // Handle transcription updates
+  // handle transcription updates
   const handleTranscriptionUpdate = (text: string) => {
-    // This can be used to sync with other components or save progress
+    // this can be used to sync with other components or save progress
+    console.log('[DEBUG] Transcription update:', text);
   };
 
-  // Handle completed file transcription
+  // handle completed file transcription
   const handleTranscriptionComplete = (transcription: string, file: File) => {
-    // Handle completed transcription
+    // handle completed transcription
+    console.log('[DEBUG] Transcription complete:', transcription, file.name);
+    // switch to history tab to show the new transcription
+    setActiveTab('history');
   };
 
   return (
@@ -44,7 +47,7 @@ const Transcription = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 bg-primary/5 border border-primary/20">
+        <TabsList className="grid w-full grid-cols-3 bg-primary/5 border border-primary/20">
           <TabsTrigger value="realtime" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
             <Video className="h-4 w-4" />
             Real-time
@@ -52,6 +55,10 @@ const Transcription = () => {
           <TabsTrigger value="upload" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
             <Upload className="h-4 w-4" />
             File Upload
+          </TabsTrigger>
+          <TabsTrigger value="history" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
+            <History className="h-4 w-4" />
+            History
           </TabsTrigger>
         </TabsList>
 
@@ -61,6 +68,10 @@ const Transcription = () => {
 
         <TabsContent value="upload" className="space-y-6">
           <VideoUploadZone onTranscriptionComplete={handleTranscriptionComplete} />
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-6">
+          <TranscriptionHistory />
         </TabsContent>
       </Tabs>
     </div>

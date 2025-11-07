@@ -450,8 +450,8 @@ class ReviewService:
             pagination = ResponseService.pagination_info(page, per_page, total or 0)
             return ResponseService.success_response(
                 {
-                    'reviews': review_list,
-                    'averageRating': round(float(avg_rating), 2) if avg_rating else 0.0,
+                'reviews': review_list,
+                'averageRating': round(float(avg_rating), 2) if avg_rating else 0.0,
                     'totalReviews': total_reviews or 0
                 },
                 pagination=pagination
@@ -749,10 +749,10 @@ class ReviewService:
                 Tutorial, (Review.target_type == 'tutorial') & (Review.target_id == Tutorial.id)
             ).where(
                 Review.target_type == 'tutorial',
-                or_(
+                    or_(
                     Review.review_text.ilike(f'%{search_term}%'),
-                    Tutorial.title.ilike(f'%{search_term}%'),
-                    Account.name.ilike(f'%{search_term}%')
+                        Tutorial.title.ilike(f'%{search_term}%'),
+                        Account.name.ilike(f'%{search_term}%')
                 )
             )
             

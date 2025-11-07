@@ -645,3 +645,304 @@ class ProgressService:
         except Exception as e:
             current_app.logger.error(f"get progress statistics error: {str(e)}")
             raise APIError("internal server error", 500)
+
+    @staticmethod
+    def get_progress_reports(user_id: int, params: Dict[str, Any] | None = None):
+        """get comprehensive progress reports data for charts and analytics"""
+        try:
+            current_app.logger.debug(f"[DEBUG] get_progress_reports called for user_id: {user_id}")
+            
+            # get all quiz attempts with quiz and category info
+            attempts_query = select(
+                QuizAttempt,
+                Quiz,
+                Category
+            ).join(
+                Quiz, QuizAttempt.quiz_id == Quiz.id
+            ).join(
+                Category, Quiz.category_id == Category.id
+            ).where(
+                QuizAttempt.user_id == user_id
+            ).order_by(
+                QuizAttempt.completion_date.desc()
+            )
+            
+            attempts_results = db.session.execute(attempts_query).all()
+            
+            # process quiz attempts data
+            quiz_attempts_data = []
+            category_stats = {}  # category_name -> {total: 0, sum_score: 0, count: 0, attempts: []}
+            
+            for attempt, quiz, category in attempts_results:
+                category_name = category.category_name if category else 'Unknown'
+                
+                # initialize category stats if needed
+                if category_name not in category_stats:
+                    category_stats[category_name] = {
+                        'total': 0,
+                        'sum_score': 0,
+                        'count': 0,
+                        'attempts': []
+                    }
+                
+                category_stats[category_name]['total'] += 1
+                category_stats[category_name]['sum_score'] += attempt.score
+                category_stats[category_name]['count'] += 1
+                category_stats[category_name]['attempts'].append({
+                    'id': attempt.id,
+                    'publicId': attempt.public_id,
+                    'quizId': quiz.id,
+                    'quizTitle': quiz.title,
+                    'categoryName': category_name,
+                    'score': attempt.score,
+                    'completionDate': attempt.completion_date.isoformat() if attempt.completion_date else None
+                })
+                
+                quiz_attempts_data.append({
+                    'id': attempt.id,
+                    'publicId': attempt.public_id,
+                    'quizId': quiz.id,
+                    'quizTitle': quiz.title,
+                    'categoryName': category_name,
+                    'score': attempt.score,
+                    'completionDate': attempt.completion_date.isoformat() if attempt.completion_date else None
+                })
+            
+            # calculate category averages and build pie chart data
+            category_performance = []
+            total_quizzes = len(quiz_attempts_data)
+            
+            for cat_name, stats in category_stats.items():
+                avg_score = round(stats['sum_score'] / stats['count'], 1) if stats['count'] > 0 else 0
+                percentage = round((stats['count'] / total_quizzes * 100), 1) if total_quizzes > 0 else 0
+                
+                category_performance.append({
+                    'category': cat_name,
+                    'count': stats['count'],
+                    'percentage': percentage,
+                    'averageScore': avg_score
+                })
+            
+            # sort by count descending
+            category_performance.sort(key=lambda x: x['count'], reverse=True)
+            
+            # calculate overall statistics
+            total_quiz_attempts = len(quiz_attempts_data)
+            avg_score = round(sum(a['score'] for a in quiz_attempts_data) / total_quiz_attempts, 1) if total_quiz_attempts > 0 else 0
+            
+            # find best category (highest average score) - handle ties properly
+            best_category = None
+            best_category_name = 'N/A'
+            if category_performance:
+                # find the highest average score
+                max_avg_score = max(cat['averageScore'] for cat in category_performance)
+                # get all categories with this score
+                best_categories = [cat for cat in category_performance if cat['averageScore'] == max_avg_score]
+                
+                if len(best_categories) == 1:
+                    # single best category
+                    best_category = best_categories[0]
+                    best_category_name = best_category['category']
+                elif len(best_categories) == len(category_performance):
+                    # all categories have the same score - show "All Categories"
+                    best_category_name = 'All Categories'
+                    best_category = {'category': 'All Categories', 'averageScore': max_avg_score}
+                else:
+                    # multiple categories tied - show first one with count as tiebreaker, or "Multiple"
+                    # sort by count descending to break ties
+                    best_categories.sort(key=lambda x: x['count'], reverse=True)
+                    best_category = best_categories[0]
+                    if len(best_categories) > 1:
+                        # indicate there are ties
+                        best_category_name = f"{best_category['category']} (+{len(best_categories)-1} tied)"
+                    else:
+                        best_category_name = best_category['category']
+            
+            # build quiz trend data (last 20 attempts, grouped by date)
+            from collections import defaultdict
+            from datetime import datetime, timedelta
+            
+            # group attempts by date - sort by date descending first
+            sorted_attempts = sorted(quiz_attempts_data, 
+                                   key=lambda x: x['completionDate'] if x['completionDate'] else '', 
+                                   reverse=True)
+            
+            trend_by_date = defaultdict(list)
+            for attempt_data in sorted_attempts[:50]:  # last 50 attempts
+                if attempt_data['completionDate']:
+                    try:
+                        date_obj = datetime.fromisoformat(attempt_data['completionDate'].replace('Z', '+00:00'))
+                        date_key = date_obj.date().isoformat()
+                        trend_by_date[date_key].append(attempt_data['score'])
+                    except:
+                        continue
+            
+            # calculate average score per date - sort dates descending (latest first)
+            quiz_trend_data = []
+            sorted_dates = sorted(trend_by_date.keys(), reverse=True)[:20]  # last 20 dates, latest first
+            for date_str in sorted_dates:
+                scores = trend_by_date[date_str]
+                avg_score_for_date = round(sum(scores) / len(scores), 1)
+                quiz_trend_data.append({
+                    'date': date_str,
+                    'score': avg_score_for_date,
+                    'count': len(scores)
+                })
+            # reverse to show oldest to newest for chart (left to right)
+            quiz_trend_data.reverse()
+            
+            # get recent tutorials (from user_bookmarks)
+            recent_tutorials_query = select(
+                Tutorial,
+                user_bookmarks,
+                Category
+            ).join(
+                user_bookmarks, Tutorial.id == user_bookmarks.c.tutorial_id
+            ).join(
+                Category, Tutorial.category_id == Category.id
+            ).where(
+                user_bookmarks.c.user_id == user_id
+            ).order_by(
+                user_bookmarks.c.last_accessed_at.desc()
+            ).limit(5)
+            
+            recent_tutorials_results = db.session.execute(recent_tutorials_query).all()
+            
+            current_app.logger.debug(f"[DEBUG] recent_tutorials_results count: {len(recent_tutorials_results)}")
+            if recent_tutorials_results:
+                current_app.logger.debug(f"[DEBUG] First row length: {len(recent_tutorials_results[0])}")
+            
+            recent_tutorials = []
+            for row in recent_tutorials_results:
+                try:
+                    # when selecting Tutorial, user_bookmarks (Table), Category
+                    # SQLAlchemy returns: (Tutorial, user_id, tutorial_id, created_at, progress_percentage,
+                    # last_watched_position, total_watch_time, is_completed, completed_at, enrolled_at,
+                    # last_accessed_at, Category)
+                    tutorial = row[0]  # Tutorial object
+                    
+                    # access user_bookmarks columns by index
+                    # row structure: [Tutorial, user_id, tutorial_id, created_at, progress_percentage,
+                    # last_watched_position, total_watch_time, is_completed, completed_at, enrolled_at,
+                    # last_accessed_at, Category]
+                    progress_percentage = row[4] if len(row) > 4 else 0
+                    last_accessed_at = row[10] if len(row) > 10 else None
+                    is_completed = row[7] if len(row) > 7 else False
+                    category = row[11] if len(row) > 11 else None  # Category object
+                    
+                    # safely format last_accessed_at
+                    last_accessed_str = None
+                    if last_accessed_at is not None:
+                        try:
+                            last_accessed_str = last_accessed_at.isoformat()
+                        except (AttributeError, TypeError):
+                            pass
+                    
+                    recent_tutorials.append({
+                        'id': tutorial.id,
+                        'publicId': tutorial.public_id,
+                        'title': tutorial.title,
+                        'categoryName': category.category_name if category else 'Unknown',
+                        'progressPercentage': progress_percentage or 0,
+                        'lastAccessedAt': last_accessed_str,
+                        'isCompleted': is_completed or False
+                    })
+                except Exception as e:
+                    current_app.logger.error(f"[DEBUG] Error processing recent tutorial row: {str(e)}")
+                    current_app.logger.error(f"[DEBUG] Row structure: {[type(item).__name__ for item in row] if row else 'empty'}")
+                    continue  # skip this row and continue with next
+            
+            # calculate improvement (compare last week vs previous week)
+            now = datetime.utcnow()
+            week_ago = now - timedelta(days=7)
+            two_weeks_ago = now - timedelta(days=14)
+            
+            recent_scores = [a['score'] for a in quiz_attempts_data if a['completionDate'] and 
+                           datetime.fromisoformat(a['completionDate'].replace('Z', '+00:00')) >= week_ago]
+            previous_scores = [a['score'] for a in quiz_attempts_data if a['completionDate'] and 
+                              two_weeks_ago <= datetime.fromisoformat(a['completionDate'].replace('Z', '+00:00')) < week_ago]
+            
+            recent_avg = round(sum(recent_scores) / len(recent_scores), 1) if recent_scores else 0
+            previous_avg = round(sum(previous_scores) / len(previous_scores), 1) if previous_scores else 0
+            improvement = round(recent_avg - previous_avg, 1) if previous_avg > 0 else 0
+            
+            # find most improved category (compare recent vs previous period per category)
+            most_improved_category = None
+            most_improved_name = 'N/A'
+            max_improvement = float('-inf')
+            
+            if category_performance:
+                # calculate improvement per category
+                category_improvements = []
+                for cat_name, stats in category_stats.items():
+                    # get recent attempts for this category (last week)
+                    recent_cat_attempts = [
+                        a for a in quiz_attempts_data 
+                        if a['categoryName'] == cat_name and a['completionDate'] and
+                        datetime.fromisoformat(a['completionDate'].replace('Z', '+00:00')) >= week_ago
+                    ]
+                    # get previous attempts for this category (week before)
+                    previous_cat_attempts = [
+                        a for a in quiz_attempts_data 
+                        if a['categoryName'] == cat_name and a['completionDate'] and
+                        two_weeks_ago <= datetime.fromisoformat(a['completionDate'].replace('Z', '+00:00')) < week_ago
+                    ]
+                    
+                    if recent_cat_attempts and previous_cat_attempts:
+                        recent_cat_avg = sum(a['score'] for a in recent_cat_attempts) / len(recent_cat_attempts)
+                        previous_cat_avg = sum(a['score'] for a in previous_cat_attempts) / len(previous_cat_attempts)
+                        cat_improvement = recent_cat_avg - previous_cat_avg
+                        category_improvements.append({
+                            'category': cat_name,
+                            'improvement': cat_improvement,
+                            'recentAvg': recent_cat_avg,
+                            'previousAvg': previous_cat_avg
+                        })
+                
+                if category_improvements:
+                    # find category with highest improvement
+                    max_improvement = max(cat['improvement'] for cat in category_improvements)
+                    best_improved = [cat for cat in category_improvements if cat['improvement'] == max_improvement]
+                    
+                    if best_improved:
+                        # if multiple tied, use the one with highest recent average
+                        best_improved.sort(key=lambda x: x['recentAvg'], reverse=True)
+                        most_improved_category = best_improved[0]
+                        most_improved_name = most_improved_category['category']
+                        if len(best_improved) > 1:
+                            most_improved_name = f"{most_improved_name} (+{len(best_improved)-1} tied)"
+                
+                # if no category has improvement data, fallback to best category
+                if not most_improved_category:
+                    most_improved_name = best_category_name
+                    most_improved_category = best_category
+            
+            # build response
+            reports_data = {
+                'kpiCards': {
+                    'totalQuizzes': total_quiz_attempts,
+                    'averageScore': avg_score,
+                    'bestCategory': best_category_name,
+                    'mostImproved': most_improved_name,
+                    'improvement': improvement
+                },
+                'quizTrend': quiz_trend_data,
+                'categoryPerformance': category_performance,
+                'recentQuizzes': sorted_attempts[:20],  # last 20 attempts, already sorted by latest date
+                'recentTutorials': recent_tutorials,
+                'summary': {
+                    'totalQuizAttempts': total_quiz_attempts,
+                    'averageScore': avg_score,
+                    'totalCategories': len(category_performance),
+                    'thisWeekQuizzes': len(recent_scores),
+                    'improvement': improvement
+                }
+            }
+            
+            current_app.logger.debug(f"[DEBUG] get_progress_reports returning data: {len(quiz_attempts_data)} attempts, {len(category_performance)} categories")
+            
+            return ResponseService.success_response(reports_data)
+            
+        except Exception as e:
+            current_app.logger.error(f"get progress reports error: {str(e)}", exc_info=True)
+            raise APIError("internal server error", 500)

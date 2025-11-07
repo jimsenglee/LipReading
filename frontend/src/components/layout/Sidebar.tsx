@@ -60,12 +60,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
       description: 'Progress tracking & analytics'
     },
     { 
-      name: 'Profile', 
-      href: '/profile', 
-      icon: Settings,
-      description: 'Account & accessibility settings'
-    },
-    { 
       name: 'Help & Feedback', 
       href: '/feedback', 
       icon: MessageSquare,
@@ -141,8 +135,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
     <AnimatePresence>
       <motion.div
         className={cn(
-          "fixed left-0 top-16 h-[calc(100vh-4rem)] w-72 z-50",
-          "bg-background/95 backdrop-blur-md shadow-xl border-r border-border",
+          "fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 z-40",
+          "bg-background/98 backdrop-blur-md border-r border-primary/20",
           "flex flex-col"
         )}
         initial={false}
@@ -156,14 +150,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
           ease: [0.4, 0, 0.2, 1]
         }}
       >
-        {/* Sidebar Header */}
-        <div className="flex items-center justify-between p-4 border-b border-primary/10 flex-shrink-0">
+        {/* Sidebar Header - cleaner design without redundant branding */}
+        <div className="flex items-center justify-between px-4 py-4 border-b border-primary/10 bg-gradient-to-r from-primary/5 to-transparent flex-shrink-0">
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: isOpen ? 1 : 0, y: isOpen ? 0 : -10 }}
             transition={{ delay: isOpen ? 0.1 : 0, duration: 0.2 }}
+            className="flex-1"
           >
-            <h2 className="text-lg font-semibold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            <h2 className="text-lg font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
               {user?.role === 'admin' ? 'Admin Console' : 'Navigation'}
             </h2>
             <p className="text-xs text-muted-foreground mt-1">
@@ -175,7 +170,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
           {isMobile && (
             <motion.button
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-primary/10 transition-colors"
+              className="p-2 rounded-lg hover:bg-primary/10 transition-colors ml-2"
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
             >
@@ -186,7 +181,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
 
         {/* Navigation Items */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 custom-scrollbar min-h-0">
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {navigation.map((item, index) => {
               const isActive = location.pathname === item.href;
               return (
@@ -207,9 +202,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
                     onClick={isMobile ? onClose : undefined}
                     className={cn(
                       'group flex flex-col px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200',
-                      'hover:scale-[1.02] hover:shadow-sm',
+                      'hover:scale-[1.02]',
                       isActive
-                        ? 'bg-gradient-to-r from-primary/15 to-secondary/15 text-primary shadow-sm border-l-3 border-primary'
+                        ? 'bg-gradient-to-r from-primary/15 to-secondary/15 text-primary border-l-3 border-primary'
                         : 'text-foreground hover:bg-primary/5 hover:text-primary hover:border-l-3 hover:border-primary/30'
                     )}
                   >
@@ -242,7 +237,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
 
         {/* User Info Footer */}
         <motion.div 
-          className="p-3 border-t border-primary/10 bg-gradient-to-r from-primary/5 to-secondary/5"
+          className="p-4 border-t border-primary/10 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: isOpen ? 1 : 0, y: isOpen ? 0 : 10 }}
           transition={{ delay: isOpen ? 0.2 : 0, duration: 0.2 }}

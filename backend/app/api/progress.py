@@ -136,3 +136,16 @@ def get_progress_statistics():
         return handle_api_error(e)
     except Exception as e:
         return ResponseService.error_response(f"Failed to get progress statistics: {str(e)}", 500)
+
+
+@bp.get('/progress/reports')
+@jwt_required()
+def get_progress_reports():
+    """get comprehensive progress reports data for charts and analytics"""
+    try:
+        current_user_id = get_jwt_identity()
+        return ProgressService.get_progress_reports(current_user_id, request.args)
+    except APIError as e:
+        return handle_api_error(e)
+    except Exception as e:
+        return ResponseService.error_response(f"Failed to get progress reports: {str(e)}", 500)
