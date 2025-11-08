@@ -249,24 +249,32 @@ def process_practice_realtime():
     try:
         current_user_id = get_jwt_identity()
         
-        print(f"[DEBUG] ===== PRACTICE REALTIME REQUEST ======")
-        print(f"[DEBUG] User ID: {current_user_id}")
+        print("\n" + "="*60)
+        print("[BACKEND] ===== PRACTICE REALTIME REQUEST RECEIVED =====")
+        print("="*60)
+        print(f"[BACKEND] User ID: {current_user_id}")
+        print(f"[BACKEND] Request method: {request.method}")
+        print(f"[BACKEND] Content-Type: {request.content_type}")
+        print(f"[BACKEND] Has files: {bool(request.files)}")
         
         # check if frames are provided (support both single frame and batch)
         if 'frame' in request.files:
             # single frame mode (legacy support)
             frame_file = request.files['frame']
             frame_files = [frame_file]
-            print(f"[DEBUG] Single frame mode detected")
+            print(f"[BACKEND] Single frame mode detected")
         elif 'frames' in request.files:
             # batch frames mode (preferred)
             frame_files = request.files.getlist('frames')
-            print(f"[DEBUG] Batch frames mode detected: {len(frame_files)} frames")
+            print(f"[BACKEND] Batch frames mode detected: {len(frame_files)} frames")
         else:
+            print(f"[BACKEND] ERROR: No video frame(s) provided")
+            print(f"[BACKEND] Available form keys: {list(request.form.keys())}")
+            print(f"[BACKEND] Available file keys: {list(request.files.keys())}")
             return ResponseService.error_response('No video frame(s) provided', 400)
         
         word_id = request.form.get('word_id')
-        print(f"[DEBUG] Word ID: {word_id}")
+        print(f"[BACKEND] Word ID: {word_id}")
         
         if not frame_files or len(frame_files) == 0:
             return ResponseService.error_response('Empty frame file(s)', 400)
@@ -281,7 +289,7 @@ def process_practice_realtime():
         if len(frame_files) < 25:
             return ResponseService.error_response(f'Not enough frames. Need at least 25 frames, got {len(frame_files)}', 400)
         
-        print(f"[DEBUG] Processing {len(frame_files)} frames for practice transcription")
+        print(f"[BACKEND] Processing {len(frame_files)} frames for practice transcription")
         
         # save frames temporarily and create video from them (like realtime endpoint)
         import tempfile
@@ -291,6 +299,7 @@ def process_practice_realtime():
         temp_dir = tempfile.gettempdir()
         frames_dir = os.path.join(temp_dir, f"practice_frames_{current_user_id}_{int(time.time() * 1000)}")
         os.makedirs(frames_dir, exist_ok=True)
+        print(f"[BACKEND] Created frames directory: {frames_dir}")
         
         # save all frames
         frame_paths = []
@@ -300,7 +309,7 @@ def process_practice_realtime():
             frame_file.save(frame_path)
             frame_paths.append(frame_path)
         
-        print(f"[DEBUG] Saved {len(frame_paths)} frames to {frames_dir}")
+        print(f"[BACKEND] Saved {len(frame_paths)} frames to {frames_dir}")
         
         # create video from frames
         video_output_path = os.path.join(temp_dir, f"practice_video_{current_user_id}_{int(time.time() * 1000)}.mp4")
@@ -325,17 +334,18 @@ def process_practice_realtime():
                     out.write(frame)
             
             out.release()
-            print(f"[DEBUG] Created practice video file: {video_output_path}")
+            print(f"[BACKEND] Created practice video file: {video_output_path}")
+            print(f"[BACKEND] Video file size: {os.path.getsize(video_output_path) if os.path.exists(video_output_path) else 'N/A'} bytes")
             
             # process video with colab ai
-            print(f"[DEBUG] Sending practice video to Colab AI for processing...")
+            print(f"[BACKEND] Sending practice video to Colab AI for processing...")
             ai_result = ColabAIService.process_video_file(video_output_path)
             
-            print(f"[DEBUG] ===== PRACTICE COLAB AI RESULT ======")
-            print(f"[DEBUG] AI Result success: {ai_result.get('success')}")
-            print(f"[DEBUG] AI Result transcription: {ai_result.get('transcription', 'N/A')}")
-            print(f"[DEBUG] AI Result error: {ai_result.get('error', 'N/A')}")
-            print(f"[DEBUG] ===== END PRACTICE AI RESULT =====")
+            print(f"[BACKEND] ===== PRACTICE COLAB AI RESULT ======")
+            print(f"[BACKEND] AI Result success: {ai_result.get('success')}")
+            print(f"[BACKEND] AI Result transcription: {ai_result.get('transcription', 'N/A')}")
+            print(f"[BACKEND] AI Result error: {ai_result.get('error', 'N/A')}")
+            print(f"[BACKEND] ===== END PRACTICE AI RESULT =====")
             
             # cleanup temp files
             try:
@@ -351,25 +361,31 @@ def process_practice_realtime():
             
             if ai_result.get('success'):
                 transcription_text = ai_result.get('transcription', '')
-                print(f"[DEBUG] ===== PRACTICE TRANSCRIPTION RESULT ======")
-                print(f"[DEBUG] Transcription text: '{transcription_text}'")
-                print(f"[DEBUG] Transcription length: {len(transcription_text)} characters")
-                print(f"[DEBUG] ===== END PRACTICE RESULT ======")
+                print(f"[BACKEND] ===== PRACTICE TRANSCRIPTION RESULT ======")
+                print(f"[BACKEND] Transcription text: '{transcription_text}'")
+                print(f"[BACKEND] Transcription length: {len(transcription_text)} characters")
+                print(f"[BACKEND] Word ID: {word_id}")
+                print(f"[BACKEND] ===== END PRACTICE RESULT ======")
+                print("="*60 + "\n")
                 return ResponseService.success_response({
                     'transcription': transcription_text,
                     'word_id': word_id
                 }, message="Practice frame processed successfully")
             else:
                 error_msg = ai_result.get('error', 'Unknown error')
-                print(f"[DEBUG] ===== PRACTICE PROCESSING FAILED ======")
-                print(f"[DEBUG] Error: {error_msg}")
-                print(f"[DEBUG] ===== END PRACTICE ERROR ======")
+                print(f"[BACKEND] ===== PRACTICE PROCESSING FAILED ======")
+                print(f"[BACKEND] Error: {error_msg}")
+                print(f"[BACKEND] Word ID: {word_id}")
+                print(f"[BACKEND] ===== END PRACTICE ERROR ======")
+                print("="*60 + "\n")
                 return ResponseService.error_response(f"Processing failed: {error_msg}", 500)
                 
         except Exception as video_error:
-            print(f"[DEBUG] Practice video creation error: {str(video_error)}")
+            print(f"[BACKEND] ===== PRACTICE VIDEO CREATION ERROR ======")
+            print(f"[BACKEND] Error: {str(video_error)}")
             import traceback
             traceback.print_exc()
+            print(f"[BACKEND] ===== END VIDEO CREATION ERROR ======")
             # cleanup on error
             try:
                 if os.path.exists(video_output_path):
@@ -379,16 +395,22 @@ def process_practice_realtime():
                         os.remove(frame_path)
                 if os.path.exists(frames_dir):
                     os.rmdir(frames_dir)
-            except:
-                pass
+            except Exception as cleanup_err:
+                print(f"[BACKEND] Cleanup error (non-critical): {cleanup_err}")
+            print("="*60 + "\n")
             return ResponseService.error_response(f"Video creation failed: {str(video_error)}", 500)
         
     except APIError as e:
+        print(f"[BACKEND] API Error: {str(e)}")
+        print("="*60 + "\n")
         return handle_api_error(e)
     except Exception as e:
-        print(f"[DEBUG] Practice realtime error: {str(e)}")
+        print(f"[BACKEND] ===== PRACTICE REALTIME ERROR ======")
+        print(f"[BACKEND] Error: {str(e)}")
         import traceback
         traceback.print_exc()
+        print(f"[BACKEND] ===== END PRACTICE REALTIME ERROR ======")
+        print("="*60 + "\n")
         return ResponseService.error_response(f"Failed to process frame: {str(e)}", 500)
 
 

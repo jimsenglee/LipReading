@@ -754,14 +754,14 @@ const ContentInteractionAnalytics = () => {
                     >
                       <SelectTrigger className="w-20 h-7 text-xs border-primary/20">
                         <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
+                </SelectTrigger>
+                <SelectContent>
                         <SelectItem value="5">5</SelectItem>
                         <SelectItem value="10">10</SelectItem>
                         <SelectItem value="15">15</SelectItem>
                         <SelectItem value="20">20</SelectItem>
-                      </SelectContent>
-                    </Select>
+                </SelectContent>
+              </Select>
                     <Label className="text-xs text-gray-600">Entries</Label>
                   </div>
                   

@@ -253,7 +253,7 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
         
         // clear collected frames after processing
         setCollectedFrames([]);
-      } else {
+        } else {
         console.warn('[RealTimeTranscription] No transcription in response or processing failed');
         console.warn('[RealTimeTranscription] Response structure:', result);
       }
@@ -333,30 +333,30 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
       
       // attach stream to video element - use retry mechanism
       const attachStream = () => {
-        if (videoRef.current) {
+      if (videoRef.current) {
           console.log('[RealTimeTranscription] Setting video srcObject...');
-          videoRef.current.srcObject = stream;
+        videoRef.current.srcObject = stream;
           
           // ensure video element is visible
           videoRef.current.style.display = 'block';
           videoRef.current.style.visibility = 'visible';
-          
+      
           // play video
           videoRef.current.play()
             .then(() => {
               console.log('[RealTimeTranscription] Video playing successfully');
-              setIsVideoEnabled(true);
-              setStatus('active');
+      setIsVideoEnabled(true);
+      setStatus('active');
               setIsRecording(true);
-              setTranscriptionText('');
-              setSessionTime(0);
-              
+      setTranscriptionText('');
+      setSessionTime(0);
+      
               // Start timers and real-time transcription processing
-              startSessionTimer();
+      startSessionTimer();
               processTranscription();
-              
-              feedbackToast.success(
-                "Transcription Started",
+      
+      feedbackToast.success(
+        "Transcription Started",
                 "Lip reading session is now active. Speak clearly to the camera."
               );
             })
@@ -371,7 +371,7 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
       
       // try immediately, then retry if needed
       attachStream();
-
+      
     } catch (error: unknown) {
       console.error('[RealTimeTranscription] Error accessing webcam:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -567,13 +567,13 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
             {/* Video Container */}
             <div className="relative aspect-video bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg overflow-hidden">
               {/* Always render video element, just hide when not enabled */}
-              <video
-                ref={videoRef}
-                autoPlay
-                muted
-                playsInline
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  muted
+                  playsInline
                 className={`w-full h-full object-cover ${isVideoEnabled ? 'block' : 'hidden'}`}
-              />
+                />
               {!isVideoEnabled && (
                 <div className="flex items-center justify-center h-full">
                   {streamError ? (
@@ -629,9 +629,9 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
               {/* Session Timer */}
               {status === 'active' || status === 'paused' ? (
                 <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-1 rounded-full flex items-center gap-2">
-                  <Clock className="h-3 w-3" />
+                    <Clock className="h-3 w-3" />
                   <span className="text-xs font-medium">{formatTime(sessionTime)}</span>
-                </div>
+                  </div>
               ) : null}
               
               {/* Frames Collected Indicator */}
@@ -713,8 +713,8 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
                         variant="outline"
                       >
                         <Copy className="h-4 w-4" />
-                      </Button>
-                    </>
+                  </Button>
+                </>
                   )}
                 </div>
               ) : null}

@@ -645,10 +645,10 @@ const SeriesDetailPage: React.FC = () => {
                       Based on {reviewsQuery.data?.totalReviews || 0} community reviews
                     </p>
                     {userReviewQuery.data?.data?.hasReview ? (
-                      <Button 
-                        onClick={() => setShowWriteReview(!showWriteReview)}
-                        className="bg-primary hover:bg-primary/90"
-                        size="sm"
+                    <Button 
+                      onClick={() => setShowWriteReview(!showWriteReview)}
+                      className="bg-primary hover:bg-primary/90"
+                      size="sm"
                         disabled={!isEnrolledInSeries || userProgress?.status !== 'completed'}
                       >
                         <Edit3 className="h-4 w-4 mr-2" />
@@ -678,10 +678,10 @@ const SeriesDetailPage: React.FC = () => {
                         className="bg-primary hover:bg-primary/90"
                         size="sm"
                         disabled={!isEnrolledInSeries || !userProgress || userProgress.status !== 'completed'}
-                      >
-                        <Edit3 className="h-4 w-4 mr-2" />
-                        Write Your Review
-                      </Button>
+                    >
+                      <Edit3 className="h-4 w-4 mr-2" />
+                      Write Your Review
+                    </Button>
                     )}
                     {!isEnrolledInSeries && (
                       <p className="text-xs text-gray-500 mt-2">
@@ -783,14 +783,14 @@ const SeriesDetailPage: React.FC = () => {
                 {/* Reviews List with Filtering and Pagination */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-gray-900 flex items-center gap-2">
-                      <Users className="h-4 w-4" />
+                  <h4 className="font-medium text-gray-900 flex items-center gap-2">
+                    <Users className="h-4 w-4" />
                       Reviews ({reviewsQuery.data?.totalReviews || 0})
-                    </h4>
-                    
+                  </h4>
+                  
                     {/* Filter and Sort Controls */}
                     {(reviewsQuery.data?.totalReviews ?? 0) > 0 && (
-                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
                         <Select value={reviewRatingFilter} onValueChange={(value) => {
                           setReviewRatingFilter(value);
                           setReviewPage(1); // reset to first page on filter change
@@ -824,9 +824,9 @@ const SeriesDetailPage: React.FC = () => {
                             <SelectItem value="rating_asc">Lowest Rated</SelectItem>
                           </SelectContent>
                         </Select>
-                      </div>
+                          </div>
                     )}
-                  </div>
+                            </div>
                   
                   {/* Real Reviews from Database */}
                   <div className="space-y-4">
@@ -834,7 +834,7 @@ const SeriesDetailPage: React.FC = () => {
                       <div className="text-center py-8">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                         <p className="text-sm text-gray-600 mt-2">Loading reviews...</p>
-                      </div>
+                          </div>
                     ) : reviewsQuery.data?.reviews && reviewsQuery.data.reviews.length > 0 ? (
                       reviewsQuery.data.reviews.map((review) => {
                         // extract initials from name
@@ -856,24 +856,24 @@ const SeriesDetailPage: React.FC = () => {
                         
                         return (
                           <div key={review.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex items-center gap-2">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
                                 <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
                                   <span className="text-sm font-medium text-primary">{initials}</span>
-                                </div>
-                                <div>
+                          </div>
+                          <div>
                                   <p className="font-medium text-sm text-gray-900">{review.userName}</p>
                                   <div className="flex items-center gap-1 mt-1">
                                     <StarRating rating={review.rating} onRatingChange={() => {}} readonly size="sm" />
                                     <span className="text-xs text-gray-500 ml-1">{reviewDate}</span>
-                                  </div>
-                                </div>
-                              </div>
                             </div>
+                          </div>
+                        </div>
+                        </div>
                             {review.reviewText && (
                               <p className="text-sm text-gray-700 leading-relaxed mt-2">{review.reviewText}</p>
                             )}
-                          </div>
+                      </div>
                         );
                       })
                     ) : (
@@ -899,12 +899,12 @@ const SeriesDetailPage: React.FC = () => {
                         </div>
                       </div>
                     )}
-                  </div>
-                  
+                    </div>
+
                   {/* Pagination Controls */}
                   {reviewsQuery.data?.pagination && reviewsQuery.data.pagination.total_pages > 1 && (
                     <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-600">Show</span>
                         <Select value={reviewPerPage.toString()} onValueChange={(value) => {
                           setReviewPerPage(parseInt(value));
@@ -921,8 +921,8 @@ const SeriesDetailPage: React.FC = () => {
                           </SelectContent>
                         </Select>
                         <span className="text-sm text-gray-600">per page</span>
-                      </div>
-                      
+                  </div>
+
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-600">
                           Page {reviewsQuery.data.pagination.current_page} of {reviewsQuery.data.pagination.total_pages}
@@ -944,8 +944,8 @@ const SeriesDetailPage: React.FC = () => {
                           className="h-8"
                         >
                           <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </div>
+                    </Button>
+                  </div>
                     </div>
                   )}
                 </div>

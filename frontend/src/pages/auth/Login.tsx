@@ -299,17 +299,17 @@ const Login = () => {
         variant: "success"
       });
       
-      setRequires2FA(false);
+    setRequires2FA(false);
       setTempToken('');
       
       // navigate based on role
       if (userData.role === 'admin') {
         navigate('/admin');
       } else {
-        navigate('/dashboard');
+    navigate('/dashboard');
       }
       
-      return true;
+    return true;
     } catch (error: any) {
       toast({
         variant: "destructive",
