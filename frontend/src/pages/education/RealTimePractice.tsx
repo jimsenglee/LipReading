@@ -831,7 +831,7 @@ const RealTimePractice = () => {
                           {/* @ts-ignore - ReactPlayer type definitions are incomplete */}
                           <ReactPlayerComponent
                             key={videoUrl}
-                            ref={videoRef}
+                        ref={videoRef}
                             url={videoUrl}
                             width="100%"
                             height="100%"
